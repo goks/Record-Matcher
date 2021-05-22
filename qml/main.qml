@@ -12,7 +12,7 @@ Window {
     visible: true
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
-    FontLoader { id: appFont; name: "PT Sans Caption"; source: "fonts/PTSansCaption-Regular.ttf" }
+    //FontLoader { id: appFont; name: "PT Sans Caption"; source: "fonts/PTSansCaption-Regular.ttf" }
     Rectangle {
         id:backgroundBox
         color: "#f4f6f8"
@@ -37,7 +37,7 @@ Window {
                 color: "#ffffff"
                 text: qsTr("Record Matcher")
                 anchors.verticalCenter: parent.verticalCenter
-                font.family: headerFont.name
+                font.family: "Monoton"
                 font.pixelSize: 26
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -45,12 +45,16 @@ Window {
             }
 
             Text {
-                id: text1
-
-                x: 226
-                y: 80
+                id: copyright_text
+                color: "#ffffff"
+                font.family: "PT Sans Caption"
                 text: qsTr("©Copyright 2021. All rights reserved.")
-                font.pixelSize: 12
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                font.pixelSize: 14
+                verticalAlignment: Text.AlignVCenter
+                anchors.bottomMargin: 13
+                anchors.leftMargin: 214
             }
         }
 
@@ -71,7 +75,7 @@ Window {
                     id: logoText
                     width: 411
                     color: "#003366"
-                    FontLoader { id: headerFont; name: "Monoton"; source: "fonts/Monoton-Regular.ttf" }
+                    //FontLoader { id: headerFont; name: "Monoton"; source: "fonts/Monoton-Regular.ttf" }
                     text: qsTr("Record Matcher")
                     anchors.left: parent.left
                     anchors.top: parent.top
@@ -82,7 +86,7 @@ Window {
                     font.italic: false
                     font.bold: false
                     font.pointSize: 28
-                    font.family: headerFont.name
+                    font.family: "Monoton"
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
                     anchors.leftMargin: 40
@@ -161,7 +165,7 @@ Window {
                     btnIconSource: "../images/svg_images/settings_gear.svg"
                 }
 
-                
+
 
             }
         }
@@ -197,12 +201,86 @@ Window {
                 anchors.leftMargin: 0
 
                 MenuButton {
-                    id: button
-                    y: 8
-//                    width: 49
-//                    height: 43
+                    id: burgerButton
+                    //                    width: 49
+                    //                    height: 43
                     anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    checkable: false
+                    anchors.rightMargin: 15
+                    anchors.topMargin: 18
                     anchors.leftMargin: 171
+                }
+
+                Text {
+                    id: optionsText
+                    width: 173
+                    height: 45
+                    text: qsTr("Options")
+                    font.family: "PT Sans Caption"
+                    color: "#324254"
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    font.pixelSize: 26
+                    verticalAlignment: Text.AlignVCenter
+                    font.weight: Font.Bold
+                    anchors.topMargin: 18
+                    anchors.leftMargin: 33
+                }
+
+                Rectangle {
+                    id: companyBox
+                    height: 97
+                    color: "#00000000"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: optionsText.bottom
+                    anchors.topMargin: 19
+                    anchors.rightMargin: 0
+                    anchors.leftMargin: 0
+
+                    Text {
+                        id: companyText
+                        height: 40
+                        color: "#2e3f51"
+                        text: qsTr("Company")
+                        font.family: "PT Sans Caption"
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        font.pixelSize: 18
+                        verticalAlignment: Text.AlignVCenter
+                        font.weight: Font.Bold
+                        minimumPointSize: 18
+                        anchors.topMargin: 0
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 33
+                    }
+
+                    LeftPanelCustomList {
+                        id: listView
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: companyText.bottom
+                        anchors.bottom: parent.bottom
+                        boundsBehavior: Flickable.DragAndOvershootBounds
+                        anchors.bottomMargin: 0
+                        anchors.topMargin: -4
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 0
+                       model: ListModel {
+                            ListElement {
+                                name: "Gokul Agencies"
+                                selected: false
+                            }
+
+                            ListElement {
+                                name: "Universal Enterprises"
+                                selected: true
+                            }   
+                        }
+                    }
                 }
 
             }
@@ -233,6 +311,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:1.1}D{i:4}
+    D{i:0;formeditorZoom:1.25}D{i:4}D{i:17}D{i:20}D{i:19}
 }
 ##^##*/
