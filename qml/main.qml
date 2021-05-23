@@ -17,47 +17,7 @@ Window {
         id:backgroundBox
         color: "#f4f6f8"
         anchors.fill: parent
-
-        Rectangle {
-            id: footerBox
-            color: "#003366"
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: contentBox.bottom
-            anchors.bottom: parent.bottom
-            anchors.topMargin: 5
-            anchors.rightMargin: 0
-            anchors.leftMargin: 0
-            anchors.bottomMargin: 0
-
-            Text {
-                id: footerLogo
-                x: 812
-                y: 40
-                color: "#ffffff"
-                text: qsTr("Record Matcher")
-                anchors.verticalCenter: parent.verticalCenter
-                font.family: "Monoton"
-                font.pixelSize: 26
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                anchors.horizontalCenter: parent.horizontalCenter
-            }
-
-            Text {
-                id: copyright_text
-                color: "#ffffff"
-                font.family: "PT Sans Caption"
-                text: qsTr("©Copyright 2021. All rights reserved.")
-                anchors.left: parent.left
-                anchors.bottom: parent.bottom
-                font.pixelSize: 14
-                verticalAlignment: Text.AlignVCenter
-                anchors.bottomMargin: 13
-                anchors.leftMargin: 214
-            }
-        }
-
+ 
         Rectangle {
             id: headerBox
             height: 101
@@ -186,7 +146,6 @@ Window {
                 width: 235
                 color: "#ffffff"
                 border.color: "#00000000"
-                //border.width: 4
                 CustomBorder
                         {
                             commonBorder : false
@@ -236,13 +195,13 @@ Window {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: optionsText.bottom
-                    anchors.topMargin: 19
+                    anchors.topMargin: 15
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
 
                     Text {
                         id: companyText
-                        height: 40
+                        height: 23
                         color: "#2e3f51"
                         text: qsTr("Company")
                         font.family: "PT Sans Caption"
@@ -250,7 +209,7 @@ Window {
                         anchors.right: parent.right
                         anchors.top: parent.top
                         font.pixelSize: 18
-                        verticalAlignment: Text.AlignVCenter
+                        verticalAlignment: Text.AlignBottom
                         font.weight: Font.Bold
                         minimumPointSize: 18
                         anchors.topMargin: 0
@@ -259,30 +218,188 @@ Window {
                     }
 
                     LeftPanelCustomList {
-                        id: listView
+                        id: companyList
+                        height: 61
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: companyText.bottom
                         anchors.bottom: parent.bottom
-                        boundsBehavior: Flickable.DragAndOvershootBounds
+//                        boundsBehavior: Flickable.DragAndOvershootBounds
                         anchors.bottomMargin: 0
-                        anchors.topMargin: -4
+                        anchors.topMargin: 8
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
-                       model: ListModel {
+                        currentIndex:1
+                        model: ListModel {
                             ListElement {
                                 name: "Gokul Agencies"
-                                selected: false
                             }
 
                             ListElement {
                                 name: "Universal Enterprises"
-                                selected: true
-                            }   
+                            }
                         }
                     }
                 }
 
+                Rectangle {
+                    id: bankBox
+                    height: 97
+                    color: "#00000000"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: companyBox.bottom
+                    anchors.topMargin: 15
+                    anchors.rightMargin: 0
+                    anchors.leftMargin: 0
+
+                    Text {
+                        id: bankText
+                        height: 23
+                        color: "#2e3f51"
+                        text: qsTr("Bank")
+                        font.family: "PT Sans Caption"
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        font.pixelSize: 18
+                        verticalAlignment: Text.AlignBottom
+                        font.weight: Font.Bold
+                        minimumPointSize: 18
+                        anchors.topMargin: 0
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 33
+                    }
+
+                    LeftPanelCustomList {
+                        id: bankList
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: bankText.bottom
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 0
+                        anchors.topMargin: 8
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 0
+                        currentIndex:0
+                        model: ListModel {
+                            ListElement {
+                                name: "HDFC"
+                            }
+
+                            ListElement {
+                                name: "ICICI"
+                            }
+                        }
+                    }
+                }
+                 Rectangle {
+                    id: yearBox
+                    height: 180
+                    color: "#00000000"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: bankBox.bottom
+                    anchors.topMargin: 15
+                    anchors.rightMargin: 0
+                    anchors.leftMargin: 0
+
+                    Text {
+                        id: yearText
+                        height: 23
+                        color: "#2e3f51"
+                        text: qsTr("Year")
+                        font.family: "PT Sans Caption"
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        font.pixelSize: 18
+                        verticalAlignment: Text.AlignBottom
+                        font.weight: Font.Bold
+                        minimumPointSize: 18
+                        anchors.topMargin: 0
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 33
+                    }
+
+                    LeftPanelCustomList {
+                        id: yearList
+                        height: 170
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: yearText.bottom
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 17
+                        anchors.topMargin: 8
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 0
+                        currentIndex:2
+                        model: ListModel {
+                            ListElement { name: "2019" }
+                            ListElement { name: "2020" }
+                            ListElement { name: "2021" }
+                            ListElement { name: "2022" }
+                            ListElement { name: "2023" }
+                        }
+                    }
+                }
+                 Rectangle {
+                    id: monthBox
+                    color: "#00000000"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: yearBox.bottom
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 0
+                    anchors.topMargin: 15
+                    anchors.rightMargin: 0
+                    anchors.leftMargin: 0
+
+                    Text {
+                        id: monthText
+                        height: 23
+                        color: "#2e3f51"
+                        text: qsTr("Month")
+                        font.family: "PT Sans Caption"
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        font.pixelSize: 18
+                        verticalAlignment: Text.AlignBottom
+                        font.weight: Font.Bold
+                        minimumPointSize: 18
+                        anchors.topMargin: 0
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 33
+                    }
+
+                    LeftPanelCustomList {
+                        id: monthList
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: monthText.bottom
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 0
+                        anchors.topMargin: 8
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 0
+                        currentIndex:2
+                        model: ListModel {
+                            ListElement { name: "April" }
+                            ListElement { name: "May" }
+                            ListElement { name: "June" }
+                            ListElement { name: "July" }
+                            ListElement { name: "August" }
+                            ListElement { name: "September" }
+                            ListElement { name: "October" }
+                            ListElement { name: "November" }
+                            ListElement { name: "December" }
+                            ListElement { name: "January" }
+                            ListElement { name: "February" }
+                            ListElement { name: "March" }
+                        }
+                    }
+                }
             }
 
             Rectangle {
@@ -298,6 +415,46 @@ Window {
                 anchors.rightMargin: 0
             }
         }
+
+        Rectangle {
+            id: footerBox
+            height: 110
+            color: "#003366"
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.rightMargin: 0
+            anchors.leftMargin: 0
+            anchors.bottomMargin: 0
+
+            Text {
+                id: footerLogo
+                x: 812
+                y: 40
+                color: "#ffffff"
+                text: qsTr("Record Matcher")
+                anchors.verticalCenter: parent.verticalCenter
+                font.family: "Monoton"
+                font.pixelSize: 26
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            Text {
+                id: copyright_text
+                color: "#ffffff"
+                font.family: "PT Sans Caption"
+                text: qsTr("©Copyright 2021. All rights reserved.")
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                font.pixelSize: 14
+                verticalAlignment: Text.AlignVCenter
+                anchors.bottomMargin: 13
+                anchors.leftMargin: 214
+            }
+        }
+
     }
 
 
@@ -311,6 +468,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:1.25}D{i:4}D{i:17}D{i:20}D{i:19}
+    D{i:0;formeditorZoom:1.1}
 }
 ##^##*/

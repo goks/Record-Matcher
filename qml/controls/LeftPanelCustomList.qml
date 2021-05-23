@@ -4,61 +4,74 @@ import  "../controls"
 ListView {
     id: listView
     height: 50
-    spacing: 6
+    spacing: 3
     layoutDirection: Qt.LeftToRight
     topMargin: 0
-    boundsBehavior: Flickable.DragAndOvershootBounds
-    highlightFollowsCurrentItem: false
-     //highlight: Rectangle { color: "lightsteelblue"; radius: 5 }
+    currentIndex: 0
 
     property color textcolorDefault: "#6a84a0"
     property color listItemSelected: "#EAF0F6"
     property color listItemUnselected: "#00000000"
-    property color listItemHovered: "#ffffff"
+    property color listItemHovered: "#EAF0F6"
+    property color customBorderColor: "#33475b"
     
     model: ListModel {
         ListElement {
             name: "HDFC"
-            selected: false
         }
 
         ListElement {
             name: "ICICI"
-            selected: true
         }
 
     }
-    // highlight: Component {
-    //     Rectangle {
-    //             width: listView.width
-    //             height: 27
-    //             //anchors.horizontalCenter: parent.horizontalCenter
-    //             radius: 5
-    //             color: "#8f9193"
-    //             y: listView.currentItem.y;
-    //         }
-    // }
-
+   //highlight: listView.currentItem.rectangle.color = listItemSelected
+   focus: true
+   onCurrentItemChanged:{
+                             console.log(model.get(listView.currentIndex).name + ' selected')
+                        }
 
     delegate: Item {
-        // x: 5
+        id: delegateItem
         width: listView.width
         height: 27
-        Row {
-            id: row1
+
             Rectangle {
                 id: rectangle
                 width: listView.width -4
-                height: 40
-                color: selected?listItemSelected:listItemUnselected
+                height: 26
+                color: delegateItem.ListView.isCurrentItem ? listItemSelected : listItemUnselected
+                //color: listItemSelected
                 anchors.left: parent.left
                 anchors.leftMargin: 4
                 CustomBorder {
-                    visible: selected ? true : false
+                    visible: delegateItem.ListView.isCurrentItem ? true : false
                     commonBorder: false
                     lBorderwidth: 4
-                    borderColor: "#33475b"
+                    borderColor: customBorderColor
                 }
+                Rectangle {
+                    id: hoverRectangle
+                    width: parent.width
+                    height: parent.height
+                    color: listItemUnselected
+                    z:-1
+                }
+
+                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        listView.currentIndex = index
+                                    }
+                                    onEntered: {
+                                        hoverRectangle.color = listItemHovered
+                                    }
+                                    onExited: {
+                                        hoverRectangle.color = listItemUnselected
+                                    }
+
+                                }
             Text {
                 id: listText
                 text: name
@@ -76,11 +89,11 @@ ListView {
             }
         }
     }
-}
+
 
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:6}
+    D{i:0;formeditorZoom:1.5}
 }
 ##^##*/
