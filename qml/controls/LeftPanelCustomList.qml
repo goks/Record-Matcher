@@ -26,7 +26,7 @@ ListView {
 
     }
    //highlight: listView.currentItem.rectangle.color = listItemSelected
-   focus: true
+   //focus: true
    onCurrentItemChanged:{
                              console.log(model.get(listView.currentIndex).name + ' selected')
                         }

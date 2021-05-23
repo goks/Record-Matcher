@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import  "../qml/controls"
+import QtGraphicalEffects 1.15
 
 
 
@@ -17,7 +18,7 @@ Window {
         id:backgroundBox
         color: "#f4f6f8"
         anchors.fill: parent
- 
+
         Rectangle {
             id: headerBox
             height: 101
@@ -30,10 +31,12 @@ Window {
             anchors.topMargin: 0
             Column {
                 id: column
+                visible: true
                 anchors.fill: parent
                 Label {
                     id: logoText
                     width: 411
+                    visible: true
                     color: "#003366"
                     //FontLoader { id: headerFont; name: "Monoton"; source: "fonts/Monoton-Regular.ttf" }
                     text: qsTr("Record Matcher")
@@ -50,6 +53,20 @@ Window {
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
                     anchors.leftMargin: 40
+                    layer.enabled: true
+                    layer.effect: DropShadow {
+                        id: dropShadow
+                               visible: false
+                               color: "#40000000"
+                               verticalOffset: 4
+                               radius: 4
+                               anchors.fill: parent
+                               cached: false
+                               fast: false
+                               spread: 0
+                               horizontalOffset: 0
+                               samples: 0
+                           }
                 }
                 Rectangle {
                     id: headerMenuContainer
@@ -144,7 +161,6 @@ Window {
             Rectangle {
                 id: leftmenuBox
                 width: 235
-                color: "#ffffff"
                 border.color: "#00000000"
                 CustomBorder
                         {
@@ -159,6 +175,17 @@ Window {
                 anchors.topMargin: 0
                 anchors.leftMargin: 0
 
+                PropertyAnimation{
+                    id: leftMenuAnimation
+                    target: leftmenuBox
+                    property: "width"
+                    to: 4
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
+
+                }
+
+
                 MenuButton {
                     id: burgerButton
                     //                    width: 49
@@ -170,6 +197,7 @@ Window {
                     anchors.rightMargin: 15
                     anchors.topMargin: 18
                     anchors.leftMargin: 171
+                    onClicked: leftMenuAnimation.running = true
                 }
 
                 Text {
@@ -405,14 +433,84 @@ Window {
             Rectangle {
                 id: contentPages
                 color: "#ffffff"
-                anchors.left: parent.left
+                anchors.left: leftmenuBox.right
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                anchors.leftMargin: 240
+                anchors.leftMargin: 5
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
                 anchors.rightMargin: 0
+
+                Rectangle {
+                    id: bodyHeaderBox
+                    height: 141
+                    color: "#ffffff"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.rightMargin: 0
+                    anchors.leftMargin: 0
+                    anchors.topMargin: 0
+
+                    Rectangle {
+                        id: bodyTitleContainer
+                        height: 45
+                        color: "#ffffff"
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 0
+                        anchors.topMargin: 18
+
+                        Label {
+                            id: monthYearLabel
+                            text: qsTr("January 2021")
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            verticalAlignment: Text.AlignVCenter
+                            anchors.leftMargin: 35
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            font.family: "PT Sans Caption"
+                            color: "#324254"
+                            font.pixelSize: 26
+                            font.weight: Font.Bold
+                        }
+                        Label {
+                            id: companyLabel
+                            text: qsTr("Gokul Agencies")
+                            anchors.left: monthYearLabel.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            verticalAlignment: Text.AlignVCenter
+                            anchors.leftMargin: 45
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            font.family: "PT Sans Caption"
+                            color: "#324254"
+                            font.pixelSize: 26
+//                            font.weight: Font.Bold
+                        }
+                        Label {
+                            id: bankLabel
+                            text: qsTr("HDFC")
+                            anchors.left: companyLabel.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            verticalAlignment: Text.AlignVCenter
+                            anchors.leftMargin: 45
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            font.family: "PT Sans Caption"
+                            color: "#324254"
+                            font.pixelSize: 26
+//                            font.weight: Font.Bold
+                        }
+                    }
+                }
             }
         }
 
@@ -466,8 +564,10 @@ Window {
 
 
 
+
+
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:1.1}
+    D{i:0;formeditorZoom:0.9}D{i:58}D{i:57}D{i:56}
 }
 ##^##*/

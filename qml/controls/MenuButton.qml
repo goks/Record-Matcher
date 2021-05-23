@@ -18,7 +18,6 @@ Button {
                                        menuBtn.hovered ? bgcolorMouseOver : bgcolorDefault
                                    }
     }
-
     implicitWidth: 49
     implicitHeight: 43
     background: Rectangle {

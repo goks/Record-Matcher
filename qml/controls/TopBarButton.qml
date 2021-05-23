@@ -1,5 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtGraphicalEffects 1.15
+
 import  "../controls"
 
 Button {
@@ -48,6 +50,15 @@ Button {
         fontSizeMode: Text.Fit
         font.family: "PT Sans Caption"
         font.pointSize: 18
+        layer.enabled: true
+                           layer.effect: DropShadow {
+                               color: "#40000000"
+                               verticalOffset: 4
+                               horizontalOffset: 0
+                               radius: 4
+                               spread: 0
+                               samples: 0
+                           }
     }
     background: Rectangle {
         color: internal.dynamicColor
