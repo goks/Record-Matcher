@@ -52,13 +52,14 @@ Button {
         font.pointSize: 18
         layer.enabled: true
                            layer.effect: DropShadow {
-                               color: "#40000000"
-                               verticalOffset: 4
-                               horizontalOffset: 0
-                               radius: 4
-                               spread: 0
-                               samples: 0
-                           }
+                                         id: dropShadow
+                                          color: "#40000000"
+                                          verticalOffset: 4
+                                          radius: 4
+                                          spread: 0
+                                          horizontalOffset: 0
+                                      }
+
     }
     background: Rectangle {
         color: internal.dynamicColor

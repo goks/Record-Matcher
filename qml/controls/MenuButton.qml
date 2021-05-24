@@ -13,36 +13,35 @@ Button {
         id: internal
 
         property var dynamicColor: if(menuBtn.down){
-                                        menuBtn.down ? bgcolorPressed : bgcolorDefault
+                                       menuBtn.down ? bgcolorPressed : bgcolorDefault
                                    } else {
                                        menuBtn.hovered ? bgcolorMouseOver : bgcolorDefault
                                    }
     }
+
     implicitWidth: 49
     implicitHeight: 43
     background: Rectangle {
         color: internal.dynamicColor
 
 
-    Image {
-        id: menu
-        x: 0
-        y: 0
-        visible: true
-        source: btnIconSource
-        fillMode: Image.PreserveAspectFit
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.horizontalCenter: parent.horizontalCenter
-        sourceSize.width: parent.width
-        sourceSize.height: parent.height
-    }
+        Image {
+            id: menu
+            visible: true
+            anchors.fill: parent
+            source: btnIconSource
+            fillMode: Image.PreserveAspectCrop
+            sourceSize.width: parent.width
+            sourceSize.height: parent.height
+        }
 
-}}
+    }
+}
 
 
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:4}
+    D{i:0;formeditorZoom:8}
 }
 ##^##*/

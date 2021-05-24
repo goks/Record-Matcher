@@ -1,9 +1,11 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
-import  "../qml/controls"
 import QtGraphicalEffects 1.15
 
+
+import  "../qml/controls"
+import  "../qml/table"
 
 
 Window {
@@ -55,17 +57,12 @@ Window {
                     anchors.leftMargin: 40
                     layer.enabled: true
                     layer.effect: DropShadow {
-                        id: dropShadow
-                               visible: false
+                              id: dropShadow
                                color: "#40000000"
                                verticalOffset: 4
                                radius: 4
-                               anchors.fill: parent
-                               cached: false
-                               fast: false
                                spread: 0
                                horizontalOffset: 0
-                               samples: 0
                            }
                 }
                 Rectangle {
@@ -176,10 +173,59 @@ Window {
                 anchors.leftMargin: 0
 
                 PropertyAnimation{
-                    id: leftMenuAnimation
+                    id: leftMenuAnimationClose
                     target: leftmenuBox
                     property: "width"
                     to: 4
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
+
+                }
+                PropertyAnimation{
+                    id: leftMenuAnimationOpen
+                    target: leftmenuBox
+                    property: "width"
+                    to: 235
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
+
+                }
+                PropertyAnimation{
+                    id: menuBtnCloseAnimation
+                    target:burgerButton2
+                    property: "width"
+                    from:49
+                    to: 0
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
+
+                }
+                PropertyAnimation{
+                    id: menuBtnOpenAnimation
+                    target:burgerButton2
+                    property: "width"
+                    from:0
+                    to: 49
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
+
+                }
+                PropertyAnimation{
+                    id: menuBtnOpacityAnimation
+                    target:burgerButton
+                    property: "opacity"
+                    from:1
+                    to: 0
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
+
+                }
+                PropertyAnimation{
+                    id: menuBtnOpacityAnimation2
+                    target:burgerButton
+                    property: "opacity"
+                    from:0
+                    to: 1
                     duration: 1000
                     easing.type: Easing.InOutQuint
 
@@ -193,11 +239,20 @@ Window {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
+                    anchors.topMargin: 22
+                    bottomPadding: 0
                     checkable: false
                     anchors.rightMargin: 15
-                    anchors.topMargin: 18
                     anchors.leftMargin: 171
-                    onClicked: leftMenuAnimation.running = true
+                    onClicked:{
+                        menuBtnOpenAnimation .running = true
+                        leftMenuAnimationClose.running = true
+                        menuBtnOpacityAnimation.running = true
+//                        if (menuBtnOpacityAnimation.complete()){
+//                            burgerButton.visible = false
+//                        }
+
+                    }
                 }
 
                 Text {
@@ -464,10 +519,34 @@ Window {
                         anchors.leftMargin: 0
                         anchors.topMargin: 18
 
+                        MenuButton {
+                            id: burgerButton2
+                            width: 0
+                            visible: true
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.leftMargin: 15
+                            anchors.topMargin: 4
+                            clip: false
+                            //                            //                    width: 49
+                            //                            //                    height: 43
+//                            anchors.left: parent.left
+//                            anchors.right: parent.right
+//                            anchors.top: parent.top
+//                            anchors.topMargin: 18
+//                            checkable: false
+//                            anchors.rightMargin: 15
+//                            anchors.leftMargin: 171
+                            onClicked: {
+                                menuBtnCloseAnimation.running = true
+                                leftMenuAnimationOpen.running = true
+                                menuBtnOpacityAnimation2.running = true
+                            }
+                        }
                         Label {
                             id: monthYearLabel
                             text: qsTr("January 2021")
-                            anchors.left: parent.left
+                            anchors.left: burgerButton2.right
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             verticalAlignment: Text.AlignVCenter
@@ -507,9 +586,113 @@ Window {
                             font.family: "PT Sans Caption"
                             color: "#324254"
                             font.pixelSize: 26
-//                            font.weight: Font.Bold
+                            //                            font.weight: Font.Bold
                         }
                     }
+                    Rectangle {
+                        id: bodySubtitleContainer
+                        height: 38
+                        color: "#ffffff"
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: bodyTitleContainer.bottom
+                        anchors.rightMargin: 0
+                        anchors.leftMargin: 0
+                        anchors.topMargin: 25
+                         CustomSearchBar {
+                             id: textInput
+                             width: 277
+                             anchors.left: parent.left
+                             anchors.top: parent.top
+                             anchors.bottom: parent.bottom
+                             anchors.leftMargin: 42
+                             anchors.bottomMargin: 0
+                             anchors.topMargin: 0
+                         }
+                         CustomSubTitleButton {
+                             id: byDateBtn
+                             width: 69
+                             anchors.left: textInput.right
+                             anchors.top: parent.top
+                             anchors.bottom: parent.bottom
+                             anchors.leftMargin: 23
+                             anchors.bottomMargin: 0
+                             anchors.topMargin: 0
+                             text: qsTr("By Date")
+                         }
+                         CustomSubTitleButton {
+                             id: byChqAmtBtn
+                             width: 177
+                             anchors.left: byDateBtn.right
+                             anchors.top: parent.top
+                             anchors.bottom: parent.bottom
+                             anchors.leftMargin: 23
+                             anchors.bottomMargin: 0
+                             anchors.topMargin: 0
+                             text: qsTr("By Cheque Amount")
+                         }
+                         CustomSubTitleButton {
+                             id: byChqNoBtn
+                             width: 177
+                             anchors.left: byChqAmtBtn.right
+                             anchors.top: parent.top
+                             anchors.bottom: parent.bottom
+                             anchors.leftMargin: 23
+                             anchors.bottomMargin: 0
+                             anchors.topMargin: 0
+                             text: qsTr("By Cheque Number")
+                             selected: true
+                         }
+                         CustomSubTitleButton {
+                             id: debitIndicator
+                             width: 120
+                             anchors.right: parent.right
+                             anchors.top: parent.top
+                             anchors.bottom: parent.bottom
+                             anchors.rightMargin: 69
+                             anchors.bottomMargin: 0
+                             anchors.topMargin: 0
+                             text: qsTr("1234567890")
+                             enabled: false
+                         }
+                         CustomSubTitleButton {
+                             id: creditIndicator
+                             width: 120
+                             anchors.right: debitIndicator.left
+                             anchors.top: parent.top
+                             anchors.bottom: parent.bottom
+                             anchors.rightMargin: 23
+                             anchors.bottomMargin: 0
+                             anchors.topMargin: 0
+                             text: qsTr("1234567890")
+                             enabled: false
+                         }
+
+                    }
+                }
+                Rectangle {
+                    id: bodyBodyBox
+                    width: 200
+                    height: 200
+                    color: "#ffffff"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: bodyHeaderBox.bottom
+                    anchors.bottom: parent.bottom
+                    anchors.rightMargin: 29
+                    anchors.leftMargin: 29
+                    anchors.bottomMargin: 29
+                    anchors.topMargin: 29
+
+                    BusyIndicator {
+                        id: busyIndicator
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    CustomTableView{
+                        anchors.fill: parent
+                    }
+
                 }
             }
         }
@@ -537,6 +720,15 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 anchors.horizontalCenter: parent.horizontalCenter
+                layer.enabled: true
+                                   layer.effect: DropShadow {
+                                                 id: dropShadow2
+                                                  color: "#40000000"
+                                                  verticalOffset: 4
+                                                  radius: 4
+                                                  spread: 0
+                                                  horizontalOffset: 0
+                                              }
             }
 
             Text {
@@ -568,6 +760,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.9}D{i:58}D{i:57}D{i:56}
+    D{i:0;formeditorZoom:0.5}D{i:72}D{i:74}
 }
 ##^##*/
