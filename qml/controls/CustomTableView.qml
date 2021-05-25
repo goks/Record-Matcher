@@ -1,5 +1,5 @@
 import QtQuick 2.15
-import QtQuick.Controls 1.5
+import QtQuick.Controls 1.4
 import QtQuick.Controls 2.15 as C
 Rectangle {
     width: 596
@@ -9,7 +9,8 @@ Rectangle {
     radius: 8
 
     property color textColor: "#324254"
-    property color textColorHighlight: "#324254"
+//    property color textColorHighlight: "#324254"
+    property color textColorHighlight: "#931313"
      property color textColorSelected: "#97a1ad"
     property color rowBgColor:"#ffffff"
     property color rowBgColorHighlight: "#d4e6ed"
@@ -27,6 +28,7 @@ Rectangle {
         //backgroundVisible : false
         clip: true
         headerVisible: true
+
         headerDelegate: Rectangle {
             id: headerRowBox
             implicitHeight: 51
@@ -50,32 +52,84 @@ Rectangle {
             }
         }
 
-
-//        Keys.spacePressed: {
-//                        console.log('HEMLAN')
-
-//        }
-        Keys.onPressed: {
-            console.log("Key pressed at" + tableView.currentRow)
-            if(event.Key === Qt.Key_Space){
-                console.log("Bar")
+        Keys.onSpacePressed: {
+            console.log("SpaceBar pressed at" + tableView.currentRow)
+            tableBackend.tableRowSelectedNotify(tableView.currentRow)
+              console.log(model.get(tableView.currentRow).data)
+            //itemRowBox.selected2?false:true
+                console.log(model.get(tableView.currentRow)["bank_date"])
+                model.get(tableView.currentRow).selected2 = true
                 event.accepted = true
+
             }
+//        onModelChanged: {
+//            tableView.__style.height= 101
+//        }
+
+        onClicked: {
+            //            send all the data to cpp inorder to append to char array.
+            var rows = [];
+            for (var i = 0; i < tableModel.count; ++i) {
+                var obj = JSON.stringify(tableModel.get(i));
+                rows.push(obj)
             }
+            //console.log('We have ' + rows.length + ' rows')
+            //console.log(rows)
+        }
+
+        itemDelegate: Item {
+            id: itemBox
+            height: 101
+            property bool selected: false
+            function change_color(d, status) {
+                selected = styleData.row===d?status:selected
+            }
+            property color dynamicTextColor: {
+               // selected = model.get(tableView.mapRowToSource(styleData.row))
+                //console.log(selected)
+                if (selected) { console.log('selected_text true for item');return textColorSelected }
+                console.log("'selected_text false for item': ")
+                //styleData.textColor = styleData.selected?textColorHighlight:textColor
+                //console.log(styleData.textColor)
+                return styleData.selected?textColorHighlight:textColor
+
+            }
+            Text {
+                color: dynamicTextColor
+                elide: styleData.elideMode
+                anchors.fill: parent
+                text: styleData.value
+                //height: 51
+                height: implicitHeight            }
+        }
         rowDelegate: Rectangle {
             id: itemRowBox
-            height: 51
+            implicitHeight: 101
+            height: 101
             color: dynamicRowColor
             anchors.fill: parent
             focus: true
+
+            Component.onCompleted: {
+                    print(childrenRect)
+                itemRowBox.height = 101
+                    print(childrenRect)
+
+            }
             property bool selected: false
+
+            function change_color(d, status) {
+                selected = styleData.row===d?status:selected
+            }
             property color dynamicRowColor: {
-                if (selected) { return rowBgColorHighlight }
+                if (selected) { return rowBgColorSelected }
                 styleData.selected?rowBgColorHighlight:rowBgColor
             }
             property color dynamicTextColor: {
-                if (selected) { return textColorSelected }
-                styleData.selected?textColorHighlight:textColor
+                if (selected) { console.log('selected_text true for row');return textColorSelected }
+                console.log("'selected_text false for row': ")
+                return styleData.selected?textColorHighlight:textColor
+
             }
 //            MouseArea {
 //                        id: cellMouseArea
@@ -83,15 +137,25 @@ Rectangle {
 //                        onClicked: {
 //                        }
 //            }
+            Connections {
+                                target: tableBackend
+                                function onTableRowSelected(currentRow, status){
+                                    console.log('Calling functions: ',currentRow, status)
+                                    itemRowBox.change_color(currentRow, status)
+                                    itemRowBox.children.color = "#eeeeee"
+                                    console.log('height',tableView.__currentRowItem.height)
+                                    tableView.__currentRowItem.height = 90
+
+                                }
+                            }
 
             Text {
                 id: itemRowText
-                color: !styleData.selected?textColor:textColorHighlight
 //                text: styleData.value
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
+                // anchors.left: parent.left
+                // anchors.right: parent.right
+                // anchors.top: parent.top
+                // anchors.bottom: parent.bottom
                 font.styleName: "Regular"
                 font.family: "PT Sans Caption"
                 font.pointSize: 10
@@ -100,6 +164,9 @@ Rectangle {
                 anchors.leftMargin: 21
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
+                //color: "#931313"
+                color: dynamicTextColor
+
             }
 
 
@@ -152,7 +219,7 @@ Rectangle {
 
         model:
             ListModel {
-            id: libraryModel
+            id: tableModel
             ListElement {
                 row: "A Masterpiece"
                 bank_date: "Gabriel"
@@ -167,12 +234,11 @@ Rectangle {
             }
         }
 
-
     }
 }
 
 /*##^##
 Designer {
-    D{i:0;height:1000;width:1000}
+    D{i:0;formeditorZoom:1.1;height:1000;width:1000}
 }
 ##^##*/

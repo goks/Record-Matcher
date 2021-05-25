@@ -1,12 +1,10 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
-//import QtQuick.Controls 2.12 as C1
 import QtGraphicalEffects 1.15
 
 
 import  "../qml/controls"
-import  "../qml/table"
 
 
 Window {
@@ -31,122 +29,114 @@ Window {
             anchors.top: parent.top
             anchors.rightMargin: 0
             anchors.leftMargin: 0
-            anchors.topMargin: 0
-            Column {
-                id: column
+            anchors.topMargin: 0            
+            Label {
+                id: logoText
+                width: 411
                 visible: true
-                anchors.fill: parent
-                Label {
-                    id: logoText
-                    width: 411
-                    visible: true
-                    color: "#003366"
-                    //FontLoader { id: headerFont; name: "Monoton"; source: "fonts/Monoton-Regular.ttf" }
-                    text: qsTr("Record Matcher")
+                color: "#003366"
+                //FontLoader { id: headerFont; name: "Monoton"; source: "fonts/Monoton-Regular.ttf" }
+                text: qsTr("Record Matcher")
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                verticalAlignment: Text.AlignVCenter
+                font.strikeout: false
+                font.underline: false
+                font.italic: false
+                font.bold: false
+                font.pointSize: 28
+                font.family: "Monoton"
+                anchors.bottomMargin: 0
+                anchors.topMargin: 0
+                anchors.leftMargin: 40
+                layer.enabled: true
+                layer.effect: DropShadow {
+                            id: dropShadow
+                            color: "#40000000"
+                            verticalOffset: 4
+                            radius: 4
+                            spread: 0
+                            horizontalOffset: 0
+                        }
+            }
+            Rectangle {
+                id: headerMenuContainer
+                x: 576
+                width: 460
+                color: "#ffffff"
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottomMargin: 0
+                anchors.topMargin: 0
+
+
+                TopBarButton {
+                    id: export_button
+                    width: 133
+                    text: qsTr("Export")
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    verticalAlignment: Text.AlignVCenter
-                    font.strikeout: false
-                    font.underline: false
-                    font.italic: false
-                    font.bold: false
-                    font.pointSize: 28
-                    font.family: "Monoton"
+                    // font.pointSize: 16
+                    leftPadding: 0
+                    anchors.leftMargin: 0
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
-                    anchors.leftMargin: 40
-                    layer.enabled: true
-                    layer.effect: DropShadow {
-                              id: dropShadow
-                               color: "#40000000"
-                               verticalOffset: 4
-                               radius: 4
-                               spread: 0
-                               horizontalOffset: 0
-                           }
                 }
-                Rectangle {
-                    id: headerMenuContainer
-                    x: 576
-                    width: 460
-                    color: "#ffffff"
+                TopBarButton {
+                    id: chequereport_button
+                    width: 230
+                    text: qsTr("Cheque Reports")
+                    anchors.left: export_button.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    // font.pointSize: 16
+                    leftPadding: 0
+                    anchors.leftMargin: 1
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
-
-
-                    TopBarButton {
-                        id: export_button
-                        width: 133
-                        text: qsTr("Export")
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        // font.pointSize: 16
-                        leftPadding: 0
-                        anchors.leftMargin: 0
-                        anchors.bottomMargin: 0
-                        anchors.topMargin: 0
-                    }
-                    TopBarButton {
-                        id: chequereport_button
-                        width: 230
-                        text: qsTr("Cheque Reports")
-                        anchors.left: export_button.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        // font.pointSize: 16
-                        leftPadding: 0
-                        anchors.leftMargin: 1
-                        anchors.bottomMargin: 0
-                        anchors.topMargin: 0
-                        onPressed: {
-                            console.log("OKK1")
-                            backend.showChequeReportsSelection()
-                        }
-                    }
-                     TopBarButton {
-                        id: delete_button
-                        width: 104
-                        text: qsTr("Delete")
-                        anchors.left: chequereport_button.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        // font.pointSize: 16
-                        leftPadding: 0
-                        anchors.leftMargin: 1
-                        anchors.bottomMargin: 0
-                        anchors.topMargin: 0
-                    }
-                     TopBarButton {
-                        id: help_button
-                        width: 88
-                        text: qsTr("Help")
-                        anchors.left: delete_button.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        // font.pointSize: 16
-                        leftPadding: 0
-                        anchors.leftMargin: 1
-                        anchors.bottomMargin: 0
-                        anchors.topMargin: 0
+                    onPressed: {
+                        console.log("OKK1")
+                        backend.showChequeReportsSelection()
                     }
                 }
-                MenuButton {
-                    id: settingsBtn
-                    width: 43
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.right: parent.right
-                    anchors.rightMargin: 99
-                    btnIconSource: "../images/svg_images/settings_gear.svg"
+                    TopBarButton {
+                    id: delete_button
+                    width: 104
+                    text: qsTr("Delete")
+                    anchors.left: chequereport_button.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    // font.pointSize: 16
+                    leftPadding: 0
+                    anchors.leftMargin: 1
+                    anchors.bottomMargin: 0
+                    anchors.topMargin: 0
                 }
-
-
-
+                    TopBarButton {
+                    id: help_button
+                    width: 88
+                    text: qsTr("Help")
+                    anchors.left: delete_button.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    // font.pointSize: 16
+                    leftPadding: 0
+                    anchors.leftMargin: 1
+                    anchors.bottomMargin: 0
+                    anchors.topMargin: 0
+                }
             }
+            MenuButton {
+                id: settingsBtn
+                width: 43
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                anchors.rightMargin: 99
+                btnIconSource: "../images/svg_images/settings_gear.svg"
+            }            
         }
         Rectangle {
             id: contentBox
@@ -331,15 +321,20 @@ Window {
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         currentIndex:1
-                        model: ListModel {
-                            ListElement {
-                                name: "Gokul Agencies"
-                            }
-
-                            ListElement {
-                                name: "Universal Enterprises"
-                            }
+                        selected: ''
+                        onSelectedChanged: {
+                            backend.companyChanged(selected)
                         }
+
+                        // model: ListModel {
+                        //     ListElement {
+                        //         name: "Gokul Agencies"
+                        //     }
+
+                        //     ListElement {
+                        //         name: "Universal Enterprises"
+                        //     }
+                        // }
                     }
                 }
 
@@ -383,6 +378,10 @@ Window {
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         currentIndex:0
+                        selected: ''
+                        onSelectedChanged: {
+                            backend.bankChanged(selected)
+                        }
                         model: ListModel {
                             ListElement {
                                 name: "HDFC"
@@ -435,6 +434,9 @@ Window {
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         currentIndex:2
+                        onSelectedChanged: {
+                            backend.yearChanged(selected)
+                        }
                         model: ListModel {
                             ListElement { name: "2019" }
                             ListElement { name: "2020" }
@@ -519,7 +521,7 @@ Window {
 
                 Rectangle {
                     id: bodyHeaderBox
-                    height: 141
+                    height: 126
                     color: "#ffffff"
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -703,15 +705,24 @@ Window {
                     anchors.leftMargin: 29
                     anchors.bottomMargin: 29
                     anchors.topMargin: 29
+//                    StackView {
+//                            id: stackView
+//                            anchors.fill: parent
+//                            initialItem: Qt.resolvedUrl("../qml/pages/tabview.qml")
+//                        }
 
-                    BusyIndicator {
-                        id: busyIndicator
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.horizontalCenter: parent.horizontalCenter
-                    }
-                    CustomTableView{
+//                    BusyIndicator {
+//                        id: busyIndicator
+//                        anchors.verticalCenter: parent.verticalCenter
+//                        anchors.horizontalCenter: parent.horizontalCenter
+//                    }
+//                    CustomTableView{
+//                        anchors.fill: parent
+//                    }
+                    CustomTableView2{
                         anchors.fill: parent
                     }
+
 
                 }
             }
@@ -779,3 +790,9 @@ Window {
 
 
 
+
+/*##^##
+Designer {
+    D{i:0;formeditorZoom:0.66}
+}
+##^##*/

@@ -1,3 +1,3 @@
 {
-    "files": ["qml/controls/CustomSubTitleButton.qml","main.qml","qml/controls/CustomBorder.qml","qml/controls/TopBarButton.qml","qml/controls/LeftPanelCustomList.qml","qml/controls/MenuButton.qml","main.py","qml/controls/CustomTableView.qml"]
+    "files": ["main.qml","qml/controls/TopBarButton.qml","qml/controls/CustomTableView.qml","qml/controls/MenuButton.qml","qml/controls/CustomBorder.qml","qml/controls/CustomSubTitleButton.qml","main.py","qml/controls/LeftPanelCustomList.qml"]
 }

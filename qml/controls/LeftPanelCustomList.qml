@@ -4,6 +4,11 @@ import  "../controls"
 ListView {
     id: listView
     height: 50
+    property var data: [
+            {"name": "HDFC"},
+            {"name": "ICICI"}
+         ];
+    property string selected: ''
     spacing: 3
     layoutDirection: Qt.LeftToRight
     topMargin: 0
@@ -15,20 +20,10 @@ ListView {
     property color listItemHovered: "#EAF0F6"
     property color customBorderColor: "#33475b"
     
-    model: ListModel {
-        ListElement {
-            name: "HDFC"
-        }
-
-        ListElement {
-            name: "ICICI"
-        }
-
-    }
-   //highlight: listView.currentItem.rectangle.color = listItemSelected
-   //focus: true
+    model: ListModel{ id:model}
    onCurrentItemChanged:{
-                             console.log(model.get(listView.currentIndex).name + ' selected')
+                            selected = listView.currentIndex
+                            console.log(model.get(listView.currentIndex).name + 'selected')
                         }
 
     delegate: Item {
@@ -74,7 +69,7 @@ ListView {
                                 }
             Text {
                 id: listText
-                text: name
+                text: model.name
                 width: parent.width
                 height: parent.height
                 anchors.leftMargin: 29
@@ -88,7 +83,18 @@ ListView {
             }
             }
         }
+        function addColumn(val) {
+        listView.addColumn(delegateItem.createObject(listView, { name: val } ) );
     }
+
+    Component.onCompleted: function(){
+        model.clear();
+        for (var i in data) {
+            model.append({name: data[i]['name']})
+        }
+    }
+    }
+
 
 
 
