@@ -22,8 +22,10 @@ Button {
             anchors.fill: parent
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+            lineHeightMode: Text.FixedHeight
+            fontSizeMode: Text.HorizontalFit
             font.family: "PT Sans Caption"
-            font.pointSize: 12
+            font.pointSize: 10
         }
     background: Rectangle {
         id: container

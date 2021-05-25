@@ -12,6 +12,7 @@ Button {
     property color bgcolorPressed: "#c4c4c4"
     property color textcolorDefault: "#33475B"
     property color textcolorMouseOver: "#043769"
+    property bool selected: false
     QtObject {
         id: internal
 
@@ -36,7 +37,6 @@ Button {
     implicitWidth: 49
     implicitHeight: 43
     text: qsTr("Help")
-
     contentItem: Text {
         id: buttonLabel
         color: internal.dynamicTextColor
@@ -72,6 +72,14 @@ Button {
 //            commonBorderWidth: 20
             borderColor: "#33475b"
         }
+        CustomBorder {
+            visible: selected?true:false
+            commonBorder: false
+            tBorderwidth: 4
+//            commonBorderWidth: 20
+            borderColor: "#33475b"
+        }
+
         // Rectangle {
         //     id: rectangle
         //     visible: internal.dynamicVisibility
@@ -87,7 +95,9 @@ Button {
         // }
     }
 
-
+    // onClicked: {
+    //     selected = selected?false:true
+    // }
 }
 
 

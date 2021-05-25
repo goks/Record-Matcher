@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
+//import QtQuick.Controls 2.12 as C1
 import QtGraphicalEffects 1.15
 
 
@@ -102,6 +103,10 @@ Window {
                         anchors.leftMargin: 1
                         anchors.bottomMargin: 0
                         anchors.topMargin: 0
+                        onPressed: {
+                            console.log("OKK1")
+                            backend.showChequeReportsSelection()
+                        }
                     }
                      TopBarButton {
                         id: delete_button
@@ -171,6 +176,19 @@ Window {
                 anchors.bottomMargin: 5
                 anchors.topMargin: 0
                 anchors.leftMargin: 0
+
+                Connections {
+                    target: backend
+
+                    function onChequeReportsButtonClicked(){
+                        console.log("OKK2")
+                        monthBox.visible = false
+                        chequereport_button.selected = true
+                        export_button.selected = false
+                        delete_button.selected = false
+                        help_button.selected = false
+                    }
+                }
 
                 PropertyAnimation{
                     id: leftMenuAnimationClose
@@ -427,9 +445,10 @@ Window {
                     }
                 }
                  Rectangle {
-                    id: monthBox
-                    color: "#00000000"
-                    anchors.left: parent.left
+                     id: monthBox
+                     visible: true
+                     color: "#00000000"
+                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: yearBox.bottom
                     anchors.bottom: parent.bottom
@@ -458,6 +477,7 @@ Window {
 
                     LeftPanelCustomList {
                         id: monthList
+                        visible: true
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: monthText.bottom
@@ -758,8 +778,4 @@ Window {
 
 
 
-/*##^##
-Designer {
-    D{i:0;formeditorZoom:0.5}D{i:72}D{i:74}
-}
-##^##*/
+
