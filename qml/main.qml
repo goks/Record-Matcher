@@ -29,7 +29,7 @@ Window {
             anchors.top: parent.top
             anchors.rightMargin: 0
             anchors.leftMargin: 0
-            anchors.topMargin: 0            
+            anchors.topMargin: 0
             Label {
                 id: logoText
                 width: 411
@@ -52,13 +52,13 @@ Window {
                 anchors.leftMargin: 40
                 layer.enabled: true
                 layer.effect: DropShadow {
-                            id: dropShadow
-                            color: "#40000000"
-                            verticalOffset: 4
-                            radius: 4
-                            spread: 0
-                            horizontalOffset: 0
-                        }
+                    id: dropShadow
+                    color: "#40000000"
+                    verticalOffset: 4
+                    radius: 4
+                    spread: 0
+                    horizontalOffset: 0
+                }
             }
             Rectangle {
                 id: headerMenuContainer
@@ -102,7 +102,7 @@ Window {
                         backend.showChequeReportsSelection()
                     }
                 }
-                    TopBarButton {
+                TopBarButton {
                     id: delete_button
                     width: 104
                     text: qsTr("Delete")
@@ -115,7 +115,7 @@ Window {
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
                 }
-                    TopBarButton {
+                TopBarButton {
                     id: help_button
                     width: 88
                     text: qsTr("Help")
@@ -129,14 +129,16 @@ Window {
                     anchors.topMargin: 0
                 }
             }
-            MenuButton {
+            SettingsButton {
                 id: settingsBtn
                 width: 43
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
                 anchors.rightMargin: 99
                 btnIconSource: "../images/svg_images/settings_gear.svg"
-            }            
+                onConvertSchemaClicked: backend.convertSchema()
+
+            }
         }
         Rectangle {
             id: contentBox
@@ -155,11 +157,11 @@ Window {
                 width: 235
                 border.color: "#00000000"
                 CustomBorder
-                        {
-                            commonBorder : false
-                            rBorderwidth : 2
-                            borderColor: "#e3e5e7"
-                        }
+                {
+                    commonBorder : false
+                    rBorderwidth : 2
+                    borderColor: "#e3e5e7"
+                }
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
@@ -239,7 +241,6 @@ Window {
 
                 }
 
-
                 MenuButton {
                     id: burgerButton
                     //                    width: 49
@@ -256,9 +257,9 @@ Window {
                         menuBtnOpenAnimation .running = true
                         leftMenuAnimationClose.running = true
                         menuBtnOpacityAnimation.running = true
-//                        if (menuBtnOpacityAnimation.complete()){
-//                            burgerButton.visible = false
-//                        }
+                        //                        if (menuBtnOpacityAnimation.complete()){
+                        //                            burgerButton.visible = false
+                        //                        }
 
                     }
                 }
@@ -315,26 +316,17 @@ Window {
                         anchors.right: parent.right
                         anchors.top: companyText.bottom
                         anchors.bottom: parent.bottom
-//                        boundsBehavior: Flickable.DragAndOvershootBounds
+//                                                boundsBehavior: Flickable.DragAndOvershootBounds
                         anchors.bottomMargin: 0
                         anchors.topMargin: 8
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         currentIndex:1
                         selected: ''
+                        data: backend.companyDict
                         onSelectedChanged: {
                             backend.companyChanged(selected)
                         }
-
-                        // model: ListModel {
-                        //     ListElement {
-                        //         name: "Gokul Agencies"
-                        //     }
-
-                        //     ListElement {
-                        //         name: "Universal Enterprises"
-                        //     }
-                        // }
                     }
                 }
 
@@ -382,18 +374,10 @@ Window {
                         onSelectedChanged: {
                             backend.bankChanged(selected)
                         }
-                        model: ListModel {
-                            ListElement {
-                                name: "HDFC"
-                            }
-
-                            ListElement {
-                                name: "ICICI"
-                            }
-                        }
+                        data: backend.bankDict
                     }
                 }
-                 Rectangle {
+                Rectangle {
                     id: yearBox
                     height: 180
                     color: "#00000000"
@@ -437,20 +421,14 @@ Window {
                         onSelectedChanged: {
                             backend.yearChanged(selected)
                         }
-                        model: ListModel {
-                            ListElement { name: "2019" }
-                            ListElement { name: "2020" }
-                            ListElement { name: "2021" }
-                            ListElement { name: "2022" }
-                            ListElement { name: "2023" }
-                        }
+                        data: backend.yearDict
                     }
                 }
-                 Rectangle {
-                     id: monthBox
-                     visible: true
-                     color: "#00000000"
-                     anchors.left: parent.left
+                Rectangle {
+                    id: monthBox
+                    visible: true
+                    color: "#00000000"
+                    anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: yearBox.bottom
                     anchors.bottom: parent.bottom
@@ -488,21 +466,11 @@ Window {
                         anchors.topMargin: 8
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
-                        currentIndex:2
-                        model: ListModel {
-                            ListElement { name: "April" }
-                            ListElement { name: "May" }
-                            ListElement { name: "June" }
-                            ListElement { name: "July" }
-                            ListElement { name: "August" }
-                            ListElement { name: "September" }
-                            ListElement { name: "October" }
-                            ListElement { name: "November" }
-                            ListElement { name: "December" }
-                            ListElement { name: "January" }
-                            ListElement { name: "February" }
-                            ListElement { name: "March" }
+                        //                        currentIndex:2
+                        onSelectedChanged: {
+                            backend.monthChanged(selected)
                         }
+                        data: backend.monthDict
                     }
                 }
             }
@@ -550,15 +518,6 @@ Window {
                             anchors.leftMargin: 15
                             anchors.topMargin: 4
                             clip: false
-                            //                            //                    width: 49
-                            //                            //                    height: 43
-//                            anchors.left: parent.left
-//                            anchors.right: parent.right
-//                            anchors.top: parent.top
-//                            anchors.topMargin: 18
-//                            checkable: false
-//                            anchors.rightMargin: 15
-//                            anchors.leftMargin: 171
                             onClicked: {
                                 menuBtnCloseAnimation.running = true
                                 leftMenuAnimationOpen.running = true
@@ -593,7 +552,7 @@ Window {
                             font.family: "PT Sans Caption"
                             color: "#324254"
                             font.pixelSize: 26
-//                            font.weight: Font.Bold
+                            //                            font.weight: Font.Bold
                         }
                         Label {
                             id: bankLabel
@@ -621,74 +580,74 @@ Window {
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         anchors.topMargin: 25
-                         CustomSearchBar {
-                             id: textInput
-                             width: 277
-                             anchors.left: parent.left
-                             anchors.top: parent.top
-                             anchors.bottom: parent.bottom
-                             anchors.leftMargin: 42
-                             anchors.bottomMargin: 0
-                             anchors.topMargin: 0
-                         }
-                         CustomSubTitleButton {
-                             id: byDateBtn
-                             width: 69
-                             anchors.left: textInput.right
-                             anchors.top: parent.top
-                             anchors.bottom: parent.bottom
-                             anchors.leftMargin: 23
-                             anchors.bottomMargin: 0
-                             anchors.topMargin: 0
-                             text: qsTr("By Date")
-                         }
-                         CustomSubTitleButton {
-                             id: byChqAmtBtn
-                             width: 177
-                             anchors.left: byDateBtn.right
-                             anchors.top: parent.top
-                             anchors.bottom: parent.bottom
-                             anchors.leftMargin: 23
-                             anchors.bottomMargin: 0
-                             anchors.topMargin: 0
-                             text: qsTr("By Cheque Amount")
-                         }
-                         CustomSubTitleButton {
-                             id: byChqNoBtn
-                             width: 177
-                             anchors.left: byChqAmtBtn.right
-                             anchors.top: parent.top
-                             anchors.bottom: parent.bottom
-                             anchors.leftMargin: 23
-                             anchors.bottomMargin: 0
-                             anchors.topMargin: 0
-                             text: qsTr("By Cheque Number")
-                             selected: true
-                         }
-                         CustomSubTitleButton {
-                             id: debitIndicator
-                             width: 120
-                             anchors.right: parent.right
-                             anchors.top: parent.top
-                             anchors.bottom: parent.bottom
-                             anchors.rightMargin: 69
-                             anchors.bottomMargin: 0
-                             anchors.topMargin: 0
-                             text: qsTr("1234567890")
-                             enabled: false
-                         }
-                         CustomSubTitleButton {
-                             id: creditIndicator
-                             width: 120
-                             anchors.right: debitIndicator.left
-                             anchors.top: parent.top
-                             anchors.bottom: parent.bottom
-                             anchors.rightMargin: 23
-                             anchors.bottomMargin: 0
-                             anchors.topMargin: 0
-                             text: qsTr("1234567890")
-                             enabled: false
-                         }
+                        CustomSearchBar {
+                            id: textInput
+                            width: 277
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 42
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                        }
+                        CustomSubTitleButton {
+                            id: byDateBtn
+                            width: 69
+                            anchors.left: textInput.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 23
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            text: qsTr("By Date")
+                        }
+                        CustomSubTitleButton {
+                            id: byChqAmtBtn
+                            width: 177
+                            anchors.left: byDateBtn.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 23
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            text: qsTr("By Cheque Amount")
+                        }
+                        CustomSubTitleButton {
+                            id: byChqNoBtn
+                            width: 177
+                            anchors.left: byChqAmtBtn.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 23
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            text: qsTr("By Cheque Number")
+                            selected: true
+                        }
+                        CustomSubTitleButton {
+                            id: debitIndicator
+                            width: 120
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.rightMargin: 69
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            text: qsTr("1234567890")
+                            enabled: false
+                        }
+                        CustomSubTitleButton {
+                            id: creditIndicator
+                            width: 120
+                            anchors.right: debitIndicator.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.rightMargin: 23
+                            anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            text: qsTr("1234567890")
+                            enabled: false
+                        }
 
                     }
                 }
@@ -705,23 +664,27 @@ Window {
                     anchors.leftMargin: 29
                     anchors.bottomMargin: 29
                     anchors.topMargin: 29
-//                    StackView {
-//                            id: stackView
-//                            anchors.fill: parent
-//                            initialItem: Qt.resolvedUrl("../qml/pages/tabview.qml")
-//                        }
+                    StackView {
+                        id: stackView
+                        anchors.fill: parent
+                        initialItem: Qt.resolvedUrl("../qml/pages/tableview.qml",
+                                                    {tableData: backend.tableData}
+                                                    )
+                        z:0
+                    }
 
-//                    BusyIndicator {
-//                        id: busyIndicator
-//                        anchors.verticalCenter: parent.verticalCenter
-//                        anchors.horizontalCenter: parent.horizontalCenter
-//                    }
+                    BusyIndicator {
+                        id: busyIndicator
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        z: -1
+                    }
 //                    CustomTableView{
 //                        anchors.fill: parent
 //                    }
-                    CustomTableView2{
-                        anchors.fill: parent
-                    }
+                    //                    CustomTableView2{
+                    //                        anchors.fill: parent
+                    //                    }
 
 
                 }
@@ -752,14 +715,14 @@ Window {
                 verticalAlignment: Text.AlignVCenter
                 anchors.horizontalCenter: parent.horizontalCenter
                 layer.enabled: true
-                                   layer.effect: DropShadow {
-                                                 id: dropShadow2
-                                                  color: "#40000000"
-                                                  verticalOffset: 4
-                                                  radius: 4
-                                                  spread: 0
-                                                  horizontalOffset: 0
-                                              }
+                layer.effect: DropShadow {
+                    id: dropShadow2
+                    color: "#40000000"
+                    verticalOffset: 4
+                    radius: 4
+                    spread: 0
+                    horizontalOffset: 0
+                }
             }
 
             Text {
@@ -791,8 +754,10 @@ Window {
 
 
 
+
+
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.66}
+    D{i:0;formeditorZoom:0.9}
 }
 ##^##*/

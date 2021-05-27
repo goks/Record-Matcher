@@ -65,5 +65,14 @@
             "name": "ICICI",
             "value": "icici"
         }
+    ],
+    "Companies": [{
+            "name": "Gokul Agencies",
+            "value": "gokul"
+        },
+        {
+            "name": "Universal Enterprises",
+            "value": "universal"
+        }
     ]
 }

@@ -4,7 +4,7 @@ import QtQuick.Controls 2.1
 
 Rectangle{
     property var columns: [ "name", "country", "subcountry", "latitude", "longitude" ]
-    property var cities: [
+    property var tableData: [
         { name: "Melbourne", country: "Australia", subcountry: "Victoria", latitude: -37.9716929, longitude: 144.7729583 },
         { name: "London", country: "United Kingdom", subcountry: "England", latitude: 51.5287718, longitude: -0.2416804 },
         { name: "Paris", country: "France", subcountry: "Île-de-France", latitude: 48.8589507, longitude: 2.2770205 },
@@ -29,7 +29,6 @@ Rectangle{
 
     TableView {
         id: tableView
-
         anchors.fill: parent
         anchors.rightMargin: 2
         anchors.leftMargin: 2
@@ -40,7 +39,7 @@ Rectangle{
         clip: true
         headerVisible: true
 
-        model: cities
+        model: tableData
         horizontalScrollBarPolicy: Qt.ScrollBarAlwaysOn
         flickableItem.flickableDirection: Flickable.HorizontalAndVerticalFlick
         headerDelegate: Rectangle {
@@ -134,7 +133,9 @@ Rectangle{
         tableView.addColumn(columnComponent.createObject(tableView, { role: name, title: capitalize(name) } ) );
     }
 
-    Component.onCompleted: columns.forEach(addColumn)
+    Component.onCompleted: {
+    columns.forEach(addColumn)
+    console.log(tableData)}
 }
 
 
