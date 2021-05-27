@@ -1,0 +1,69 @@
+{
+    "Months": [{
+        "name": "April",
+        "value": "april"
+    }, {
+        "name": "May",
+        "value": "may"
+    }, {
+        "name": "June",
+        "value": "june"
+    }, {
+        "name": "July",
+        "value": "July"
+    }, {
+        "name": "August",
+        "value": "august"
+    }, {
+        "name": "September",
+        "value": "september"
+    }, {
+        "name": "October",
+        "value": "october"
+    }, {
+        "name": "November",
+        "value": "november"
+    }, {
+        "name": "December",
+        "value": "december"
+    }, {
+        "name": "January",
+        "value": "january"
+    }, {
+        "name": "February",
+        "value": "february"
+    }, {
+        "name": "March",
+        "value": "march"
+    }],
+    "Years": [{
+            "name": "2018",
+            "value": "2018"
+        },
+        {
+            "name": "2019",
+            "value": "2019"
+        },
+        {
+            "name": "2020",
+            "value": "2020"
+        },
+        {
+            "name": "2021",
+            "value": "2021"
+        },
+        {
+            "name": "2022",
+            "value": "2022"
+        }
+    ],
+    "Banks": [{
+            "name": "HDFC",
+            "value": "hdfc"
+        },
+        {
+            "name": "ICICI",
+            "value": "icici"
+        }
+    ]
+}

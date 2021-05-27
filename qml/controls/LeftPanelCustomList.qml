@@ -5,8 +5,8 @@ ListView {
     id: listView
     height: 50
     property var data: [
-            {"name": "HDFC"},
-            {"name": "ICICI"}
+            {"name": "HDFC", "value": "hdfc"},
+            {"name": "ICICI", "value": "icici"}
          ];
     property string selected: ''
     spacing: 3
@@ -22,7 +22,7 @@ ListView {
     
     model: ListModel{ id:model}
    onCurrentItemChanged:{
-                            selected = listView.currentIndex
+                            selected = model.get(listView.currentIndex).value
                             console.log(model.get(listView.currentIndex).name + 'selected')
                         }
 
@@ -90,7 +90,7 @@ ListView {
     Component.onCompleted: function(){
         model.clear();
         for (var i in data) {
-            model.append({name: data[i]['name']})
+            model.append({name: data[i]['name'], value: data[i]['value']})
         }
     }
     }
