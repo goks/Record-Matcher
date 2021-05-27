@@ -325,7 +325,7 @@ Window {
                         selected: ''
                         data: backend.companyDict
                         onSelectedChanged: {
-                            backend.companyChanged(selected)
+                            backend.companyChanged(selected, selectedName)
                         }
                     }
                 }
@@ -372,7 +372,7 @@ Window {
                         currentIndex:0
                         selected: ''
                         onSelectedChanged: {
-                            backend.bankChanged(selected)
+                            backend.bankChanged(selected, selectedName)
                         }
                         data: backend.bankDict
                     }
@@ -419,6 +419,7 @@ Window {
                         anchors.leftMargin: 0
                         currentIndex:2
                         onSelectedChanged: {
+                            // backend.companyChanged(selected)
                             backend.yearChanged(selected)
                         }
                         data: backend.yearDict
@@ -468,7 +469,7 @@ Window {
                         anchors.leftMargin: 0
                         //                        currentIndex:2
                         onSelectedChanged: {
-                            backend.monthChanged(selected)
+                            backend.monthChanged(selected, selectedName)
                         }
                         data: backend.monthDict
                     }
@@ -526,7 +527,8 @@ Window {
                         }
                         Label {
                             id: monthYearLabel
-                            text: qsTr("January 2021")
+                            // text: qsTr("January 2021")
+                            text: backend.monthYearData
                             anchors.left: burgerButton2.right
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
@@ -541,7 +543,8 @@ Window {
                         }
                         Label {
                             id: companyLabel
-                            text: qsTr("Gokul Agencies")
+                            // text: qsTr("Gokul Agencies")
+                            text: backend.companyData
                             anchors.left: monthYearLabel.right
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
@@ -556,7 +559,8 @@ Window {
                         }
                         Label {
                             id: bankLabel
-                            text: qsTr("HDFC")
+                            // text: qsTr("HDFC")
+                            text: backend.bankData
                             anchors.left: companyLabel.right
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
@@ -664,27 +668,29 @@ Window {
                     anchors.leftMargin: 29
                     anchors.bottomMargin: 29
                     anchors.topMargin: 29
-                    StackView {
-                        id: stackView
-                        anchors.fill: parent
-                        initialItem: Qt.resolvedUrl("../qml/pages/tableview.qml",
-                                                    {tableData: backend.tableData}
-                                                    )
-                        z:0
-                    }
+                    // StackView {
+                    //     id: stackView
+                    //     anchors.fill: parent
+                    //     initialItem: Qt.resolvedUrl("../qml/pages/tableview.qml",
+                    //                                 {tableData: backend.tableData}
+                    //                                 )
+                    //     z:1
+                    // }
 
                     BusyIndicator {
                         id: busyIndicator
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
-                        z: -1
+                        z: 0
                     }
 //                    CustomTableView{
 //                        anchors.fill: parent
 //                    }
-                    //                    CustomTableView2{
-                    //                        anchors.fill: parent
-                    //                    }
+                                       CustomTableView2{
+                                           anchors.fill: parent
+                                           tableData: backend.tableData
+                                           columns: backend.header
+                                       }
 
 
                 }

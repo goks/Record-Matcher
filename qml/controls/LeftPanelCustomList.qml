@@ -9,6 +9,7 @@ ListView {
             {"name": "ICICI", "value": "icici"}
          ];
     property string selected: ''
+    property string selectedName: ''
     spacing: 3
     layoutDirection: Qt.LeftToRight
     topMargin: 0
@@ -23,6 +24,7 @@ ListView {
     model: ListModel{ id:model}
    onCurrentItemChanged:{
                             selected = model.get(listView.currentIndex).value
+                            selectedName = model.get(listView.currentIndex).name
                             console.log(model.get(listView.currentIndex).name + ' selected')
                         }
 
