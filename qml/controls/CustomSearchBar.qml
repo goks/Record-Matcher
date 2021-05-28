@@ -1,18 +1,21 @@
 import QtQuick 2.15
 import  "../controls"
-
+import QtQuick.Controls 2.15
+import QtQuick.Dialogs 1.3
 Rectangle {
     id: containerBox
     height: 38
     color: "#f5f8fa"
     radius: 8
     border.color: "#dee6ec"
-    width: 277
+    width: searchmode!="default"?920:277
+    property string placeholderText: searchmode!="default"?"File Path" :"Search"
+    property string searchmode: "default"
+    property string searchBarText: ""
 
     TextInput {
         id: searchInput
-        property string placeholderText: "Search"
-        color: "#c4c4c4"
+        color: "#324254"
 //        text: qsTr("Search")
         anchors.left: parent.left
         anchors.right: parent.right
@@ -26,9 +29,11 @@ Rectangle {
         anchors.bottomMargin: 0
         anchors.leftMargin: 15
         anchors.rightMargin: 15
+        text: searchBarText
 
         Text {
-            text: searchInput.placeholderText
+            id: text1
+            text: containerBox.placeholderText
             anchors.fill: parent
             color: "#c4c4c4"
             visible: !searchInput.text
@@ -37,13 +42,43 @@ Rectangle {
             font.family: "PT Sans Caption"
             font.pixelSize: 16
         }
+            CustomSubTitleButton {
+                id:browseBut
+                // width: 174
+                width: 74
+                height: 30
+                fontSize: 10
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                anchors.rightMargin: 18
+                // visible: containerBox.searchmode!="default"?true:false
+                visible: true
+                text: "Browse"
+                onClicked: fileDialog.open()                
+            }
+
+            FileDialog {
+                id: fileDialog
+                nameFilters: ["Excel Files (*.xls)"]
+                title: "Choose the file to import "
+                folder: shortcuts.desktop
+                onAccepted: {
+                    console.log("You chose: " + fileDialog.fileUrl)
+                    searchBarText = fileDialog.fileUrl
+                    browseBut.selected = false
+                }
+                onRejected: {
+                    console.log("Canceled")
+                    browseBut.selected = false
+                }
+
+
+            }
     }
-
-
 }
 
-/*##^##
-Designer {
-    D{i:0;formeditorZoom:6}
-}
-##^##*/
+
+
+
+
+

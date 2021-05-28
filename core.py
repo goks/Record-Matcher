@@ -628,11 +628,18 @@ class TableOperations:
         self.hdfcBankChequeStatement = HDFCBankChequeStatement()
         self.iciciBankChequeStatement = ICICIBankChequeStatement()
         self.tableSnapshotCollection = TableSnapshotCollection()
+        chequeReportCollection = ChequeReportCollection()
+        if chequeReportCollection.load_cheque_report_collection():
+            print('ChequeReportCollection load success!!')
         if self.tableSnapshotCollection.load_table():
             print('TablesnapshotCollection load success!!')
         self.TableSnapshot= None    
     
     def get_table(self, month, year, bank, company):
+        self.month = month
+        self.year = year
+        self.bank = bank
+        self.company = company
         return self.tableSnapshotCollection.get_table_from_collection(month,year,bank,company)    
 
     def prepare_table_data(self, bank, infiChequeStatement):
@@ -783,9 +790,14 @@ class TableOperations:
             print('TablesnapshotCollection reload success!!')
         return True
         
+    def save_snapshot_to_table(self, tableSnapshot):
+        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot, self.month, self.year, self.bank, self.company)
 
-
-
+    def saveChequeReport(self, chequeReportpath, bank, company, year):
+        infiChequeStatement = InfiChequeStatement()
+        if not infiChequeStatement.setPath(chequeReportpath):
+            return False
+        infiChequeStatement.grab_data()    
 
 
 

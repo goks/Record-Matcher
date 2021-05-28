@@ -67,8 +67,8 @@ Rectangle{
             }
         }
         Keys.onSpacePressed: {
-            console.log("SpaceBar pressed at" + tableView.currentRow)
-            tableBackend.tableRowSelectedNotify(tableView.currentRow)
+            console.log("SpaceBar pressed at " + tableView.currentRow)
+            tableBackend.tableRowSelectedNotify(tableView.currentRow, tableBox.selectedRows)
             event.accepted = true
 
         }

@@ -6,7 +6,6 @@ import QtGraphicalEffects 1.15
 
 import  "../qml/controls"
 
-
 Window {
     id: window
     width: 1562
@@ -19,6 +18,34 @@ Window {
         id:backgroundBox
         color: "#f4f6f8"
         anchors.fill: parent
+
+        Popup {
+        id: popup
+        parent: Overlay.overlay
+        x: Math.round((parent.width - messageBox.width) / 2)
+        y: Math.round((parent.height - messageBox.height) / 2)
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnReleaseOutside
+        property string popupText : ""
+        // enter: Transition {
+        //     NumberAnimation { property: "opacity"; from: 0.0; to: 1.0 }
+        // }
+        // exit: Transition {
+        //     NumberAnimation { property: "opacity"; from: 1.0; to: 0.0 }
+        // }
+        background: Rectangle {
+            id: popupBckgroundBox
+            width: messageBox.width 
+            height: messageBox.height
+            color: "transparent"
+        }
+            MessageBox{
+                id: messageBox
+                singleText:true
+                text4: popup.popupText
+            }
+    }
 
         Rectangle {
             id: headerBox
@@ -40,13 +67,13 @@ Window {
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
+                font.family: "Monoton"
                 verticalAlignment: Text.AlignVCenter
                 font.strikeout: false
                 font.underline: false
                 font.italic: false
                 font.bold: false
                 font.pointSize: 28
-                font.family: "Monoton"
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
                 anchors.leftMargin: 40
@@ -98,8 +125,8 @@ Window {
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
                     onPressed: {
-                        console.log("OKK1")
-                        backend.showChequeReportsSelection()
+                        chequereport_button.selected = chequereport_button.selected?false:true
+                        backend.showChequeReportsSelection(chequereport_button.selected)
                     }
                 }
                 TopBarButton {
@@ -132,8 +159,12 @@ Window {
             SettingsButton {
                 id: settingsBtn
                 width: 43
-                anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                z: 1
+                anchors.topMargin: 29
+                anchors.bottomMargin: 29
                 anchors.rightMargin: 99
                 btnIconSource: "../images/svg_images/settings_gear.svg"
                 onConvertSchemaClicked: backend.convertSchema()
@@ -165,20 +196,72 @@ Window {
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
+                z: 0
                 anchors.bottomMargin: 5
                 anchors.topMargin: 0
                 anchors.leftMargin: 0
 
                 Connections {
                     target: backend
-
-                    function onChequeReportsButtonClicked(){
-                        console.log("OKK2")
-                        monthBox.visible = false
-                        chequereport_button.selected = true
+                    function onChequeReportsButtonClicked(selected){
+                        if(selected){
+                            console.log("Pushing Cheque Report " + selected)
+                            monthBox.visible = false
+                            bodySubtitleStatementModeContainer.visible = false
+                            export_button.selected = false
+                            delete_button.selected = false
+                            help_button.selected = false
+                            uploadBtn.visible = true
+                            textInput.searchmode = "chqrpt"
+                            stackView.push(uploadChequeReportComponent)
+                        }
+                        else{ 
+                            console.log("popping Cheque Report ")
+                            monthBox.visible = true
+                            bodySubtitleStatementModeContainer.visible = true
+                            export_button.selected = false
+                            delete_button.selected = false
+                            help_button.selected = false
+                            uploadBtn.visible = false
+                            textInput.searchmode = "default"
+                            console.log(stackView.pop())
+                        }
+                    }
+                    function onShowTablePage(){
+                        console.log("Showing table")
+                        monthBox.visible = true
+                        bodySubtitleStatementModeContainer.visible = true
+                        chequereport_button.selected = false
                         export_button.selected = false
                         delete_button.selected = false
                         help_button.selected = false
+                        textInput.searchmode = "default"
+                        uploadBtn.visible = false
+                        stackView.push(tableComponent)
+                    }
+                    function onShowUploadBankStatementPage(){
+                        console.log("Showing upload Cheque Statement")
+                        monthBox.visible = true
+                        bodySubtitleStatementModeContainer.visible = false
+                        chequereport_button.selected = false
+                        export_button.selected = false
+                        delete_button.selected = false
+                        help_button.selected = false
+                        uploadBtn.visible = true
+                        textInput.searchmode = "stmt"
+                        stackView.push(uploadStatementComponent)
+                    }
+                    function onShowChooseOptionsPage(){
+                        console.log("Showing select options component")
+                        monthBox.visible = true
+                        bodySubtitleStatementModeContainer.visible = true
+                        chequereport_button.selected = false
+                        export_button.selected = false
+                        delete_button.selected = false
+                        help_button.selected = false
+                        textInput.searchmode = "default"
+                        uploadBtn.visible = false
+                        stackView.push(selectOptionsComponent)
                     }
                 }
 
@@ -190,6 +273,33 @@ Window {
                     duration: 1000
                     easing.type: Easing.InOutQuint
 
+                }
+                PropertyAnimation{
+                    id: headerAnimationClose
+                    target: headerBox
+                    property: "height"
+                    from:101
+                    to: 0
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
+                }
+                PropertyAnimation{
+                    id: headerAnimationOpen
+                    target: headerBox
+                    property: "height"
+                    from:0
+                    to: 101
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
+                }
+                PropertyAnimation{
+                    id: bodyBoxAnimationClose
+                    target: headerBox
+                    property: "height"
+                    from:0
+                    to: 101
+                    duration: 1000
+                    easing.type: Easing.InOutQuint
                 }
                 PropertyAnimation{
                     id: leftMenuAnimationOpen
@@ -257,6 +367,7 @@ Window {
                         menuBtnOpenAnimation .running = true
                         leftMenuAnimationClose.running = true
                         menuBtnOpacityAnimation.running = true
+                        headerAnimationClose.running = true
                         //                        if (menuBtnOpacityAnimation.complete()){
                         //                            burgerButton.visible = false
                         //                        }
@@ -316,7 +427,7 @@ Window {
                         anchors.right: parent.right
                         anchors.top: companyText.bottom
                         anchors.bottom: parent.bottom
-//                                                boundsBehavior: Flickable.DragAndOvershootBounds
+                        //                                                boundsBehavior: Flickable.DragAndOvershootBounds
                         anchors.bottomMargin: 0
                         anchors.topMargin: 8
                         anchors.rightMargin: 0
@@ -523,6 +634,7 @@ Window {
                                 menuBtnCloseAnimation.running = true
                                 leftMenuAnimationOpen.running = true
                                 menuBtnOpacityAnimation2.running = true
+                                headerAnimationOpen.running = true
                             }
                         }
                         Label {
@@ -586,7 +698,7 @@ Window {
                         anchors.topMargin: 25
                         CustomSearchBar {
                             id: textInput
-                            width: 277
+                            // width: 277
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
@@ -595,62 +707,97 @@ Window {
                             anchors.topMargin: 0
                         }
                         CustomSubTitleButton {
-                            id: byDateBtn
-                            width: 69
+                            id: uploadBtn
+                            width: 177
                             anchors.left: textInput.right
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             anchors.leftMargin: 23
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
-                            text: qsTr("By Date")
-                        }
-                        CustomSubTitleButton {
-                            id: byChqAmtBtn
-                            width: 177
-                            anchors.left: byDateBtn.right
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: 23
-                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-                            text: qsTr("By Cheque Amount")
-                        }
-                        CustomSubTitleButton {
-                            id: byChqNoBtn
-                            width: 177
-                            anchors.left: byChqAmtBtn.right
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: 23
-                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-                            text: qsTr("By Cheque Number")
+                            text: qsTr("Import")
                             selected: true
+                            visible: false
+                            onClicked : {
+                                            uploadBtn.selected = false
+                                            if (textInput.searchBarText == ""){
+                                            popup.popupText = "Select File to import"
+                                            popup.open()
+                                            return
+                                            }
+                                            backend.uploadChequeReport(textInput.searchBarText)
+
+                                        }       
                         }
-                        CustomSubTitleButton {
-                            id: debitIndicator
-                            width: 120
+                        Rectangle {
+                            id: bodySubtitleStatementModeContainer
+                            anchors.left: textInput.right
                             anchors.right: parent.right
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
-                            anchors.rightMargin: 69
+                            anchors.rightMargin: 0
+                            anchors.leftMargin: 0
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
-                            text: qsTr("1234567890")
-                            enabled: false
-                        }
-                        CustomSubTitleButton {
-                            id: creditIndicator
-                            width: 120
-                            anchors.right: debitIndicator.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            anchors.rightMargin: 23
-                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-                            text: qsTr("1234567890")
-                            enabled: false
+
+                            CustomSubTitleButton {
+                                id: byDateBtn
+                                width: 69
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                anchors.leftMargin: 23
+                                anchors.bottomMargin: 0
+                                anchors.topMargin: 0
+                                text: qsTr("By Date")
+                            }
+                            CustomSubTitleButton {
+                                id: byChqAmtBtn
+                                width: 177
+                                anchors.left: byDateBtn.right
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                anchors.leftMargin: 23
+                                anchors.bottomMargin: 0
+                                anchors.topMargin: 0
+                                text: qsTr("By Cheque Amount")
+                            }
+                            CustomSubTitleButton {
+                                id: byChqNoBtn
+                                width: 177
+                                anchors.left: byChqAmtBtn.right
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                anchors.leftMargin: 23
+                                anchors.bottomMargin: 0
+                                anchors.topMargin: 0
+                                text: qsTr("By Cheque Number")
+                                selected: true
+                            }
+                            CustomSubTitleButton {
+                                id: debitIndicator
+                                width: 120
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                anchors.rightMargin: 69
+                                anchors.bottomMargin: 0
+                                anchors.topMargin: 0
+                                text: qsTr("1234567890")
+                                enabled: false
+                            }
+                            CustomSubTitleButton {
+                                id: creditIndicator
+                                width: 120
+                                anchors.right: debitIndicator.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                anchors.rightMargin: 23
+                                anchors.bottomMargin: 0
+                                anchors.topMargin: 0
+                                text: qsTr("1234567890")
+                                enabled: false
+                            }
                         }
 
                     }
@@ -668,29 +815,53 @@ Window {
                     anchors.leftMargin: 29
                     anchors.bottomMargin: 29
                     anchors.topMargin: 29
-                    // StackView {
-                    //     id: stackView
-                    //     anchors.fill: parent
-                    //     initialItem: Qt.resolvedUrl("../qml/pages/tableview.qml",
-                    //                                 {tableData: backend.tableData}
-                    //                                 )
-                    //     z:1
-                    // }
+                    //                    z:-1
+                    StackView {
+                        id: stackView
+                        anchors.fill: parent
+                        z: 2
+                        initialItem: selectOptionsComponent
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 0
+                    }
+                    Component {
+                        id: tableComponent
+                        CustomTableView2{
+                            //                             anchors.fill: parent
+                            tableData: backend.tableData
+                            columns: backend.header
+                            selectedRows : backend.selectedRows
+                            onSelectedRowsChanged: backend.selectedRowsChanged(selectedRows)
+                        }
+                    }
+                    Component {
+                        id: uploadStatementComponent
+                        UploadChequeStatementPage {
+                            anchors.top: parent.top
+                            anchors.topMargin: 59
+                        }
+                    }
+                    Component {
+                        id: uploadChequeReportComponent
+                        ChequeReportPage {
+                            anchors.top: parent.top
+                            anchors.topMargin: 59
+                        }
+                    }
+                    Component {
+                        id: selectOptionsComponent
+                        OptionsNotSelectedPage {
+                            anchors.top: parent.top
+                            anchors.topMargin: 59
+                        }
+                    }
 
                     BusyIndicator {
                         id: busyIndicator
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
-                        z: 0
+                        z: -1
                     }
-//                    CustomTableView{
-//                        anchors.fill: parent
-//                    }
-                                       CustomTableView2{
-                                           anchors.fill: parent
-                                           tableData: backend.tableData
-                                           columns: backend.header
-                                       }
 
 
                 }
@@ -713,9 +884,9 @@ Window {
                 x: 812
                 y: 40
                 color: "#ffffff"
+                font.family: "Monoton"
                 text: qsTr("Record Matcher")
                 anchors.verticalCenter: parent.verticalCenter
-                font.family: "Monoton"
                 font.pixelSize: 26
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -764,6 +935,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.9}
+    D{i:0;formeditorZoom:0.66}
 }
 ##^##*/

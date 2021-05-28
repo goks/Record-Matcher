@@ -23,8 +23,8 @@ ListView {
     
     model: ListModel{ id:model}
    onCurrentItemChanged:{
-                            selected = model.get(listView.currentIndex).value
                             selectedName = model.get(listView.currentIndex).name
+                            selected = model.get(listView.currentIndex).value
                             console.log(model.get(listView.currentIndex).name + ' selected')
                         }
 

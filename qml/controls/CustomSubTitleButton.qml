@@ -4,12 +4,12 @@ import QtGraphicalEffects 1.15
 
 Button {
     id: customBtn
-
     property color textColor: "#003366"
     property color textColorHighLight: "#ffffff"
     property color bgColor: "#F5F8FA"
     property color bgColorHighlight: "#003366"
     property bool selected: false
+    property int fontSize: 10
     enabled: true
 
     implicitWidth: 69
@@ -25,7 +25,7 @@ Button {
             lineHeightMode: Text.FixedHeight
             fontSizeMode: Text.HorizontalFit
             font.family: "PT Sans Caption"
-            font.pointSize: 10
+            font.pointSize: customBtn.fontSize
         }
     background: Rectangle {
         id: container
