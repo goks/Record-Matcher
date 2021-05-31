@@ -207,6 +207,8 @@ Window {
                         if(selected){
                             console.log("Pushing Cheque Report " + selected)
                             monthBox.visible = false
+                            bankBox.visible = false
+                            bankBox.height = 0
                             bodySubtitleStatementModeContainer.visible = false
                             export_button.selected = false
                             delete_button.selected = false
@@ -218,6 +220,8 @@ Window {
                         else{ 
                             console.log("popping Cheque Report ")
                             monthBox.visible = true
+                            bankBox.visible = true
+                            bankBox.height = 97
                             bodySubtitleStatementModeContainer.visible = true
                             export_button.selected = false
                             delete_button.selected = false
@@ -230,6 +234,8 @@ Window {
                     function onShowTablePage(){
                         console.log("Showing table")
                         monthBox.visible = true
+                        bankBox.visible = true
+                        bankBox.height = 97
                         bodySubtitleStatementModeContainer.visible = true
                         chequereport_button.selected = false
                         export_button.selected = false
@@ -242,6 +248,8 @@ Window {
                     function onShowUploadBankStatementPage(){
                         console.log("Showing upload Cheque Statement")
                         monthBox.visible = true
+                        bankBox.visible = true
+                        bankBox.height = 97
                         bodySubtitleStatementModeContainer.visible = false
                         chequereport_button.selected = false
                         export_button.selected = false
@@ -254,6 +262,8 @@ Window {
                     function onShowChooseOptionsPage(){
                         console.log("Showing select options component")
                         monthBox.visible = true
+                        bankBox.visible = true
+                        bankBox.height = 97
                         bodySubtitleStatementModeContainer.visible = true
                         chequereport_button.selected = false
                         export_button.selected = false
@@ -262,6 +272,14 @@ Window {
                         textInput.searchmode = "default"
                         uploadBtn.visible = false
                         stackView.push(selectOptionsComponent)
+                    }
+                    function onValidationError(){
+                        popup.popupText = "Invalid cheque report file. Update fail"
+                        popup.open()
+                    }
+                    function onCheckReportUploadSuccess(){
+                        popup.popupText = "Cheque report file save success"
+                        popup.open()
                     }
                 }
 
@@ -920,14 +938,6 @@ Window {
 
 
 }
-
-
-
-
-
-
-
-
 
 
 

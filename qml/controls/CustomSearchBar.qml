@@ -59,7 +59,7 @@ Rectangle {
 
             FileDialog {
                 id: fileDialog
-                nameFilters: ["Excel Files (*.xls)"]
+                nameFilters: ["Excel Files (*.xls *.xlsx)"]
                 title: "Choose the file to import "
                 folder: shortcuts.desktop
                 onAccepted: {

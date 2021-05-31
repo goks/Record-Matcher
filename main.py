@@ -6,10 +6,10 @@ import json
 
 from PySide2.QtGui import QGuiApplication
 from PySide2.QtQml import QQmlApplicationEngine
-from PySide2.QtCore import QObject, Slot, Signal, Property
+from PySide2.QtCore import QObject, SIGNAL, Slot, Signal, Property
 
 import core as C
-from core import TableSnapshot
+from core import TableSnapshot, InfiChequeStatement
 
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -30,8 +30,7 @@ class MainWindow(QObject):
         self._monthYearData = ''
         self._companyData = ''
         self._bankData = ''
-        self._tableData =  [
-    ] 
+        self._tableData =  [] 
         self._header = ['Bank Date', 'Bank Narration', 'Chq No','Party Name' ,'Infi Date','Credit', 'Debit', 'Closing Balance' ]
         self._selectedRows = [1,2,3]
         self.current_month = ''
@@ -45,12 +44,24 @@ class MainWindow(QObject):
     showUploadBankStatementPage = Signal()
     showChooseOptionsPage = Signal()
     validationError = Signal()
+    checkReportUploadSuccess = Signal()
 
     def save_snapshot(self):
         if(self.tableSnapshot):  
             print("saving selected rows",self.selectedRows)
             self.tableSnapshot.set_master_selected_rows(self._selectedRows)    
             self.tableOperations.save_snapshot_to_table(self.tableSnapshot)    
+    @Slot(str)
+    def uploadChequeReport(self, chequeReportUrl):
+        if '' in [self.current_bank, self.current_company, self.current_year]:
+            self.validationError.emit()
+            return    
+        chequeReportUrl = chequeReportUrl.split('///')[1]
+        # print('chequeReportUrl', chequeReportUrl, os.path.isfile(chequeReportUrl) )
+        if not self.tableOperations.save_chequeReport_to_collection(chequeReportUrl):
+            self.validationError.emit() 
+        else: self.checkReportUploadSuccess.emit()               
+        return
     def populate_table(self):
         print(self.current_bank, self.current_company, self.current_month, self.current_year)
         if '' in [self.current_bank, self.current_company, self.current_month, self.current_year]:
@@ -108,15 +119,6 @@ class MainWindow(QObject):
     @Slot(list)
     def selectedRowsChanged(self, updatedRows):
         self._selectedRows = updatedRows
-    @Slot(str)
-    def uploadChequeReport(self, chequeReportUrl):
-        if '' in [self.current_bank, self.current_company, self.current_year]:
-            self.validationError.emit()
-        elif not self.tableOperations.saveChequeReport(chequeReportUrl, self.current_bank, self.current_company, self.current_year):
-            self.validationError.emit()
-        return
-
-             
     
     @Signal
     def monthDict_changed(self):
@@ -173,7 +175,7 @@ class MainWindow(QObject):
         print('selectedRows_changed')
         return
     def get_selectedRows(self):
-        return self._selectedRows                           
+        return self._selectedRows                            
 
     companyDict = Property('QVariantList', get_companyDict, notify=companyDict_changed)
     bankDict = Property('QVariantList', get_bankDict, notify=bankDict_changed)

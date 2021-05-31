@@ -4,6 +4,10 @@ import os
 import datetime, pytz
 import pickle
 
+# Fix for opening xlsx
+xlrd.xlsx.ensure_elementtree_imported(False, None)
+xlrd.xlsx.Element_has_iter = True
+
 APP_NAME = "Infi Hdfc Analyzer"
 
 def get_current_time():
@@ -437,6 +441,7 @@ class TableSnapshot:
     def createSavePath(self):
         self.save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\Snapshot_"+self.month+'_'+self.year+'_'+self.bank
         return
+
 class ChequeReportCollection:
     save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\ChequeReportCollection.fil"
     years = ['2019','2020','2021','2022','2023']
@@ -628,8 +633,8 @@ class TableOperations:
         self.hdfcBankChequeStatement = HDFCBankChequeStatement()
         self.iciciBankChequeStatement = ICICIBankChequeStatement()
         self.tableSnapshotCollection = TableSnapshotCollection()
-        chequeReportCollection = ChequeReportCollection()
-        if chequeReportCollection.load_cheque_report_collection():
+        self.chequeReportCollection = ChequeReportCollection()
+        if self.chequeReportCollection.load_cheque_report_collection():
             print('ChequeReportCollection load success!!')
         if self.tableSnapshotCollection.load_table():
             print('TablesnapshotCollection load success!!')
@@ -793,11 +798,13 @@ class TableOperations:
     def save_snapshot_to_table(self, tableSnapshot):
         self.tableSnapshotCollection.add_table_to_colection(tableSnapshot, self.month, self.year, self.bank, self.company)
 
-    def saveChequeReport(self, chequeReportpath, bank, company, year):
+    def save_chequeReport_to_collection(self, chequeReportpath):
         infiChequeStatement = InfiChequeStatement()
         if not infiChequeStatement.setPath(chequeReportpath):
             return False
-        infiChequeStatement.grab_data()    
+        infiChequeStatement.grab_data()  
+        self.chequeReportCollection.add_cheque_report_to_colection(infiChequeStatement,self.year,self.company)  
+        return True
 
 
 
@@ -993,5 +1000,5 @@ class TableOperations:
             #     window.close()
             #     show_second_window(bank=bank)
             #     break 
-        window.close()
+        # window.close()
 
