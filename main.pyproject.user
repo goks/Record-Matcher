@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 4.15.0, 2021-05-31T22:54:35. -->
+<!-- Written by QtCreator 4.15.0, 2021-06-01T17:23:51. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
-  <value type="QByteArray">{6318bc65-962c-425b-be01-f01e900ceb0c}</value>
+  <value type="QByteArray">{84efddd5-f70b-46ca-ae19-edb8d2a220ba}</value>
  </data>
  <data>
   <variable>ProjectExplorer.Project.ActiveTarget</variable>
@@ -79,7 +79,7 @@
     <value type="bool" key="ClangTools.AnalyzeOpenFiles">true</value>
     <value type="bool" key="ClangTools.BuildBeforeAnalysis">true</value>
     <value type="QString" key="ClangTools.DiagnosticConfig">Builtin.DefaultTidyAndClazy</value>
-    <value type="int" key="ClangTools.ParallelJobs">4</value>
+    <value type="int" key="ClangTools.ParallelJobs">3</value>
     <valuelist type="QVariantList" key="ClangTools.SelectedDirs"/>
     <valuelist type="QVariantList" key="ClangTools.SelectedFiles"/>
     <valuelist type="QVariantList" key="ClangTools.SuppressedDiagnostics"/>
@@ -93,7 +93,7 @@
    <value type="QString" key="DeviceType">Desktop</value>
    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DefaultDisplayName">Desktop</value>
    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DisplayName">Desktop</value>
-   <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">{e5b241a1-3a46-4ddb-a95f-910342b31fae}</value>
+   <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">{40e3caac-8333-4e62-a6b1-10c46cf1a9c7}</value>
    <value type="int" key="ProjectExplorer.Target.ActiveBuildConfiguration">-1</value>
    <value type="int" key="ProjectExplorer.Target.ActiveDeployConfiguration">0</value>
    <value type="int" key="ProjectExplorer.Target.ActiveRunConfiguration">0</value>
@@ -175,16 +175,16 @@
     <valuelist type="QVariantList" key="CustomOutputParsers"/>
     <value type="int" key="PE.EnvironmentAspect.Base">2</value>
     <valuelist type="QVariantList" key="PE.EnvironmentAspect.Changes"/>
-    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DisplayName">C:/Users/gokul/Desktop/program_files/Record-Matcher/main.py</value>
-    <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">PythonEditor.RunConfiguration.C:/Users/gokul/Desktop/program_files/Record-Matcher/main.py</value>
-    <value type="QString" key="ProjectExplorer.RunConfiguration.BuildKey">C:/Users/gokul/Desktop/program_files/Record-Matcher/main.py</value>
-    <value type="QString" key="PythonEditor.RunConfiguation.Interpreter">{860227b1-2b56-4870-a71c-8e2f4b937a67}</value>
-    <value type="QString" key="PythonEditor.RunConfiguation.Script">C:\Users\gokul\Desktop\program_files\Record-Matcher\main.py</value>
+    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DisplayName">C:/Users/Gokul/Desktop/PROGRAM FILES/RecordMatcher/main.py</value>
+    <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">PythonEditor.RunConfiguration.C:/Users/Gokul/Desktop/PROGRAM FILES/RecordMatcher/main.py</value>
+    <value type="QString" key="ProjectExplorer.RunConfiguration.BuildKey">C:/Users/Gokul/Desktop/PROGRAM FILES/RecordMatcher/main.py</value>
+    <value type="QString" key="PythonEditor.RunConfiguation.Interpreter">{c5fa2e43-fcbc-421b-8a79-5433b54962f3}</value>
+    <value type="QString" key="PythonEditor.RunConfiguation.Script">C:\Users\Gokul\Desktop\PROGRAM FILES\RecordMatcher\main.py</value>
     <value type="bool" key="RunConfiguration.UseCppDebugger">false</value>
     <value type="bool" key="RunConfiguration.UseCppDebuggerAuto">true</value>
     <value type="bool" key="RunConfiguration.UseQmlDebugger">false</value>
     <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>
-    <value type="QString" key="RunConfiguration.WorkingDirectory.default">C:/Users/gokul/Desktop/program_files/Record-Matcher</value>
+    <value type="QString" key="RunConfiguration.WorkingDirectory.default">C:/Users/Gokul/Desktop/PROGRAM FILES/RecordMatcher</value>
    </valuemap>
    <value type="int" key="ProjectExplorer.Target.RunConfigurationCount">1</value>
   </valuemap>

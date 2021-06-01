@@ -40,13 +40,13 @@ class MainWindow(QObject):
         self.chequeReportActivated  = False
         return   
 
-    chequeReportsButtonClicked = Signal(bool, arguments=['selected'])
+    chequeReportsButtonClicked = Signal(bool,int, arguments=['selected','status'])
     showTablePage = Signal()
     showUploadBankStatementPage = Signal()
     showChooseOptionsPage = Signal()
     validationError = Signal()
     checkReportUploadSuccess = Signal()
-    showChequeReportPage = Signal(bool, arguments=['selected'])
+    showChequeReportPage = Signal(int, arguments=['status'])
 
     def save_snapshot(self):
         if(self.tableSnapshot):  
@@ -90,11 +90,11 @@ class MainWindow(QObject):
         print('POPULATING ChequeReport')
         self.infiChequeStatement = self.tableOperations.get_chequeReport_from_collection( self.current_year, self.current_company)    
         if not self.infiChequeStatement:
-            self.showChequeReportPage.emit(False)
+            # self.showChequeReportPage.emit(False)
             print("No ChequeReport found")
             return 0
-        print("Snapshot found")    
-        self.showChequeReportPage.emit(True)
+        print("ChequeReport found")    
+        # self.showChequeReportPage.emit(True)
         return 1
 
     @Slot()
@@ -103,7 +103,7 @@ class MainWindow(QObject):
         self.tableOperations.convert_old_schema_to_new_schema()  
     @Slot(bool)
     def showChequeReportsSelection(self, selected):
-        self.chequeReportsButtonClicked.emit(selected)
+        self.chequeReportsButtonClicked.emit(selected, self.populateChequeReports())
 
     @Slot(str, str)
     def companyChanged(self, companyname, screenName):
@@ -111,7 +111,7 @@ class MainWindow(QObject):
         self._companyData = screenName
         self.companyData_changed.emit()
         if self.chequeReportActivated:
-            self.populateChequeReports()
+            self.showChequeReportPage.emit(self.populateChequeReports())
             return
         self.populate_table()
     @Slot(str, str)
@@ -125,7 +125,7 @@ class MainWindow(QObject):
         self.current_year = year
         self.update_monthYearData()
         if self.chequeReportActivated:
-            self.populateChequeReports()
+            self.showChequeReportPage.emit(self.populateChequeReports())
             return
         self.populate_table()
     @Slot(str, str)

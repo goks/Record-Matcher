@@ -19,6 +19,15 @@ Window {
         color: "#f4f6f8"
         anchors.fill: parent
 
+        Timer {
+            interval: 3000
+            repeat: true
+            running: true
+            property int i: 0
+            onTriggered: {
+                toast.show("This important message has been shown " + (++i) + " times.",'success');
+            }
+        }
         Popup {
         id: popup
         parent: Overlay.overlay
@@ -206,9 +215,9 @@ Window {
 
                 Connections {
                     target: backend
-                    function onChequeReportsButtonClicked(selected){
+                    function onChequeReportsButtonClicked(selected, status){
                         if(selected){
-                            console.log("Pushing Cheque Report " + selected)
+                            console.log("Pushing Cheque Report " + selected + "status" + status)
                             monthBox.visible = false
                             bankBox.visible = false
                             bankBox.height = 0
@@ -220,7 +229,12 @@ Window {
                             uploadBtn.visible = true
                             textInput.searchmode = "chqrpt"
                             textInput.searchBarText = ""
-                            // stackView.push(uploadChequeReportComponent)
+                            if(status==1) stackView.push(chequeReportFoundComponent)
+                            else if(status==0) stackView.push(chequeReportNotFoundComponent)
+                            else {
+                                stackView.clear()
+                                toast.show("No company or year selected", "warning")
+                            }
                         }
                         else{ 
                             console.log("popping Cheque Report ")
@@ -238,12 +252,10 @@ Window {
                             console.log(stackView.pop())
                         }
                     }
-                    function showNoChequeReportFound(status){
-                        if (status){
-                            stackView.push(uploadChequeReportComponent)
-                            return
-                        }
-                        stackView.push(uploadChequeReportComponent)
+                    function onShowChequeReportPage(status){
+                        if(status===1) stackView.push(chequeReportFoundComponent)
+                            else if(status===0) stackView.push(chequeReportNotFoundComponent)
+                            else stackView.clear()
                     }
                     function onShowTablePage(){
                         console.log("Showing table")
@@ -415,13 +427,13 @@ Window {
                     width: 173
                     height: 45
                     text: qsTr("Options")
-                    font.family: "PT Sans Caption"
                     color: "#324254"
                     anchors.left: parent.left
                     anchors.top: parent.top
+                    font.family: "PT Sans Caption"
                     font.pixelSize: 26
-                    verticalAlignment: Text.AlignVCenter
                     font.weight: Font.Bold
+                    verticalAlignment: Text.AlignVCenter
                     anchors.topMargin: 18
                     anchors.leftMargin: 33
                 }
@@ -632,6 +644,10 @@ Window {
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
                 anchors.rightMargin: 0
+
+                ToastManager {
+                    id: toast
+                }
 
                 Rectangle {
                     id: bodyHeaderBox
@@ -876,8 +892,15 @@ Window {
                         }
                     }
                     Component {
-                        id: uploadChequeReportComponent
-                        ChequeReportPage {
+                        id: chequeReportFoundComponent
+                        ChequeReportFoundPage {
+                            anchors.top: parent.top
+                            anchors.topMargin: 59
+                        }
+                    }
+                    Component {
+                        id: chequeReportNotFoundComponent
+                        ChequeReportNotFoundPage {
                             anchors.top: parent.top
                             anchors.topMargin: 59
                         }
