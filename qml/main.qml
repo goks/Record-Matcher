@@ -128,6 +128,9 @@ Window {
                         chequereport_button.selected = chequereport_button.selected?false:true
                         backend.showChequeReportsSelection(chequereport_button.selected)
                     }
+                    onSelectedChanged: {
+                        backend.setChequeReportActivated(chequereport_button.selected)
+                    }
                 }
                 TopBarButton {
                     id: delete_button
@@ -209,18 +212,21 @@ Window {
                             monthBox.visible = false
                             bankBox.visible = false
                             bankBox.height = 0
+                            bankLabel.visible = false
                             bodySubtitleStatementModeContainer.visible = false
                             export_button.selected = false
                             delete_button.selected = false
                             help_button.selected = false
                             uploadBtn.visible = true
                             textInput.searchmode = "chqrpt"
-                            stackView.push(uploadChequeReportComponent)
+                            textInput.searchBarText = ""
+                            // stackView.push(uploadChequeReportComponent)
                         }
                         else{ 
                             console.log("popping Cheque Report ")
                             monthBox.visible = true
                             bankBox.visible = true
+                            bankLabel.visible = true
                             bankBox.height = 97
                             bodySubtitleStatementModeContainer.visible = true
                             export_button.selected = false
@@ -228,8 +234,16 @@ Window {
                             help_button.selected = false
                             uploadBtn.visible = false
                             textInput.searchmode = "default"
+                            textInput.searchBarText = ""
                             console.log(stackView.pop())
                         }
+                    }
+                    function showNoChequeReportFound(status){
+                        if (status){
+                            stackView.push(uploadChequeReportComponent)
+                            return
+                        }
+                        stackView.push(uploadChequeReportComponent)
                     }
                     function onShowTablePage(){
                         console.log("Showing table")
@@ -276,10 +290,13 @@ Window {
                     function onValidationError(){
                         popup.popupText = "Invalid cheque report file. Update fail"
                         popup.open()
+                        uploadBtn.selected = false
+
                     }
                     function onCheckReportUploadSuccess(){
                         popup.popupText = "Cheque report file save success"
                         popup.open()
+                        uploadBtn.selected = false
                     }
                 }
 
@@ -548,7 +565,6 @@ Window {
                         anchors.leftMargin: 0
                         currentIndex:2
                         onSelectedChanged: {
-                            // backend.companyChanged(selected)
                             backend.yearChanged(selected)
                         }
                         data: backend.yearDict
@@ -737,10 +753,10 @@ Window {
                             selected: true
                             visible: false
                             onClicked : {
-                                            uploadBtn.selected = false
                                             if (textInput.searchBarText == ""){
-                                            popup.popupText = "Select File to import"
-                                            popup.open()
+                                                popup.popupText = "Select File to import"
+                                                popup.open()
+                                                uploadBtn.selected = false
                                             return
                                             }
                                             backend.uploadChequeReport(textInput.searchBarText)

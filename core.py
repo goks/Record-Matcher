@@ -640,12 +640,17 @@ class TableOperations:
             print('TablesnapshotCollection load success!!')
         self.TableSnapshot= None    
     
-    def get_table(self, month, year, bank, company):
+    def get_table_from_collection(self, month, year, bank, company):
         self.month = month
         self.year = year
         self.bank = bank
         self.company = company
         return self.tableSnapshotCollection.get_table_from_collection(month,year,bank,company)    
+
+    def get_chequeReport_from_collection(self, year, company):
+        self.year = year
+        self.company = company
+        return self.chequeReportCollection.get_cheque_report_from_collection(year, company)     
 
     def prepare_table_data(self, bank, infiChequeStatement):
         # Bank

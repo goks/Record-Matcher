@@ -37,6 +37,7 @@ class MainWindow(QObject):
         self.current_bank = ''
         self.current_year = ''
         self.current_company = ''
+        self.chequeReportActivated  = False
         return   
 
     chequeReportsButtonClicked = Signal(bool, arguments=['selected'])
@@ -45,6 +46,7 @@ class MainWindow(QObject):
     showChooseOptionsPage = Signal()
     validationError = Signal()
     checkReportUploadSuccess = Signal()
+    showChequeReportPage = Signal(bool, arguments=['selected'])
 
     def save_snapshot(self):
         if(self.tableSnapshot):  
@@ -69,18 +71,30 @@ class MainWindow(QObject):
             return -1
         self.save_snapshot()
         print('POPULATING TABLE')
-        self.tableSnapshot = self.tableOperations.get_table(self.current_month, self.current_year, self.current_bank, self.current_company)    
+        self.tableSnapshot = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
         if not self.tableSnapshot:
             self.showUploadBankStatementPage.emit()
             print("No tablesnapshot saved")
             return 0
-        else:
-            print("Snapshot found")    
+        print("Snapshot found")    
         self._tableData = self.tableSnapshot.get_master_table()
         self.table_data_changed.emit()
         self._selectedRows = self.tableSnapshot.get_master_selected_rows()
         self.selectedRows_changed.emit()
         self.showTablePage.emit()
+        return 1
+    def populateChequeReports(self):    
+        if '' in [self.current_company,self.current_year]:
+            return -1
+        self.save_snapshot()
+        print('POPULATING ChequeReport')
+        self.infiChequeStatement = self.tableOperations.get_chequeReport_from_collection( self.current_year, self.current_company)    
+        if not self.infiChequeStatement:
+            self.showChequeReportPage.emit(False)
+            print("No ChequeReport found")
+            return 0
+        print("Snapshot found")    
+        self.showChequeReportPage.emit(True)
         return 1
 
     @Slot()
@@ -96,6 +110,9 @@ class MainWindow(QObject):
         self.current_company = companyname
         self._companyData = screenName
         self.companyData_changed.emit()
+        if self.chequeReportActivated:
+            self.populateChequeReports()
+            return
         self.populate_table()
     @Slot(str, str)
     def bankChanged(self, bankname, screenName):
@@ -107,6 +124,9 @@ class MainWindow(QObject):
     def yearChanged(self, year):
         self.current_year = year
         self.update_monthYearData()
+        if self.chequeReportActivated:
+            self.populateChequeReports()
+            return
         self.populate_table()
     @Slot(str, str)
     def monthChanged(self, month, screenNane):
@@ -114,11 +134,20 @@ class MainWindow(QObject):
         self.update_monthYearData()
         self.populate_table()
     def update_monthYearData(self):
-        self._monthYearData = self.current_month.capitalize() +' ' + self.current_year
+        if self.chequeReportActivated: 
+            if self.current_year:
+                self._monthYearData = self.current_year + ' - ' +str(int(self.current_year)+1)
+            else: self._monthYearData = ''    
+        else: self._monthYearData = self.current_month.capitalize() +' ' + self.current_year
         self.monthYearData_changed.emit()
     @Slot(list)
     def selectedRowsChanged(self, updatedRows):
         self._selectedRows = updatedRows
+    @Slot(bool)
+    def setChequeReportActivated(self,status):
+        self.chequeReportActivated = status
+        self.update_monthYearData()
+        print("STATUS: ",status)
     
     @Signal
     def monthDict_changed(self):
@@ -175,7 +204,7 @@ class MainWindow(QObject):
         print('selectedRows_changed')
         return
     def get_selectedRows(self):
-        return self._selectedRows                            
+        return self._selectedRows                              
 
     companyDict = Property('QVariantList', get_companyDict, notify=companyDict_changed)
     bankDict = Property('QVariantList', get_bankDict, notify=bankDict_changed)
@@ -187,6 +216,7 @@ class MainWindow(QObject):
     companyData = Property(str, get_companyData, notify=companyData_changed)
     bankData = Property(str, get_bankData, notify=bankData_changed)
     selectedRows = Property('QVariantList', get_selectedRows, notify=selectedRows_changed)
+    
 
 
 class TableBackend(QObject):

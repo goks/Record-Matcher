@@ -51,8 +51,8 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
                 anchors.rightMargin: 18
-                // visible: containerBox.searchmode!="default"?true:false
-                visible: true
+                visible: containerBox.searchmode!="default"?true:false
+                // visible: true
                 text: "Browse"
                 onClicked: fileDialog.open()                
             }
