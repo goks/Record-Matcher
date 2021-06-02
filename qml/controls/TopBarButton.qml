@@ -51,14 +51,14 @@ Button {
         font.family: "PT Sans Caption"
         font.pointSize: 18
         layer.enabled: true
-                           layer.effect: DropShadow {
-                                         id: dropShadow
-                                          color: "#40000000"
-                                          verticalOffset: 4
-                                          radius: 4
-                                          spread: 0
-                                          horizontalOffset: 0
-                                      }
+        layer.effect: DropShadow {
+                        id: dropShadow
+                        color: "#40000000"
+                        verticalOffset: 4
+                        radius: 4
+                        spread: 0
+                        horizontalOffset: 0
+                    }
 
     }
     background: Rectangle {

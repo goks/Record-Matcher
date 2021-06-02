@@ -140,7 +140,7 @@ Rectangle {
         anchors.topMargin: 14
         anchors.rightMargin: 36
         font.family: "PT Sans Caption"
-        font.pixelSize: 18
+        font.pixelSize: 20
         font.weight: Font.Bold
     }
     Text {
@@ -160,7 +160,7 @@ Rectangle {
         anchors.topMargin: 6
         anchors.rightMargin: 36
         font.family: "PT Sans Caption"
-        font.pixelSize: 14
+        font.pixelSize: 16
         font.weight: Font.Normal
     }
     QtObject {

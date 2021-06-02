@@ -40,13 +40,14 @@ class MainWindow(QObject):
         self.chequeReportActivated  = False
         return   
 
-    chequeReportsButtonClicked = Signal(bool,int, arguments=['selected','status'])
+    chequeReportsButtonClicked = Signal(bool,int,str, arguments=['selected','status','time'])
     showTablePage = Signal()
     showUploadBankStatementPage = Signal()
     showChooseOptionsPage = Signal()
-    validationError = Signal()
+    validationError = Signal(int, arguments=['type'])
     checkReportUploadSuccess = Signal()
-    showChequeReportPage = Signal(int, arguments=['status'])
+    showChequeReportPage = Signal(int,str, arguments=['status','time'])
+    bankStatementUploadSuccess = Signal()
 
     def save_snapshot(self):
         if(self.tableSnapshot):  
@@ -54,16 +55,26 @@ class MainWindow(QObject):
             self.tableSnapshot.set_master_selected_rows(self._selectedRows)    
             self.tableOperations.save_snapshot_to_table(self.tableSnapshot)    
     @Slot(str)
-    def uploadChequeReport(self, chequeReportUrl):
-        if '' in [self.current_bank, self.current_company, self.current_year]:
-            self.validationError.emit()
-            return    
-        chequeReportUrl = chequeReportUrl.split('///')[1]
-        # print('chequeReportUrl', chequeReportUrl, os.path.isfile(chequeReportUrl) )
-        if not self.tableOperations.save_chequeReport_to_collection(chequeReportUrl):
-            self.validationError.emit() 
-        else: self.checkReportUploadSuccess.emit()               
+    def uploadFile(self, fileUrl):
+        if '' in [self.current_company, self.current_year]:
+            self.validationError.emit(1)
+            return   
+        if not self.chequeReportActivated and '' in [self.current_bank, self.current_company, self.current_year, self.current_month]:
+            self.validationError.emit(3)
+            return        
+        fileUrl = fileUrl.split('///')[1]
+        # print('fileUrl', fileUrl, os.path.isfile(fileUrl) )
+        if self.chequeReportActivated:
+            if not self.tableOperations.save_chequeReport_to_collection(fileUrl):
+                self.validationError.emit(2) 
+            else: self.checkReportUploadSuccess.emit()               
+            return                
+        success, status_code = self.tableOperations.add_snapshot_to_table(fileUrl)    
+        if not success:
+            self.validationError.emit(status_code)
+        else: self.bankStatementUploadSuccess.emit()
         return
+
     def populate_table(self):
         print(self.current_bank, self.current_company, self.current_month, self.current_year)
         if '' in [self.current_bank, self.current_company, self.current_month, self.current_year]:
@@ -85,17 +96,16 @@ class MainWindow(QObject):
         return 1
     def populateChequeReports(self):    
         if '' in [self.current_company,self.current_year]:
-            return -1
+            return -1, ''
         self.save_snapshot()
         print('POPULATING ChequeReport')
         self.infiChequeStatement = self.tableOperations.get_chequeReport_from_collection( self.current_year, self.current_company)    
         if not self.infiChequeStatement:
-            # self.showChequeReportPage.emit(False)
             print("No ChequeReport found")
-            return 0
-        print("ChequeReport found")    
-        # self.showChequeReportPage.emit(True)
-        return 1
+            return 0, ''
+        time = self.infiChequeStatement.get_last_edited_time() 
+        print("ChequeReport found", time)    
+        return 1, time
 
     @Slot()
     def convertSchema(self):
@@ -103,7 +113,8 @@ class MainWindow(QObject):
         self.tableOperations.convert_old_schema_to_new_schema()  
     @Slot(bool)
     def showChequeReportsSelection(self, selected):
-        self.chequeReportsButtonClicked.emit(selected, self.populateChequeReports())
+        status, data = self.populateChequeReports()
+        self.chequeReportsButtonClicked.emit(selected, status, data )
 
     @Slot(str, str)
     def companyChanged(self, companyname, screenName):
@@ -111,7 +122,8 @@ class MainWindow(QObject):
         self._companyData = screenName
         self.companyData_changed.emit()
         if self.chequeReportActivated:
-            self.showChequeReportPage.emit(self.populateChequeReports())
+            status, data = self.populateChequeReports()
+            self.showChequeReportPage.emit(status, data )
             return
         self.populate_table()
     @Slot(str, str)
@@ -125,7 +137,8 @@ class MainWindow(QObject):
         self.current_year = year
         self.update_monthYearData()
         if self.chequeReportActivated:
-            self.showChequeReportPage.emit(self.populateChequeReports())
+            status, data = self.populateChequeReports()
+            self.showChequeReportPage.emit(status, data )
             return
         self.populate_table()
     @Slot(str, str)
@@ -148,6 +161,9 @@ class MainWindow(QObject):
         self.chequeReportActivated = status
         self.update_monthYearData()
         print("STATUS: ",status)
+    @Slot()
+    def call_populate_table(self):
+        self.populate_table()
     
     @Signal
     def monthDict_changed(self):

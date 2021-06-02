@@ -14,20 +14,21 @@ Window {
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
     //FontLoader { id: appFont; name: "PT Sans Caption"; source: "fonts/PTSansCaption-Regular.ttf" }
+    property string chequeTimeData: ""
     Rectangle {
         id:backgroundBox
         color: "#f4f6f8"
         anchors.fill: parent
 
-        Timer {
-            interval: 3000
-            repeat: true
-            running: true
-            property int i: 0
-            onTriggered: {
-                toast.show("This important message has been shown " + (++i) + " times.",'success');
-            }
-        }
+        // Timer {
+        //     interval: 3000
+        //     repeat: true
+        //     running: true
+        //     property int i: 0
+        //     onTriggered: {
+        //         toast.show("This important message has been shown " + (++i) + " times.",'success');
+        //     }
+        // }
         Popup {
         id: popup
         parent: Overlay.overlay
@@ -215,7 +216,7 @@ Window {
 
                 Connections {
                     target: backend
-                    function onChequeReportsButtonClicked(selected, status){
+                    function onChequeReportsButtonClicked(selected, status, time){
                         if(selected){
                             console.log("Pushing Cheque Report " + selected + "status" + status)
                             monthBox.visible = false
@@ -229,7 +230,10 @@ Window {
                             uploadBtn.visible = true
                             textInput.searchmode = "chqrpt"
                             textInput.searchBarText = ""
-                            if(status==1) stackView.push(chequeReportFoundComponent)
+                            if(status==1) {
+                                window.chequeTimeData = time
+                                stackView.push(chequeReportFoundComponent)
+                            }
                             else if(status==0) stackView.push(chequeReportNotFoundComponent)
                             else {
                                 stackView.clear()
@@ -252,10 +256,13 @@ Window {
                             console.log(stackView.pop())
                         }
                     }
-                    function onShowChequeReportPage(status){
-                        if(status===1) stackView.push(chequeReportFoundComponent)
-                            else if(status===0) stackView.push(chequeReportNotFoundComponent)
-                            else stackView.clear()
+                    function onShowChequeReportPage(status, time){
+                        if(status===1) {
+                            window.chequeTimeData = time
+                            stackView.push(chequeReportFoundComponent)
+                        }
+                        else if(status===0) stackView.push(chequeReportNotFoundComponent)
+                        else stackView.clear()
                     }
                     function onShowTablePage(){
                         console.log("Showing table")
@@ -299,16 +306,47 @@ Window {
                         uploadBtn.visible = false
                         stackView.push(selectOptionsComponent)
                     }
-                    function onValidationError(){
-                        popup.popupText = "Invalid cheque report file. Update fail"
-                        popup.open()
-                        uploadBtn.selected = false
+                    function onValidationError(type){
+                        switch(type){
+                            case 1: toast.show("Year or Company not selected." ,"error");
+                                    break;
+                            case 2: // popup.popupText = "Invalid cheque report file. Update fail";
+                                    // popup.open();
+                                    toast.show("Invalid cheque report file." ,"error");
+                                    break;
+                            case 3: toast.show("Company or Bank or Year or Month not selected." ,"error");
+                                    break;  
+                            case -1: toast.show("No Infi cheque report found for the financial year." ,"error");
+                                    break;
+                            // case -2: toast.show("Invalid file path." ,"error");
+                            //         break;
+                            case -3: toast.show("Invalid HDFC Bank statement file." ,"error");
+                                    break;
+                            case -4: toast.show("Invalid ICICI Bank statement file." ,"error");
+                                    break;                                        
+                            default:toast.show("Unknown error. Submit fail." ,"error");
+                                    break;         
+                        }
+                        
+                        uploadBtn.selected = true
+                        busyIndicator.visible = false
 
                     }
                     function onCheckReportUploadSuccess(){
-                        popup.popupText = "Cheque report file save success"
-                        popup.open()
-                        uploadBtn.selected = false
+                        // popup.popupText = "Cheque report file save success"
+                        // popup.open()
+                        toast.show("Cheque report file save success", "success");
+                        backend.showChequeReportsSelection(chequereport_button.selected)
+                        uploadBtn.selected = true
+                        busyIndicator.visible = false
+
+                    }
+                    function onBankStatementUploadSuccess(){
+                        toast.show("Bank statement file save success", "success");
+                        backend.call_populate_table()
+                        uploadBtn.selected = true;
+                        busyIndicator.visible = false;
+
                     }
                 }
 
@@ -769,16 +807,31 @@ Window {
                             selected: true
                             visible: false
                             onClicked : {
+                                            uploadBtn.selected = false
+                                            busyIndicator.visible = true
                                             if (textInput.searchBarText == ""){
-                                                popup.popupText = "Select File to import"
-                                                popup.open()
-                                                uploadBtn.selected = false
+                                                // popup.popupText = "Select File to import"
+                                                // popup.open()
+                                                toast.show("No file selected to import", "error")
+                                                uploadBtn.selected = true
+                                                busyIndicator.visible = false
                                             return
                                             }
-                                            backend.uploadChequeReport(textInput.searchBarText)
-
+                                            backend.uploadFile(textInput.searchBarText)
                                         }       
                         }
+                        BusyIndicator {
+                        id: busyIndicator
+                        anchors.left: uploadBtn.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.leftMargin: 23
+                        anchors.bottomMargin: 0
+                        anchors.topMargin: 0
+                        visible: false
+                        anchors.verticalCenter: parent.verticalCenter
+                        // z: -1
+                    }
                         Rectangle {
                             id: bodySubtitleStatementModeContainer
                             anchors.left: textInput.right
@@ -894,6 +947,7 @@ Window {
                     Component {
                         id: chequeReportFoundComponent
                         ChequeReportFoundPage {
+                            timeData: window.chequeTimeData
                             anchors.top: parent.top
                             anchors.topMargin: 59
                         }
@@ -914,7 +968,7 @@ Window {
                     }
 
                     BusyIndicator {
-                        id: busyIndicator
+                        id: busyIndicator2
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
                         z: -1

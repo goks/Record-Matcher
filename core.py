@@ -1,3 +1,4 @@
+from time import strftime
 import xlrd
 import xlwt
 import os
@@ -12,7 +13,8 @@ APP_NAME = "Infi Hdfc Analyzer"
 
 def get_current_time():
     t = datetime.datetime.now(pytz.timezone('Asia/Kolkata')) 
-    formatted_time = str(t.hour)+':'+str(t.minute)+' '+str(t.day)+'/'+str(t.month)+'/'+str(t.year)
+    # formatted_time = str(t.day)+'/'+str(t.month)+'/'+str(t.year)+' '+str(t.hour)+':'+str(t.minute)+' '
+    formatted_time = t=strftime("%d/%m/%Y %I:%M %p") + '.'
     return formatted_time
 def validate_path(path):
     if not path:
@@ -630,8 +632,8 @@ class TableSnapshotCollection:
 
 class TableOperations:
     def __init__(self):
-        self.hdfcBankChequeStatement = HDFCBankChequeStatement()
-        self.iciciBankChequeStatement = ICICIBankChequeStatement()
+        # self.hdfcBankChequeStatement = HDFCBankChequeStatement()
+        # self.iciciBankChequeStatement = ICICIBankChequeStatement()
         self.tableSnapshotCollection = TableSnapshotCollection()
         self.chequeReportCollection = ChequeReportCollection()
         if self.chequeReportCollection.load_cheque_report_collection():
@@ -652,15 +654,15 @@ class TableOperations:
         self.company = company
         return self.chequeReportCollection.get_cheque_report_from_collection(year, company)     
 
-    def prepare_table_data(self, bank, infiChequeStatement):
+    def prepare_table_data(self, statementObj, infiChequeStatement):
         # Bank
         # Date	Narration	Chq./Ref.No.	Value Dt	Withdrawal Amt.	Deposit Amt.	Closing Balance
         # 0     1           2               3           4               5               6
         # Infi
         # Trans. Date	Chq. Date	Bank Name	Account Head	Chq. No	Amount	Narration	Issued Date	Passed Date	Voucher
         # 0             1           2           3               4       5       6           7           8           9 
-        if(bank=='HDFC'):
-            bank_statement = self.hdfcBankChequeStatement.getEntryList()
+        if(self.bank=='hdfc'):
+            bank_statement = statementObj.getEntryList()
             final_table = []
             for bank_entry in bank_statement:
                 # if(not isinstance(bank_entry[2], int)):
@@ -712,8 +714,8 @@ class TableOperations:
                     table_row['meta'] = ""                    
                     final_table.append(table_row)      
 
-        elif(bank=='ICICI'):
-            bank_statement = self.iciciBankChequeStatement.getEntryList()
+        elif(self.bank=='icici'):
+            bank_statement = statementObj.getEntryList()
             final_table = []
             for bank_entry in bank_statement:
                 if(bank_entry[4]!=None or bank_entry[4] != ''):
@@ -800,6 +802,32 @@ class TableOperations:
             print('TablesnapshotCollection reload success!!')
         return True
         
+    def add_snapshot_to_table(self, statement_path):
+        infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(self.year,self.company)
+        if not infiChequeStatement:
+            return False, -1
+        if self.bank == 'hdfc':
+            hdfcBankChequeStatement = HDFCBankChequeStatement()
+            if not hdfcBankChequeStatement.setPath(statement_path):
+                return False, -3
+            try:
+                hdfcBankChequeStatement.grab_data()    
+            except TypeError:
+                return False, -3                    
+            master_table = self.prepare_table_data(hdfcBankChequeStatement, infiChequeStatement)    
+        else:
+            iciciBankChequeStatement = ICICIBankChequeStatement()
+            if not iciciBankChequeStatement.setPath(statement_path):
+                return False, -4
+            try:
+                iciciBankChequeStatement.grab_data()    
+            except TypeError:
+                return False, -4    
+            master_table = self.prepare_table_data(iciciBankChequeStatement, infiChequeStatement)    
+        tableSnapshot = TableSnapshot(self.company, self.month, self.year, self.bank, master_table,[],None)
+        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot, self.month, self.year, self.bank, self.company)
+        return True, 1
+
     def save_snapshot_to_table(self, tableSnapshot):
         self.tableSnapshotCollection.add_table_to_colection(tableSnapshot, self.month, self.year, self.bank, self.company)
 
