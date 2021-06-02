@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sys
 import json
+import threading
 
 from PySide2.QtGui import QGuiApplication
 from PySide2.QtQml import QQmlApplicationEngine
@@ -64,6 +65,11 @@ class MainWindow(QObject):
             return        
         fileUrl = fileUrl.split('///')[1]
         # print('fileUrl', fileUrl, os.path.isfile(fileUrl) )
+        # self.threadedUploadFile(fileUrl)
+        x = threading.Thread(target=self.threadedUploadFile, args=(fileUrl,), daemon=True)
+        x.start()
+        return
+    def threadedUploadFile(self, fileUrl):    
         if self.chequeReportActivated:
             if not self.tableOperations.save_chequeReport_to_collection(fileUrl):
                 self.validationError.emit(2) 

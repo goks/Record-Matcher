@@ -803,7 +803,11 @@ class TableOperations:
         return True
         
     def add_snapshot_to_table(self, statement_path):
-        infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(self.year,self.company)
+        if self.month in ['january', 'february', 'march']:
+            financial_year = str(int(self.year)-1)
+        else:
+            financial_year = self.year    
+        infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(financial_year,self.company)
         if not infiChequeStatement:
             return False, -1
         if self.bank == 'hdfc':
