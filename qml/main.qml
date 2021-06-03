@@ -46,7 +46,7 @@ Window {
         // }
         background: Rectangle {
             id: popupBckgroundBox
-            width: messageBox.width 
+            width: messageBox.width
             height: messageBox.height
             color: "transparent"
         }
@@ -209,7 +209,7 @@ Window {
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                z: 0
+                z: 2
                 anchors.bottomMargin: 5
                 anchors.topMargin: 0
                 anchors.leftMargin: 0
@@ -240,7 +240,7 @@ Window {
                                 toast.show("No company or year selected", "warning")
                             }
                         }
-                        else{ 
+                        else{
                             console.log("popping Cheque Report ")
                             monthBox.visible = true
                             bankBox.visible = true
@@ -315,7 +315,7 @@ Window {
                                     toast.show("Invalid cheque report file." ,"error");
                                     break;
                             case 3: toast.show("Company or Bank or Year or Month not selected." ,"error");
-                                    break;  
+                                    break;
                             case -1: toast.show("No Infi cheque report found for the financial year." ,"error");
                                     break;
                             // case -2: toast.show("Invalid file path." ,"error");
@@ -323,11 +323,11 @@ Window {
                             case -3: toast.show("Invalid HDFC Bank statement file." ,"error");
                                     break;
                             case -4: toast.show("Invalid ICICI Bank statement file." ,"error");
-                                    break;                                        
+                                    break;
                             default:toast.show("Unknown error. Submit fail." ,"error");
-                                    break;         
+                                    break;
                         }
-                        
+
                         uploadBtn.selected = true
                         busyIndicator.visible = false
 
@@ -818,7 +818,7 @@ Window {
                                             return
                                             }
                                             backend.uploadFile(textInput.searchBarText)
-                                        }       
+                                        }
                         }
                         BusyIndicator {
                         id: busyIndicator
@@ -845,7 +845,7 @@ Window {
 
                             CustomSubTitleButton {
                                 id: byDateBtn
-                                width: 69
+                                width: 90
                                 anchors.left: parent.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -853,6 +853,10 @@ Window {
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: qsTr("By Date")
+                                onSelectedChanged: if(byDateBtn.selected){
+                                    byChqNoBtn.selected = false
+                                    byChqAmtBtn.selected = false
+                                }
                             }
                             CustomSubTitleButton {
                                 id: byChqAmtBtn
@@ -864,6 +868,10 @@ Window {
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: qsTr("By Cheque Amount")
+                                onSelectedChanged: if(byChqAmtBtn.selected){
+                                    byChqNoBtn.selected = false
+                                    byDateBtn.selected = false
+                                }
                             }
                             CustomSubTitleButton {
                                 id: byChqNoBtn
@@ -876,6 +884,10 @@ Window {
                                 anchors.topMargin: 0
                                 text: qsTr("By Cheque Number")
                                 selected: true
+                                onSelectedChanged: if(byChqNoBtn.selected){
+                                    byChqAmtBtn.selected = false
+                                    byDateBtn.selected = false
+                                }
                             }
                             CustomSubTitleButton {
                                 id: debitIndicator
@@ -922,7 +934,6 @@ Window {
                     StackView {
                         id: stackView
                         anchors.fill: parent
-                        z: 2
                         initialItem: selectOptionsComponent
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 0
@@ -930,8 +941,8 @@ Window {
                     Component {
                         id: tableComponent
                         CustomTableView2{
-                            //                             anchors.fill: parent
                             tableData: backend.tableData
+                            anchors.fill: parent
                             columns: backend.header
                             selectedRows : backend.selectedRows
                             onSelectedRowsChanged: backend.selectedRowsChanged(selectedRows)
@@ -973,8 +984,6 @@ Window {
                         anchors.horizontalCenter: parent.horizontalCenter
                         z: -1
                     }
-
-
                 }
             }
         }
@@ -1036,8 +1045,10 @@ Window {
 
 
 
+
+
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.66}
+    D{i:0;formeditorZoom:0.5}
 }
 ##^##*/
