@@ -31,7 +31,9 @@ class MainWindow(QObject):
         self._monthYearData = ''
         self._companyData = ''
         self._bankData = ''
-        self._tableData =  [] 
+        self._tableData =  list()
+        self._creditBal = '' 
+        self._debitBal = '' 
         self._header = ['Bank Date', 'Bank Narration', 'Chq No','Party Name' ,'Infi Date','Credit', 'Debit', 'Closing Balance' ]
         self._selectedRows = [1,2,3]
         self.current_month = ''
@@ -88,14 +90,20 @@ class MainWindow(QObject):
             return -1
         self.save_snapshot()
         print('POPULATING TABLE')
-        self.tableSnapshot = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
+        self.tableSnapshot, credit_bal, debit_bal = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
         if not self.tableSnapshot:
             self.showUploadBankStatementPage.emit()
             print("No tablesnapshot saved")
             return 0
-        print("Snapshot found")    
+
+        print("Snapshot found")
         self._tableData = self.tableSnapshot.get_master_table()
         self.table_data_changed.emit()
+        self._creditBal = credit_bal
+        self.creditBal_changed.emit()
+        self._debitBal = debit_bal
+        self.debitBal_changed.emit()
+        
         self._selectedRows = self.tableSnapshot.get_master_selected_rows()
         self.selectedRows_changed.emit()
         self.showTablePage.emit()
@@ -198,6 +206,18 @@ class MainWindow(QObject):
     def get_table_data(self):
         return self._tableData 
     @Signal
+    def creditBal_changed(self):
+        print('creditBal_changed')
+        return
+    def get_creditBal(self):
+        return self._creditBal
+    @Signal
+    def debitBal_changed(self):
+        print('debitBal_changed')
+        return
+    def get_debitBal(self):
+        return self._debitBal         
+    @Signal
     def header_changed(self):
         print('header_changed')
         return
@@ -233,6 +253,8 @@ class MainWindow(QObject):
     yearDict = Property('QVariantList', get_yearDict, notify=yearDict_changed)
     monthDict = Property('QVariantList', get_monthDict, notify=monthDict_changed)
     tableData = Property('QVariantList', get_table_data, notify=table_data_changed)
+    creditBal = Property(str, get_creditBal, notify=creditBal_changed)
+    debitBal = Property(str, get_debitBal, notify=debitBal_changed)
     header = Property('QVariantList', get_header, notify=header_changed)
     monthYearData = Property(str, get_monthYearData, notify=monthYearData_changed)
     companyData = Property(str, get_companyData, notify=companyData_changed)

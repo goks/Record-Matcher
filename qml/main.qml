@@ -202,6 +202,7 @@ Window {
                 border.color: "#00000000"
                 CustomBorder
                 {
+                    id: customBorder
                     commonBorder : false
                     rBorderwidth : 2
                     borderColor: "#e3e5e7"
@@ -230,11 +231,11 @@ Window {
                             uploadBtn.visible = true
                             textInput.searchmode = "chqrpt"
                             textInput.searchBarText = ""
-                            if(status==1) {
+                            if(status===1) {
                                 window.chequeTimeData = time
                                 stackView.push(chequeReportFoundComponent)
                             }
-                            else if(status==0) stackView.push(chequeReportNotFoundComponent)
+                            else if(status===0) stackView.push(chequeReportNotFoundComponent)
                             else {
                                 stackView.clear()
                                 toast.show("No company or year selected", "warning")
@@ -462,16 +463,18 @@ Window {
 
                 Text {
                     id: optionsText
-                    width: 173
                     height: 45
                     text: qsTr("Options")
+                    elide: Text.ElideRight
                     color: "#324254"
                     anchors.left: parent.left
+                    anchors.right: parent.right
                     anchors.top: parent.top
                     font.family: "PT Sans Caption"
                     font.pixelSize: 26
                     font.weight: Font.Bold
                     verticalAlignment: Text.AlignVCenter
+                    anchors.rightMargin: 29
                     anchors.topMargin: 18
                     anchors.leftMargin: 33
                 }
@@ -492,6 +495,7 @@ Window {
                         height: 23
                         color: "#2e3f51"
                         text: qsTr("Company")
+                        elide: Text.ElideRight
                         font.family: "PT Sans Caption"
                         anchors.left: parent.left
                         anchors.right: parent.right
@@ -542,6 +546,7 @@ Window {
                         height: 23
                         color: "#2e3f51"
                         text: qsTr("Bank")
+                        elide: Text.ElideRight
                         font.family: "PT Sans Caption"
                         anchors.left: parent.left
                         anchors.right: parent.right
@@ -589,6 +594,7 @@ Window {
                         height: 23
                         color: "#2e3f51"
                         text: qsTr("Year")
+                        elide: Text.ElideRight
                         font.family: "PT Sans Caption"
                         anchors.left: parent.left
                         anchors.right: parent.right
@@ -638,6 +644,7 @@ Window {
                         height: 23
                         color: "#2e3f51"
                         text: qsTr("Month")
+                        elide: Text.ElideRight
                         font.family: "PT Sans Caption"
                         anchors.left: parent.left
                         anchors.right: parent.right
@@ -793,6 +800,7 @@ Window {
                             anchors.leftMargin: 42
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
+                            onSearchBarTextChanged: console.log(textInput.searchBarText)
                         }
                         CustomSubTitleButton {
                             id: uploadBtn
@@ -898,7 +906,7 @@ Window {
                                 anchors.rightMargin: 69
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
-                                text: qsTr("1234567890")
+                                text: backend.debitBal
                                 enabled: false
                             }
                             CustomSubTitleButton {
@@ -910,7 +918,7 @@ Window {
                                 anchors.rightMargin: 23
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
-                                text: qsTr("1234567890")
+                                text: backend.creditBal
                                 enabled: false
                             }
                         }
@@ -1049,6 +1057,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.5}
+    D{i:0;formeditorZoom:0.66}D{i:28}
 }
 ##^##*/

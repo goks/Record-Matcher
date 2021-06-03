@@ -72,6 +72,7 @@ ListView {
             Text {
                 id: listText
                 text: model.name
+                elide: Text.ElideRight
                 width: parent.width
                 height: parent.height
                 anchors.leftMargin: 29
@@ -102,6 +103,6 @@ ListView {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:1.5}
+    D{i:0;formeditorZoom:0.75}
 }
 ##^##*/

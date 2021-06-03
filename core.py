@@ -647,7 +647,21 @@ class TableOperations:
         self.year = year
         self.bank = bank
         self.company = company
-        return self.tableSnapshotCollection.get_table_from_collection(month,year,bank,company)    
+        snapshot = self.tableSnapshotCollection.get_table_from_collection(month,year,bank,company) 
+        if not snapshot:
+            return snapshot, '', ''
+        credit_bal = 0.0
+        debit_bal = 0.0       
+        master_table = snapshot.get_master_table()    
+        for each in master_table:
+            if(each['Credit'] != ''):
+                credit_bal+=float(each['Credit'])
+            if(each['Debit'] != ''):
+                debit_bal+=float(each['Debit'])
+        credit_bal = str(round(credit_bal,2))
+        debit_bal = str(round(debit_bal,2))
+        return snapshot, credit_bal, debit_bal
+            
 
     def get_chequeReport_from_collection(self, year, company):
         self.year = year
