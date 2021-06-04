@@ -5,6 +5,8 @@ import xlwt
 import os
 import datetime, pytz
 import pickle
+import locale
+locale.setlocale(locale.LC_NUMERIC, 'hi_IN')
 
 # Fix for opening xlsx
 xlrd.xlsx.ensure_elementtree_imported(False, None)
@@ -865,7 +867,8 @@ class TableOperations:
             return masterTableData
         if searchMode == "bychqno":
             for each in masterTableData:
-                if(format_chqNo( each['Chq No'])== format_chqNo( searchQuery)):    
+                # if(format_chqNo( each['Chq No'])== format_chqNo( searchQuery)):   
+                if searchQuery in each['Chq No'].lower(): 
                     final_table.append(each)
         elif searchMode == "bydate":
             for each in masterTableData:
@@ -877,16 +880,18 @@ class TableOperations:
                             final_table.append(each)
         elif searchMode == "bychqamt":
             for each in masterTableData:
-                try:
-                    if float(each["Credit"]) == float(searchQuery):
-                        final_table.append(each)
-                except ValueError:
-                    pass
-                try:        
-                    if(float(each["Debit"])== float(searchQuery)):
-                        final_table.append(each)  
-                except ValueError:
-                    pass       
+                # try:
+                #     if float(each["Credit"]) == float(searchQuery):
+                #         final_table.append(each)
+                # except ValueError:
+                #     pass
+                # try:        
+                #     if(float(each["Debit"])== float(searchQuery)):
+                #         final_table.append(each)  
+                # except ValueError:
+                #     pass       
+                if searchQuery in str(each["Credit"]) or searchQuery in str(each["Debit"]):
+                    final_table.append(each)
         else: final_table = masterTableData
         return final_table
 
