@@ -230,7 +230,7 @@ Window {
                             help_button.selected = false
                             uploadBtn.visible = true
                             textInput.searchmode = "chqrpt"
-                            textInput.searchBarText = ""
+                            textInput.fileDialogText = ""
                             if(status===1) {
                                 window.chequeTimeData = time
                                 stackView.push(chequeReportFoundComponent)
@@ -253,7 +253,7 @@ Window {
                             help_button.selected = false
                             uploadBtn.visible = false
                             textInput.searchmode = "default"
-                            textInput.searchBarText = ""
+                            textInput.fileDialogText = ""
                             console.log(stackView.pop())
                         }
                     }
@@ -800,7 +800,9 @@ Window {
                             anchors.leftMargin: 42
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
-                            onSearchBarTextChanged: console.log(textInput.searchBarText)
+                            property string searchbyMode: "bychqno"
+                            onSearchBarTextChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
+                            onSearchbyModeChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                         }
                         CustomSubTitleButton {
                             id: uploadBtn
@@ -817,15 +819,13 @@ Window {
                             onClicked : {
                                             uploadBtn.selected = false
                                             busyIndicator.visible = true
-                                            if (textInput.searchBarText == ""){
-                                                // popup.popupText = "Select File to import"
-                                                // popup.open()
+                                            if (textInput.fileDialogText == ""){
                                                 toast.show("No file selected to import", "error")
                                                 uploadBtn.selected = true
                                                 busyIndicator.visible = false
                                             return
                                             }
-                                            backend.uploadFile(textInput.searchBarText)
+                                            backend.uploadFile(textInput.fileDialogText)
                                         }
                         }
                         BusyIndicator {
@@ -862,6 +862,7 @@ Window {
                                 anchors.topMargin: 0
                                 text: qsTr("By Date")
                                 onSelectedChanged: if(byDateBtn.selected){
+                                    textInput.searchbyMode = "bydate"
                                     byChqNoBtn.selected = false
                                     byChqAmtBtn.selected = false
                                 }
@@ -877,6 +878,7 @@ Window {
                                 anchors.topMargin: 0
                                 text: qsTr("By Cheque Amount")
                                 onSelectedChanged: if(byChqAmtBtn.selected){
+                                    textInput.searchbyMode = "bychqamt"
                                     byChqNoBtn.selected = false
                                     byDateBtn.selected = false
                                 }
@@ -893,9 +895,10 @@ Window {
                                 text: qsTr("By Cheque Number")
                                 selected: true
                                 onSelectedChanged: if(byChqNoBtn.selected){
+                                    textInput.searchbyMode = "bychqno"
                                     byChqAmtBtn.selected = false
                                     byDateBtn.selected = false
-                                }
+                                } 
                             }
                             CustomSubTitleButton {
                                 id: debitIndicator

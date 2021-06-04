@@ -1,4 +1,5 @@
 from time import strftime
+from typing_extensions import final
 import xlrd
 import xlwt
 import os
@@ -857,9 +858,39 @@ class TableOperations:
         self.chequeReportCollection.add_cheque_report_to_colection(infiChequeStatement,self.year,self.company)  
         return True
 
+    def search(self, masterTableData, searchQuery, searchMode):
+        # print(masterTableData)
+        final_table = list()
+        if searchQuery == "":
+            return masterTableData
+        if searchMode == "bychqno":
+            for each in masterTableData:
+                if(format_chqNo( each['Chq No'])== format_chqNo( searchQuery)):    
+                    final_table.append(each)
+        elif searchMode == "bydate":
+            for each in masterTableData:
+                stmtdate = each['Bank Date'].split('/')
+                querydate = searchQuery.split('/')
+                if stmtdate[0] == querydate[0]:
+                    if stmtdate[1] == querydate[1]:
+                        if stmtdate[2][-2:] == querydate[2][-2:]:
+                            final_table.append(each)
+        elif searchMode == "bychqamt":
+            for each in masterTableData:
+                try:
+                    if float(each["Credit"]) == float(searchQuery):
+                        final_table.append(each)
+                except ValueError:
+                    pass
+                try:        
+                    if(float(each["Debit"])== float(searchQuery)):
+                        final_table.append(each)  
+                except ValueError:
+                    pass       
+        else: final_table = masterTableData
+        return final_table
 
 
-    
     #     self.chq_rep_save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\appendix.ini"
 
     # def get_chq_report_loc(self):

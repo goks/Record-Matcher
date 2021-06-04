@@ -10,7 +10,7 @@ from PySide2.QtQml import QQmlApplicationEngine
 from PySide2.QtCore import QObject, SIGNAL, Slot, Signal, Property
 
 import core as C
-from core import TableSnapshot, InfiChequeStatement
+from core import TableOperations, TableSnapshot, InfiChequeStatement
 
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -24,6 +24,7 @@ class MainWindow(QObject):
         self.iciciBankChequeStatement = C.ICICIBankChequeStatement() 
         self.tableOperations = C.TableOperations()  
         self.tableSnapshot = None
+        self.masterTableData = list()
         self._monthDict = data['Months']    
         self._yearDict = data['Years']    
         self._bankDict = data['Banks'] 
@@ -97,7 +98,8 @@ class MainWindow(QObject):
             return 0
 
         print("Snapshot found")
-        self._tableData = self.tableSnapshot.get_master_table()
+        self.masterTableData = self.tableSnapshot.get_master_table()
+        self._tableData = self.masterTableData
         self.table_data_changed.emit()
         self._creditBal = credit_bal
         self.creditBal_changed.emit()
@@ -120,6 +122,12 @@ class MainWindow(QObject):
         time = self.infiChequeStatement.get_last_edited_time() 
         print("ChequeReport found", time)    
         return 1, time
+    @Slot(str, str)    
+    def search(self, searchQuery, searchMode):
+        print("Searching for ", searchQuery, " mode: ", searchMode)
+        self._tableData = self.tableOperations.search(self.masterTableData, searchQuery, searchMode)
+        self.table_data_changed.emit()
+        return    
 
     @Slot()
     def convertSchema(self):
