@@ -52,18 +52,45 @@ class MainWindow(QObject):
     checkReportUploadSuccess = Signal()
     showChequeReportPage = Signal(int,str, arguments=['status','time'])
     bankStatementUploadSuccess = Signal()
+    snapshotDeleteSuccess = Signal()
+    snapshotDeleteFail = Signal()
+    chequeReportDeleteSuccess = Signal()
+    chequeReportDeleteFail = Signal()
 
     def save_snapshot(self):
         if(self.tableSnapshot):  
             print("saving selected rows",self.selectedRows)
             self.tableSnapshot.set_master_selected_rows(self._selectedRows)    
-            self.tableOperations.save_snapshot_to_table(self.tableSnapshot)    
+            self.tableOperations.save_snapshot_to_table(self.tableSnapshot)   
+
+    @Slot()
+    def delete_table(self):
+        if self.chequeReportActivated:
+            if not self.tableSnapshot:
+                self.snapshotDeleteFail.emit()
+                return
+            self.tableSnapshot = None
+            if self.tableOperations.delete_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company):
+                self.snapshotDeleteSuccess.emit()
+                self.populate_table()
+            else:
+                self.snapshotDeleteFail.emit()
+            return
+        if not self.infiChequeStatement:     
+            self.chequeReportDeleteFail.emit()
+            return
+        self.infiChequeStatement = None  
+        if self.tableOperations.delete_chequeReport_from_collection(self.current_year, self.current_company):
+            self.chequeReportDeleteSuccess.emit()
+            self.populateChequeReports() 
+        else: 
+            self.chequeReportDeleteFail.emit()    
     @Slot(str)
     def uploadFile(self, fileUrl):
         if '' in [self.current_company, self.current_year]:
             self.validationError.emit(1)
             return   
-        if not self.chequeReportActivated and '' in [self.current_bank, self.current_company, self.current_year, self.current_month]:
+        if not self.chequeReportActivated and '' in [self.current_bank, self.current_month]:
             self.validationError.emit(3)
             return        
         fileUrl = fileUrl.split('///')[1]

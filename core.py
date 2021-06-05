@@ -659,12 +659,18 @@ class TableOperations:
         for each in master_table:
             if(each['Credit'] != ''):
                 credit_bal+=float(each['Credit'])
+                # each['Credit'] = locale.format_string("%f:2", float(each['Credit']), grouping=True)
+                print(each['Credit'])
             if(each['Debit'] != ''):
                 debit_bal+=float(each['Debit'])
         credit_bal = str(round(credit_bal,2))
         debit_bal = str(round(debit_bal,2))
         return snapshot, credit_bal, debit_bal
-            
+
+    def delete_table_from_collection(self, month, year, bank, company):
+        return self.tableSnapshotCollection.delete_table_from_collection(month,year,bank,company)        
+    def delete_chequeReport_from_collection(self, year, company):
+        return self.chequeReportCollection.delete_cheque_report_from_collection(year,company)          
 
     def get_chequeReport_from_collection(self, year, company):
         self.year = year

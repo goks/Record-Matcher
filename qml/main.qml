@@ -154,6 +154,7 @@ Window {
                     anchors.leftMargin: 1
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
+                    onPressed: backend.delete_table()
                 }
                 TopBarButton {
                     id: help_button
@@ -336,18 +337,29 @@ Window {
                     function onCheckReportUploadSuccess(){
                         // popup.popupText = "Cheque report file save success"
                         // popup.open()
-                        toast.show("Cheque report file save success", "success");
+                        toast.show("Cheque report file save success.", "success");
                         backend.showChequeReportsSelection(chequereport_button.selected)
                         uploadBtn.selected = true
                         busyIndicator.visible = false
 
                     }
                     function onBankStatementUploadSuccess(){
-                        toast.show("Bank statement file save success", "success");
+                        toast.show("Bank statement file save success.", "success");
                         backend.call_populate_table()
                         uploadBtn.selected = true;
                         busyIndicator.visible = false;
-
+                    }
+                    function onSnapshotDeleteSuccess() {
+                        toast.show("Deleted table successfully.", "success");
+                    }
+                    function onSnapshotDeleteFail() {
+                        toast.show("Table deletion failed.", "error");
+                    }
+                     function onChequeReportDeleteSuccess() {
+                        toast.show("Deleted cheque report successfully.", "success");
+                    }
+                    function onChequeReportDeleteFail() {
+                        toast.show("Cheque report deletion failed.", "error");
                     }
                 }
 
