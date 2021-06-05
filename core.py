@@ -7,6 +7,7 @@ import datetime, pytz
 import pickle
 import locale
 locale.setlocale(locale.LC_NUMERIC, 'hi_IN')
+from copy import deepcopy
 
 # Fix for opening xlsx
 xlrd.xlsx.ensure_elementtree_imported(False, None)
@@ -652,20 +653,30 @@ class TableOperations:
         self.company = company
         snapshot = self.tableSnapshotCollection.get_table_from_collection(month,year,bank,company) 
         if not snapshot:
-            return snapshot, '', ''
+            return snapshot,'', '', ''
         credit_bal = 0.0
         debit_bal = 0.0       
-        master_table = snapshot.get_master_table()    
+        master_table = snapshot.get_master_table()
         for each in master_table:
             if(each['Credit'] != ''):
                 credit_bal+=float(each['Credit'])
-                # each['Credit'] = locale.format_string("%f:2", float(each['Credit']), grouping=True)
-                print(each['Credit'])
             if(each['Debit'] != ''):
                 debit_bal+=float(each['Debit'])
-        credit_bal = str(round(credit_bal,2))
-        debit_bal = str(round(debit_bal,2))
-        return snapshot, credit_bal, debit_bal
+        credit_bal = locale.format_string("%.2f", credit_bal, grouping=True)  
+        debit_bal =  locale.format_string("%.2f", debit_bal, grouping=True)  
+        return snapshot, self.format_table_data(master_table), credit_bal, debit_bal
+
+    def format_table_data(self, _tableData):
+        tableData = deepcopy(_tableData)
+        for each in tableData:
+            if(each['Credit'] != ''):
+                each['Credit'] = locale.format_string("%.2f", float(each['Credit']), grouping=True)
+            if(each['Debit'] != ''):
+                each['Debit'] = locale.format_string("%.2f", float(each['Debit']), grouping=True)
+            each['Closing Balance'] = locale.format_string("%.2f", float(each['Closing Balance']), grouping=True)    
+        return tableData    
+
+
 
     def delete_table_from_collection(self, month, year, bank, company):
         return self.tableSnapshotCollection.delete_table_from_collection(month,year,bank,company)        
@@ -870,7 +881,7 @@ class TableOperations:
         # print(masterTableData)
         final_table = list()
         if searchQuery == "":
-            return masterTableData
+            return self.format_table_data(masterTableData)
         if searchMode == "bychqno":
             for each in masterTableData:
                 # if(format_chqNo( each['Chq No'])== format_chqNo( searchQuery)):   
@@ -886,20 +897,10 @@ class TableOperations:
                             final_table.append(each)
         elif searchMode == "bychqamt":
             for each in masterTableData:
-                # try:
-                #     if float(each["Credit"]) == float(searchQuery):
-                #         final_table.append(each)
-                # except ValueError:
-                #     pass
-                # try:        
-                #     if(float(each["Debit"])== float(searchQuery)):
-                #         final_table.append(each)  
-                # except ValueError:
-                #     pass       
                 if searchQuery in str(each["Credit"]) or searchQuery in str(each["Debit"]):
                     final_table.append(each)
         else: final_table = masterTableData
-        return final_table
+        return self.format_table_data(final_table)
 
 
     #     self.chq_rep_save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\appendix.ini"

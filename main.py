@@ -24,7 +24,7 @@ class MainWindow(QObject):
         self.iciciBankChequeStatement = C.ICICIBankChequeStatement() 
         self.tableOperations = C.TableOperations()  
         self.tableSnapshot = None
-        self.masterTableData = list()
+        self.masterDisplayTableData = list()
         self._monthDict = data['Months']    
         self._yearDict = data['Years']    
         self._bankDict = data['Banks'] 
@@ -65,7 +65,7 @@ class MainWindow(QObject):
 
     @Slot()
     def delete_table(self):
-        if self.chequeReportActivated:
+        if not self.chequeReportActivated:
             if not self.tableSnapshot:
                 self.snapshotDeleteFail.emit()
                 return
@@ -82,7 +82,8 @@ class MainWindow(QObject):
         self.infiChequeStatement = None  
         if self.tableOperations.delete_chequeReport_from_collection(self.current_year, self.current_company):
             self.chequeReportDeleteSuccess.emit()
-            self.populateChequeReports() 
+            status, data = self.populateChequeReports()
+            self.showChequeReportPage.emit(status, data ) 
         else: 
             self.chequeReportDeleteFail.emit()    
     @Slot(str)
@@ -118,15 +119,14 @@ class MainWindow(QObject):
             return -1
         self.save_snapshot()
         print('POPULATING TABLE')
-        self.tableSnapshot, credit_bal, debit_bal = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
+        self.tableSnapshot, self.masterDisplayTableData, credit_bal, debit_bal = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
         if not self.tableSnapshot:
             self.showUploadBankStatementPage.emit()
             print("No tablesnapshot saved")
             return 0
 
         print("Snapshot found")
-        self.masterTableData = self.tableSnapshot.get_master_table()
-        self._tableData = self.masterTableData
+        self._tableData = self.masterDisplayTableData
         self.table_data_changed.emit()
         self._creditBal = credit_bal
         self.creditBal_changed.emit()
@@ -152,7 +152,7 @@ class MainWindow(QObject):
     @Slot(str, str)    
     def search(self, searchQuery, searchMode):
         print("Searching for ", searchQuery, " mode: ", searchMode)
-        self._tableData = self.tableOperations.search(self.masterTableData, searchQuery, searchMode)
+        self._tableData = self.tableOperations.search(self.tableSnapshot.get_master_table(), searchQuery, searchMode)
         self.table_data_changed.emit()
         return    
 
@@ -214,6 +214,8 @@ class MainWindow(QObject):
     def call_populate_table(self):
         self.populate_table()
     
+    
+
     @Signal
     def monthDict_changed(self):
         pass

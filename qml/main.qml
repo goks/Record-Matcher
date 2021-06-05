@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import QtGraphicalEffects 1.15
+import QtQuick.Dialogs 1.3
 
 
 import  "../qml/controls"
@@ -121,6 +122,21 @@ Window {
                     anchors.leftMargin: 0
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
+                }
+                FileDialog {
+                    id: exportFileDialog
+                    nameFilters: ["Excel Files (*.xls *.xlsx)"]
+                    title: "Choose the location of file to export "
+                    folder: shortcuts.desktop
+                    onAccepted: {
+                        console.log("You chose: " + fileDialog.fileUrl)
+                        fileDialogText = fileDialog.fileUrl
+                        browseBut.selected = false
+                    }
+                    onRejected: {
+                        console.log("Canceled")
+                        browseBut.selected = false
+                    }
                 }
                 TopBarButton {
                     id: chequereport_button
@@ -1072,6 +1088,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.66}D{i:28}
+    D{i:0;formeditorZoom:0.75}
 }
 ##^##*/
