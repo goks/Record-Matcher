@@ -33,8 +33,8 @@ class MainWindow(QObject):
         self._companyData = ''
         self._bankData = ''
         self._tableData =  list()
-        self._creditBal = '' 
-        self._debitBal = '' 
+        self._creditBal = 'Credit Bal' 
+        self._debitBal = 'Debit Bal' 
         self._header = ['Bank Date', 'Bank Narration', 'Chq No','Party Name' ,'Infi Date','Credit', 'Debit', 'Closing Balance' ]
         self._selectedRows = [1,2,3]
         self.current_month = ''
@@ -151,6 +151,8 @@ class MainWindow(QObject):
         return 1, time
     @Slot(str, str)    
     def search(self, searchQuery, searchMode):
+        if not self.tableSnapshot:
+            return
         print("Searching for ", searchQuery, " mode: ", searchMode)
         self._tableData = self.tableOperations.search(self.tableSnapshot.get_master_table(), searchQuery, searchMode)
         self.table_data_changed.emit()

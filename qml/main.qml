@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Controls 1.6 as C
 import QtGraphicalEffects 1.15
 import QtQuick.Dialogs 1.3
 
@@ -729,6 +730,7 @@ Window {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
+                    z: 2
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
                     anchors.topMargin: 0
@@ -809,6 +811,7 @@ Window {
                             //                            font.weight: Font.Bold
                         }
                     }
+
                     Rectangle {
                         id: bodySubtitleContainer
                         height: 38
@@ -819,19 +822,30 @@ Window {
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         anchors.topMargin: 25
+
                         CustomSearchBar {
                             id: textInput
                             // width: 277
+//                            height: 38
                             anchors.left: parent.left
                             anchors.top: parent.top
-                            anchors.bottom: parent.bottom
+//                            anchors.bottom: parent.bottom
                             anchors.leftMargin: 42
-                            anchors.bottomMargin: 0
+//                            anchors.bottomMargin: 0
                             anchors.topMargin: 0
-                            property string searchbyMode: "bychqno"
+                            searchbyMode: "bychqno"
                             onSearchBarTextChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                             onSearchbyModeChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                         }
+//                         CustomDatePicker2{
+//                             visible: true
+//                             anchors.right: textInput.right
+//                             anchors.top: textInput.bottom
+//                                 anchors.rightMargin: 0
+//                                 anchors.topMargin: 4
+// //                                z: 100
+//                         }
+                        
                         CustomSubTitleButton {
                             id: uploadBtn
                             width: 177
@@ -860,14 +874,15 @@ Window {
                         id: busyIndicator
                         anchors.left: uploadBtn.right
                         anchors.top: parent.top
-                        anchors.bottom: parent.bottom
+//                        anchors.bottom: parent.bottom
                         anchors.leftMargin: 23
-                        anchors.bottomMargin: 0
+//                        anchors.bottomMargin: 0
                         anchors.topMargin: 0
                         visible: false
                         anchors.verticalCenter: parent.verticalCenter
                         // z: -1
                     }
+                        
                         Rectangle {
                             id: bodySubtitleStatementModeContainer
                             anchors.left: textInput.right
@@ -926,7 +941,7 @@ Window {
                                     textInput.searchbyMode = "bychqno"
                                     byChqAmtBtn.selected = false
                                     byDateBtn.selected = false
-                                } 
+                                }
                             }
                             CustomSubTitleButton {
                                 id: debitIndicator
@@ -960,22 +975,23 @@ Window {
                     id: bodyBodyBox
                     width: 200
                     height: 200
+                    //                    visible: false
                     color: "#ffffff"
-                    anchors.left: parent.left
-                    anchors.right: parent.right
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
                     anchors.top: bodyHeaderBox.bottom
                     anchors.bottom: parent.bottom
                     anchors.rightMargin: 29
                     anchors.leftMargin: 29
                     anchors.bottomMargin: 29
                     anchors.topMargin: 29
-                    //                    z:-1
                     StackView {
                         id: stackView
                         anchors.fill: parent
                         initialItem: selectOptionsComponent
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 0
+                        z:0
                     }
                     Component {
                         id: tableComponent
@@ -1017,12 +1033,13 @@ Window {
                         }
                     }
 
-                    BusyIndicator {
-                        id: busyIndicator2
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        z: -1
-                    }
+                    // BusyIndicator {
+                    //     id: busyIndicator2
+                    //     anchors.verticalCenter: parent.verticalCenter
+                    //     running: false
+                    //     anchors.horizontalCenter: parent.horizontalCenter
+                    //     z: -1
+                    // }
                 }
             }
         }
@@ -1086,8 +1103,10 @@ Window {
 
 
 
+
+
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.75}
+    D{i:0;formeditorZoom:0.5}
 }
 ##^##*/
