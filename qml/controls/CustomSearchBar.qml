@@ -5,7 +5,7 @@ import QtQuick.Dialogs 1.3
 import QtQuick.Controls 1.4 as OldControls
 Rectangle {
     id: containerBox
-//    height: 38
+    //    height: 38
     // height: 100
     color: "#f5f8fa"
     implicitHeight: 38
@@ -18,11 +18,12 @@ Rectangle {
     property string fileDialogText: ""
     property string textVal: searchmode==="default"?searchBarText:fileDialogText
     property string searchbyMode: "bychqno"
+    property bool calendarButPressed: true
 
     TextInput {
         id: searchInput
         color: "#324254"
-//        text: qsTr("Search")
+        //        text: qsTr("Search")
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -39,19 +40,19 @@ Rectangle {
         property string changed_date:  ""
         property string previous_date: ""
         onTextChanged: if (searchmode==="default") {
-            searchBarText = searchInput.text
-            if (searchbyMode == "bydate" && previous_date!=searchBarText){
-                    // changed_date = Date.fromLocaleString(Qt.locale(), "2018-10-25", "yyyy-mm-dd")
-                    changed_date = Date.fromLocaleString(Qt.locale(), searchBarText, "dd/mm/yyyy")
-                    if (!changed_date){ return }
-                    console.log("Changing calendar to "+ changed_date )
-                    previous_date = searchBarText
-                    calendar.selectedDate = Date.fromLocaleString(Qt.locale(), searchBarText, "dd/MM/yyyy")
-                }
-            } 
-        else {
-            fileDialogText = searchInput.text
-            }
+                           searchBarText = searchInput.text
+                           if (searchbyMode == "bydate" && previous_date!=searchBarText){
+                               // changed_date = Date.fromLocaleString(Qt.locale(), "2018-10-25", "yyyy-mm-dd")
+                               changed_date = Date.fromLocaleString(Qt.locale(), searchBarText, "dd/mm/yyyy")
+                               if (!changed_date){ return }
+                               console.log("Changing calendar to "+ changed_date )
+                               previous_date = searchBarText
+                               calendar.selectedDate = Date.fromLocaleString(Qt.locale(), searchBarText, "dd/MM/yyyy")
+                           }
+                       }
+                       else {
+                           fileDialogText = searchInput.text
+                       }
 
         Text {
             id: placeholder
@@ -76,9 +77,38 @@ Rectangle {
             visible: containerBox.searchmode!="default"?true:false
             // visible: true
             text: "Browse"
-            onClicked: fileDialog.open()                
+            onClicked: fileDialog.open()
         }
+        Button {
+            id: calendarBut
+            width: 24
+            height: 24
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+            anchors.rightMargin: 0
+            visible: (searchmode==="default" && searchbyMode == "bydate")?true:false
+            onPressedChanged: {
+                if(calendarBut.down) {
+                    calendarButPressed = calendarButPressed?false:true
+                }
+                console.log("calendarButPressed: " + calendarButPressed)
+            }
 
+            QtObject {
+                id: internal
+
+//                property var dynamicSource: if(calendarBut.down){
+//                                               calendarBut.down ? bgcolorPressed : bgcolorDefault
+//                                           } else {
+//                                               calendarBut.hovered ? bgcolorMouseOver : bgcolorDefault
+//                                           }
+            }
+        Image{
+            source: "../../images/svg_images/calendar-on.svg"
+            id:calendarImg
+            anchors.fill: parent
+        }
+}
         FileDialog {
             id: fileDialog
             nameFilters: ["Excel Files (*.xls *.xlsx)"]
@@ -95,19 +125,19 @@ Rectangle {
             }
         }
     }
-         OldControls.Calendar {
-            id: calendar
-            anchors.top: searchInput.bottom
-            anchors.left: searchInput.left
-            visible: (searchmode==="default" && searchbyMode == "bydate")?true:false
-            onSelectedDateChanged: {
-                containerBox.searchBarText = Qt.formatDate(selectedDate,"dd/MM/yyyy")
-                const day = selectedDate.getDate();
-                const month = selectedDate.getMonth() + 1; 
-                const year = selectedDate.getFullYear();
-                console.log(day,month,year)
-            }
+    CustomCalendar {
+        id: calendar
+        anchors.top: searchInput.bottom
+        anchors.left: searchInput.left
+        visible: (searchmode==="default" && searchbyMode == "bydate" && calendarButPressed)?true:false
+        onSelectedDateChanged: {
+            containerBox.searchBarText = Qt.formatDate(selectedDate,"dd/MM/yyyy")
+            const day = selectedDate.getDate();
+            const month = selectedDate.getMonth() + 1;
+            const year = selectedDate.getFullYear();
+            console.log(day,month,year)
         }
+    }
 }
 
 
@@ -115,3 +145,9 @@ Rectangle {
 
 
 
+
+/*##^##
+Designer {
+    D{i:0;formeditorZoom:8}
+}
+##^##*/
