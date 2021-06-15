@@ -17,8 +17,11 @@ Rectangle {
     property string searchBarText: ""
     property string fileDialogText: ""
     property string textVal: searchmode==="default"?searchBarText:fileDialogText
+    // searchbymode can be 'off' 'bychqno' 'bychqamt' 'bydate'
     property string searchbyMode: "bychqno"
     property bool calendarButPressed: true
+    property date startDateCalendar : undefined
+    property date endDateCalendar: undefined
 
     TextInput {
         id: searchInput
@@ -81,12 +84,13 @@ Rectangle {
         }
         Button {
             id: calendarBut
-            width: 24
-            height: 24
+            width: 30
+            height: 30
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             anchors.rightMargin: 0
             visible: (searchmode==="default" && searchbyMode == "bydate")?true:false
+
             onPressedChanged: {
                 if(calendarBut.down) {
                     calendarButPressed = calendarButPressed?false:true
@@ -96,19 +100,25 @@ Rectangle {
 
             QtObject {
                 id: internal
-
-//                property var dynamicSource: if(calendarBut.down){
-//                                               calendarBut.down ? bgcolorPressed : bgcolorDefault
-//                                           } else {
-//                                               calendarBut.hovered ? bgcolorMouseOver : bgcolorDefault
-//                                           }
+                property var dynamicColor: if(calendarButPressed){
+                                               return "#c4c4c4"
+                                           } else {
+                                               calendarBut.hovered ? "#c4c4c4" : "#f5f8fa"
+                                           }
             }
-        Image{
-            source: "../../images/svg_images/calendar-on.svg"
-            id:calendarImg
-            anchors.fill: parent
+            background: Rectangle{
+                color: internal.dynamicColor
+                anchors.fill: parent
+                radius: 5
+
+                Image{
+                    id:calendarImg
+                    source: "../../images/svg_images/calendar-on.svg"
+                    anchors.fill: parent
+                    anchors.margins: 3
+                }
+            }
         }
-}
         FileDialog {
             id: fileDialog
             nameFilters: ["Excel Files (*.xls *.xlsx)"]
@@ -128,10 +138,17 @@ Rectangle {
     CustomCalendar {
         id: calendar
         anchors.top: searchInput.bottom
+        anchors.topMargin: 4
+        anchors.rightMargin: 0
         anchors.left: searchInput.left
+        anchors.right: parent.right
         visible: (searchmode==="default" && searchbyMode == "bydate" && calendarButPressed)?true:false
+        minimumDate : startDateCalendar
+        maximumDate : endDateCalendar
         onSelectedDateChanged: {
-            containerBox.searchBarText = Qt.formatDate(selectedDate,"dd/MM/yyyy")
+            if(searchbyMode == "bydate"){
+                containerBox.searchBarText = Qt.formatDate(selectedDate,"dd/MM/yyyy")
+            }
             const day = selectedDate.getDate();
             const month = selectedDate.getMonth() + 1;
             const year = selectedDate.getFullYear();
@@ -146,8 +163,10 @@ Rectangle {
 
 
 
+
+
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:8}
+    D{i:0;formeditorZoom:10}
 }
 ##^##*/

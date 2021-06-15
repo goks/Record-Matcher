@@ -40,12 +40,6 @@ Window {
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnReleaseOutside
         property string popupText : ""
-        // enter: Transition {
-        //     NumberAnimation { property: "opacity"; from: 0.0; to: 1.0 }
-        // }
-        // exit: Transition {
-        //     NumberAnimation { property: "opacity"; from: 1.0; to: 0.0 }
-        // }
         background: Rectangle {
             id: popupBckgroundBox
             width: messageBox.width
@@ -833,7 +827,9 @@ Window {
                             anchors.leftMargin: 42
 //                            anchors.bottomMargin: 0
                             anchors.topMargin: 0
-                            searchbyMode: "bychqno"
+                            searchbyMode: "off"
+                            startDateCalendar: backend.startDateCalendar
+                            endDateCalendar: backend.endDateCalendar
                             onSearchBarTextChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                             onSearchbyModeChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                         }
@@ -904,11 +900,12 @@ Window {
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: qsTr("By Date")
-                                onSelectedChanged: if(byDateBtn.selected){
+                                onClicked: if(byDateBtn.selected){
                                     textInput.searchbyMode = "bydate"
                                     byChqNoBtn.selected = false
                                     byChqAmtBtn.selected = false
                                 }
+                                else { textInput.searchbyMode = "off" }
                             }
                             CustomSubTitleButton {
                                 id: byChqAmtBtn
@@ -920,11 +917,12 @@ Window {
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: qsTr("By Cheque Amount")
-                                onSelectedChanged: if(byChqAmtBtn.selected){
+                                onClicked: if(byChqAmtBtn.selected){
                                     textInput.searchbyMode = "bychqamt"
                                     byChqNoBtn.selected = false
                                     byDateBtn.selected = false
                                 }
+                                else { textInput.searchbyMode = "off" }
                             }
                             CustomSubTitleButton {
                                 id: byChqNoBtn
@@ -936,12 +934,13 @@ Window {
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: qsTr("By Cheque Number")
-                                selected: true
-                                onSelectedChanged: if(byChqNoBtn.selected){
+                                //selected: true
+                                onClicked: if(byChqNoBtn.selected){
                                     textInput.searchbyMode = "bychqno"
                                     byChqAmtBtn.selected = false
                                     byDateBtn.selected = false
                                 }
+                                else { textInput.searchbyMode = "off" }
                             }
                             CustomSubTitleButton {
                                 id: debitIndicator

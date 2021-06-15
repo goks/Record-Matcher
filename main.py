@@ -7,7 +7,7 @@ import threading
 
 from PySide2.QtGui import QGuiApplication
 from PySide2.QtQml import QQmlApplicationEngine
-from PySide2.QtCore import QObject, SIGNAL, Slot, Signal, Property
+from PySide2.QtCore import QObject, SIGNAL, Slot, Signal, Property, QDate
 
 import core as C
 from core import TableOperations, TableSnapshot, InfiChequeStatement
@@ -37,6 +37,8 @@ class MainWindow(QObject):
         self._debitBal = 'Debit Bal' 
         self._header = ['Bank Date', 'Bank Narration', 'Chq No','Party Name' ,'Infi Date','Credit', 'Debit', 'Closing Balance' ]
         self._selectedRows = [1,2,3]
+        self._endDateCalendar =  QDate(2020,6,5)
+        self._startDateCalendar = QDate(2016,1,1)
         self.current_month = ''
         self.current_bank = ''
         self.current_year = ''
@@ -119,12 +121,11 @@ class MainWindow(QObject):
             return -1
         self.save_snapshot()
         print('POPULATING TABLE')
-        self.tableSnapshot, self.masterDisplayTableData, credit_bal, debit_bal = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
+        self.tableSnapshot, self.masterDisplayTableData, credit_bal, debit_bal, start_date,end_date = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
         if not self.tableSnapshot:
             self.showUploadBankStatementPage.emit()
             print("No tablesnapshot saved")
             return 0
-
         print("Snapshot found")
         self._tableData = self.masterDisplayTableData
         self.table_data_changed.emit()
@@ -132,7 +133,11 @@ class MainWindow(QObject):
         self.creditBal_changed.emit()
         self._debitBal = debit_bal
         self.debitBal_changed.emit()
-        
+        print(start_date, end_date)
+        self._startDateCalendar = QDate(int(start_date.split('/')[0]), int(start_date.split('/')[1]), int(start_date.split('/')[2]))
+        self.startDateCalendar_changed.emit()
+        self._endDateCalendar = QDate(int(end_date.split('/')[0]), int(end_date.split('/')[1]), int(end_date.split('/')[2]))
+        self.endDateCalendar_changed.emit()        
         self._selectedRows = self.tableSnapshot.get_master_selected_rows()
         self.selectedRows_changed.emit()
         self.showTablePage.emit()
@@ -151,9 +156,12 @@ class MainWindow(QObject):
         return 1, time
     @Slot(str, str)    
     def search(self, searchQuery, searchMode):
+        print("Searching for ", searchQuery, " mode: ", searchMode)
         if not self.tableSnapshot:
             return
-        print("Searching for ", searchQuery, " mode: ", searchMode)
+        if searchMode == "off":
+            self.populate_table()
+            return
         self._tableData = self.tableOperations.search(self.tableSnapshot.get_master_table(), searchQuery, searchMode)
         self.table_data_changed.emit()
         return    
@@ -285,8 +293,20 @@ class MainWindow(QObject):
         print('selectedRows_changed')
         return
     def get_selectedRows(self):
-        return self._selectedRows                              
+        return self._selectedRows  
+    @Signal
+    def startDateCalendar_changed(self):
+        return
+    def get_startDateCalendar(self):
+        return self._startDateCalendar  
+    @Signal
+    def endDateCalendar_changed(self):
+        return
+    def get_endDateCalendar(self):
+        return self._endDateCalendar           
 
+    startDateCalendar = Property(QDate, get_startDateCalendar, notify=startDateCalendar_changed)
+    endDateCalendar = Property(QDate, get_endDateCalendar, notify=endDateCalendar_changed)
     companyDict = Property('QVariantList', get_companyDict, notify=companyDict_changed)
     bankDict = Property('QVariantList', get_bankDict, notify=bankDict_changed)
     yearDict = Property('QVariantList', get_yearDict, notify=yearDict_changed)

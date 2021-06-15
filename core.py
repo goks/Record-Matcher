@@ -653,18 +653,27 @@ class TableOperations:
         self.company = company
         snapshot = self.tableSnapshotCollection.get_table_from_collection(month,year,bank,company) 
         if not snapshot:
-            return snapshot,'', '', ''
+            return snapshot,'', '', '', '', ''
         credit_bal = 0.0
         debit_bal = 0.0       
         master_table = snapshot.get_master_table()
+        start_date, end_date = "", ""
         for each in master_table:
+            bank_date = datetime.datetime.strptime(each['Bank Date'], "%d/%m/%y")
+            if start_date == "" or start_date>bank_date:
+                start_date = bank_date 
+            if end_date == "" or end_date<bank_date:
+                end_date = bank_date  
             if(each['Credit'] != ''):
                 credit_bal+=float(each['Credit'])
             if(each['Debit'] != ''):
                 debit_bal+=float(each['Debit'])
         credit_bal = locale.format_string("%.2f", credit_bal, grouping=True)  
         debit_bal =  locale.format_string("%.2f", debit_bal, grouping=True)  
-        return snapshot, self.format_table_data(master_table), credit_bal, debit_bal
+        print(start_date, end_date)
+        start_date = start_date.strftime("%Y/%m/%d")
+        end_date = end_date.strftime("%Y/%m/%d")
+        return snapshot, self.format_table_data(master_table), credit_bal, debit_bal, start_date, end_date
 
     def format_table_data(self, _tableData):
         tableData = deepcopy(_tableData)
