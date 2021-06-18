@@ -15,13 +15,13 @@ Window {
     visible: true
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
+    onClosing: backend.beginWindowExitRoutine()
     //FontLoader { id: appFont; name: "PT Sans Caption"; source: "fonts/PTSansCaption-Regular.ttf" }
     property string chequeTimeData: ""
     Rectangle {
         id:backgroundBox
         color: "#f4f6f8"
         anchors.fill: parent
-
         // Timer {
         //     interval: 3000
         //     repeat: true
@@ -31,26 +31,9 @@ Window {
         //         toast.show("This important message has been shown " + (++i) + " times.",'success');
         //     }
         // }
-        Popup {
+  
+    CustomPopup{
         id: popup
-        parent: Overlay.overlay
-        x: Math.round((parent.width - messageBox.width) / 2)
-        y: Math.round((parent.height - messageBox.height) / 2)
-        modal: true
-        focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnReleaseOutside
-        property string popupText : ""
-        background: Rectangle {
-            id: popupBckgroundBox
-            width: messageBox.width
-            height: messageBox.height
-            color: "transparent"
-        }
-            MessageBox{
-                id: messageBox
-                singleText:true
-                text4: popup.popupText
-            }
     }
 
         Rectangle {
@@ -117,20 +100,19 @@ Window {
                     anchors.leftMargin: 0
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
-                }
-                FileDialog {
-                    id: exportFileDialog
-                    nameFilters: ["Excel Files (*.xls *.xlsx)"]
-                    title: "Choose the location of file to export "
-                    folder: shortcuts.desktop
-                    onAccepted: {
-                        console.log("You chose: " + fileDialog.fileUrl)
-                        fileDialogText = fileDialog.fileUrl
-                        browseBut.selected = false
+                    onPressed: {
+                        export_button.selected = export_button.selected?false:true
+
                     }
-                    onRejected: {
-                        console.log("Canceled")
-                        browseBut.selected = false
+                    onSelectedChanged: {
+                        if (chequereport_button.selected){
+                            chequereport_button.selected = false
+                            backend.showChequeReportsSelection(chequereport_button.selected)
+                        }
+                        console.log("export_button.selected: " + export_button.selected)
+                        if (export_button.selected == true){
+                            popup.open();
+                        }
                     }
                 }
                 TopBarButton {
@@ -321,22 +303,26 @@ Window {
                     }
                     function onValidationError(type){
                         switch(type){
-                            case 1: toast.show("Year or Company not selected." ,"error");
+                            case 1: toast.show("Year or Company not selected." ,"warning");
                                     break;
                             case 2: // popup.popupText = "Invalid cheque report file. Update fail";
                                     // popup.open();
                                     toast.show("Invalid cheque report file." ,"error");
                                     break;
-                            case 3: toast.show("Company or Bank or Year or Month not selected." ,"error");
+                            case 3: toast.show("Company or Bank or Year or Month not selected." ,"warning");
                                     break;
+                            case 4: toast.show("No table to export.", "error")        ;
+                                    break
                             case -1: toast.show("No Infi cheque report found for the financial year." ,"error");
                                     break;
-                            // case -2: toast.show("Invalid file path." ,"error");
-                            //         break;
+                            case -2: toast.show("Invalid file path." ,"error");
+                                     break;
                             case -3: toast.show("Invalid HDFC Bank statement file." ,"error");
                                     break;
                             case -4: toast.show("Invalid ICICI Bank statement file." ,"error");
                                     break;
+                            case -5: toast.show("Permission error. Failed to write" ,"error");
+                                    break;        
                             default:toast.show("Unknown error. Submit fail." ,"error");
                                     break;
                         }
@@ -359,6 +345,10 @@ Window {
                         backend.call_populate_table()
                         uploadBtn.selected = true;
                         busyIndicator.visible = false;
+                    }
+                    function onStatementExportSuccess(){ 
+                        popup.close()
+                        toast.show("Bank statement export success.", "success");
                     }
                     function onSnapshotDeleteSuccess() {
                         toast.show("Deleted table successfully.", "success");

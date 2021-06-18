@@ -685,8 +685,6 @@ class TableOperations:
             each['Closing Balance'] = locale.format_string("%.2f", float(each['Closing Balance']), grouping=True)    
         return tableData    
 
-
-
     def delete_table_from_collection(self, month, year, bank, company):
         return self.tableSnapshotCollection.delete_table_from_collection(month,year,bank,company)        
     def delete_chequeReport_from_collection(self, year, company):
@@ -911,197 +909,79 @@ class TableOperations:
         else: final_table = masterTableData
         return self.format_table_data(final_table)
 
+    def get_header(self):
+        return ['Bank Date', 'Bank Narration', 'Chq No','Party Name' ,'Infi Date','Credit', 'Debit', 'Closing Balance' ]
 
-    #     self.chq_rep_save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\appendix.ini"
-
-    # def get_chq_report_loc(self):
-    #     try:
-    #         with open(self.chq_rep_save_path, 'rb') as f:
-    #             data_loaded = pickle.load(f)
-    #             path_dict = data_loaded
-    #             return path_dict
-    #     except FileNotFoundError:
-    #         print('appendix not found')
-    #         return {}        
-    #     return {} 
-    # def save_chq_report_loc(self, path_dict):
-        # try:
-        #     with open(self.chq_rep_save_path, 'wb') as f:
-        #         pickle.dump(path_dict, f)
-        #     print('Chq Report Location saved.')
-        # except FileNotFoundError:
-        #     print(self.chq_rep_save_path,'does not exist.')  
-
-    def show_opening_window(self):
-        chequeReportCollection = ChequeReportCollection()
-        if chequeReportCollection.load_cheque_report_collection():
-            print('ChequeReportCollection load success!!')
-       
-        tableSnapshot = None
-        infi_path_dict = {}
-        def update_leftcolumn(values):
-            if values['radio_Gokul']:
-                company = 'Gokul'
+    def export_to_excel(self, folder_url, snapshot):
+        k=0
+        k2=0
+        k3=0
+        k4=0
+        k5=0
+        export_workbook = xlwt.Workbook()
+        export_worksheet = export_workbook.add_sheet('Sheet_1')
+        selected_worksheet = export_workbook.add_sheet('Selected')
+        unselected_worksheet = export_workbook.add_sheet('Unselected')
+        matched_worksheet = export_workbook.add_sheet('Matched CHQReceipts(HDFC)')
+        unmatched_worksheet = export_workbook.add_sheet('Unmatched CHQReceipts(HDFC)')
+        row_color_select = xlwt.easyxf('pattern: pattern solid, fore_colour light_green')
+        row = export_worksheet.row(k)
+        row_s2 = selected_worksheet.row(k2)
+        row_s3 = unselected_worksheet.row(k3)
+        row_s4 = matched_worksheet.row(k4)
+        row_s5 = unmatched_worksheet.row(k5)        
+        j=0
+        for each in self.get_header():
+            row.write(j,str(each))
+            row_s2.write(j,str(each))
+            row_s3.write(j,str(each))
+            row_s4.write(j,str(each))
+            row_s5.write(j,str(each))
+            j+=1
+        k+=1
+        for each in snapshot.get_master_table():
+            row = export_worksheet.row(k)
+            j=0
+            a = k-1
+            if a in snapshot.get_master_selected_rows():
+                k2+=1
+                row_s2 = selected_worksheet.row(k2)
             else:
-                company= 'Universal'    
-            if values['radio_HDFC']:
-                bank = 'hdfc'
-            else:
-                bank = 'icici' 
-            try:
-                month = values['month_list'][0]
-                year = values['year_list'][0]
-            except IndexError:
-                return None,bank,company
-            window['right_col_title1'].update(' ' + month + ' ' + year)
-            tableSnapshot = tableSnapshotCollection.get_table_from_collection(month,year,bank,company)
-            if tableSnapshot:
-                window['existing_data_tb' ].update('Yes')
-                window['show_table_but'].update(disabled=False)
-                window['lastsave_data_tb'].update(tableSnapshot.get_last_edited_time())
-                # print('master_selected_rows',tableSnapshot.get_master_selected_rows())
-                return tableSnapshot,bank,company
-            else:
-                window['existing_data_tb' ].update('No')
-                window['lastsave_data_tb'].update('None')
-                window['show_table_but'].update(disabled=True)
-                return None,bank,company   
-        infi_path_dict = get_chq_report_loc()
-        company = None
-        while True:
-            event, values = window.read()
-            # print(event,values)
-            if event in [None,'Exit']:	# if user closes window or clicks cancel
-                window.SaveToDisk(save_path)
-                break
-            elif event == "Change Cheque Report Dir":
-                window.SaveToDisk(save_path)
-                window.close()
-                show_cheque_report_window()
-            elif event is 'table_save_but':
-                if values['radio_Gokul']:
-                    company = 'Gokul'
-                else:
-                    company= 'Universal'
-                try:
-                    month = values['month_list'][0]
-                    year = values['year_list'][0]
-                except IndexError:
-                    continue  
-                # print(month,year,company)
-                if sg.PopupYesNo('Do you want to save the table for '+ month + ' '+ year+' for '+company) != 'Yes':
-                    continue
-                fail=False
-                # window['infi_path'].update(text_color="#000000")
-                infiChequeStatement=chequeReportCollection.get_cheque_report_from_collection(year,company)
-                if not infiChequeStatement:
-                    sg.popup_error('No cheque report found for company '+company + ' for year ' + year + '.') 
-                    continue   
-                window['statement_path'].update(text_color="#000000")            
-                HDFC_statement = ICICI_statement = None                
-                if values['radio_HDFC']:
-                    HDFC_statement = values['statement_path']
-                    if not hdfcBankChequeStatement.setPath(HDFC_statement):
-                        window['statement_path'].update(text_color="#FF0000")
-                        fail=True
-                else:
-                    ICICI_statement = values['statement_path']
-                    if not iciciBankChequeStatement.setPath(ICICI_statement):
-                        window['statement_path'].update(text_color="#FF0000")
-                        fail=True                 
-                if fail:
-                    continue
-                window['progbar'].update_bar(10)
-                window.refresh()
-                # infiChequeStatement.grab_data()
-                window['progbar'].update_bar(20)
-                window.refresh()
-                if( HDFC_statement ):
-                    hdfcBankChequeStatement.grab_data()
-                    bank='HDFC'
-                else:
-                    iciciBankChequeStatement.grab_data()   
-                    bank='ICICI'
-                window['progbar'].update_bar(40)
-                window.refresh()
-                master_table = prepare_table_data(bank, infiChequeStatement)
-                window['progbar'].update_bar(60)
-                window.refresh()
-                tableSnapshot = TableSnapshot(company, month, year, bank, master_table,[],None)
-                tableSnapshotCollection.add_table_to_colection(tableSnapshot,month,year,bank,company)
-                window['progbar'].update_bar(80)
-                window.refresh() 
-                window['progbar'].update_bar(100)
-                window.refresh()
-                tableSnapshot,bank,company = update_leftcolumn(values)
-            elif event is 'table_del_but':
-                try:
-                    month = values['month_list'][0]
-                    year = values['year_list'][0]
-                except IndexError:
-                    continue 
-                if values['radio_HDFC']:
-                    bank = 'hdfc'
-                else:
-                    bank = 'icici'     
-                if sg.PopupYesNo('Delete table '+ month + ' '+ year + '?') != 'Yes':
-                    continue
-                if not tableSnapshotCollection.delete_table_from_collection(month,year,bank,company):
-                    print('Deletion failed.')
-                    continue
-                tableSnapshot,bank,company = update_leftcolumn(values)
-            elif event in ['month_list', 'year_list', 'radio_HDFC','radio_ICICI','radio_Gokul','radio_Universal']:  
-                tableSnapshot,bank,company = update_leftcolumn(values)
-            elif event is 'continuePrev_but':
-                window.close()
-                show_second_window(True, previous_path=(os.getenv('APPDATA')+'\\'+APP_NAME+"\\tableData.fil"))
-            elif event is 'show_table_but':
-                window.SaveToDisk(save_path)
-                window.close()
-                show_second_window(bank=bank, tableSnapshot=tableSnapshot)
-                break 
-            # elif event is 'enable_but':
-                # print("Enabling buttons")
-                # window['infi_path'].update(disabled = False)
-                # window['filebrowse_but'].update(disabled = False)
-            # elif event is 'import_but':
-            #     fail=False
-            #     window['infi_path'].update(text_color="#000000")
-            #     window['statement_path'].update(text_color="#000000")            
-            #     if not infiChequeStatement.setPath(values['infi_path']):
-            #         window['infi_path'].update(text_color="#FF0000")
-            #         fail=True
-            #     HDFC_statement = ICICI_statement = None                
-            #     if values['radio_HDFC']:
-            #         HDFC_statement = values['statement_path']
-            #         if not hdfcBankChequeStatement.setPath(HDFC_statement):
-            #             window['statement_path'].update(text_color="#FF0000")
-            #             fail=True
-            #     else:
-            #         ICICI_statement = values['statement_path']
-            #         if not iciciBankChequeStatement.setPath(ICICI_statement):
-            #             window['statement_path'].update(text_color="#FF0000")
-            #             fail=True                                 
-            #     if fail:
-            #         continue
-            #     window['progbar'].update_bar(10)
-            #     window.refresh()
-            #     infiChequeStatement.grab_data()
-            #     window['progbar'].update_bar(50)
-            #     window.refresh()
-            #     if( HDFC_statement ):
-            #         hdfcBankChequeStatement.grab_data()
-            #         bank='HDFC'
-            #     else:
-            #         iciciBankChequeStatement.grab_data()   
-            #         bank='ICICI'
-            #     window['progbar'].update_bar(100)
-            #     window.refresh()
-            #     window['next_but'].update(disabled=False)
-            # if event is 'next_but':
-            #     window.SaveToDisk(save_path)
-            #     window.close()
-            #     show_second_window(bank=bank)
-            #     break 
-        # window.close()
-
+                k3+=1
+                row_s3 = unselected_worksheet.row(k3)
+            if(each['Party Name'] != '' and each["Bank Narration"] != '' and each["Bank Narration"][0:7]=="CHQ DEP"):
+                k4+=1
+                row_s4 = matched_worksheet.row(k4) 
+            elif(each["Bank Narration"][0:7]=="CHQ DEP"):
+                k5+=1
+                row_s5 = unmatched_worksheet.row(k5)      
+            for header_item in self.get_header(): 
+                cell = each[header_item]
+                if a in snapshot.get_master_selected_rows():
+                    row.write(j,cell,row_color_select)
+                    row_s2.write(j,cell,row_color_select)
+                else:    
+                    row.write(j,cell)
+                    row_s3.write(j,cell)
+                if(each['Party Name'] != '' and each["Bank Narration"] != '' and each["Bank Narration"][0:7]=="CHQ DEP"):
+                    row_s4.write(j,cell)
+                elif(each["Bank Narration"][0:7]=="CHQ DEP"):  
+                    row_s5.write(j,cell) 
+                j+=1
+            k+=1    
+        if folder_url!='' and (folder_url.split('.')[-1].lower()!='xls'):
+            save_file = folder_url + '/123.xls'
+        else:
+            save_file =  folder_url
+        try:
+            export_workbook.save(save_file)  
+            master_excel_export_path = save_file
+            os.startfile(save_file)
+            return True, 0   
+        except FileNotFoundError:
+            return False, -2     
+        except PermissionError:
+            return False, -5          
+        except Exception as e:
+            return False, 99
+        

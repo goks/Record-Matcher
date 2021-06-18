@@ -5,7 +5,7 @@ import sys
 import json
 import threading
 
-from PySide2.QtGui import QGuiApplication
+from PySide2.QtGui import QGuiApplication, QIcon
 from PySide2.QtQml import QQmlApplicationEngine
 from PySide2.QtCore import QObject, SIGNAL, Slot, Signal, Property, QDate
 
@@ -35,7 +35,7 @@ class MainWindow(QObject):
         self._tableData =  list()
         self._creditBal = 'Credit Bal' 
         self._debitBal = 'Debit Bal' 
-        self._header = ['Bank Date', 'Bank Narration', 'Chq No','Party Name' ,'Infi Date','Credit', 'Debit', 'Closing Balance' ]
+        self._header = self.tableOperations.get_header()
         self._selectedRows = [1,2,3]
         self._endDateCalendar =  QDate(2020,6,5)
         self._startDateCalendar = QDate(2016,1,1)
@@ -54,6 +54,7 @@ class MainWindow(QObject):
     checkReportUploadSuccess = Signal()
     showChequeReportPage = Signal(int,str, arguments=['status','time'])
     bankStatementUploadSuccess = Signal()
+    statementExportSuccess = Signal()
     snapshotDeleteSuccess = Signal()
     snapshotDeleteFail = Signal()
     chequeReportDeleteSuccess = Signal()
@@ -110,9 +111,29 @@ class MainWindow(QObject):
             return                
         success, status_code = self.tableOperations.add_snapshot_to_table(fileUrl)    
         if not success:
+            print("ERROR", status_code)
             self.validationError.emit(status_code)
         else: self.bankStatementUploadSuccess.emit()
         return
+    @Slot(str)
+    def exportFile(self, fileURL):
+        if not self.tableSnapshot:
+            self.validationError.emit(4)
+            return    
+        try:     
+            fileURL = fileURL.split('///')[1]
+        except:
+            pass
+        # print('fileURL: ', fileURL, os.path.isdir(fileURL), os.path.isfile(fileURL) )
+        x = threading.Thread(target=self.threadedExportFile, args=(fileURL,), daemon=True)
+        x.start()
+        return    
+    def threadedExportFile(self, fileURL):    
+        status, status_code = self.tableOperations.export_to_excel(fileURL, self.tableSnapshot)    
+        if not status:
+            self.validationError.emit(status_code)
+        else: self.statementExportSuccess.emit()
+        return    
 
     def populate_table(self):
         print(self.current_bank, self.current_company, self.current_month, self.current_year)
@@ -164,8 +185,7 @@ class MainWindow(QObject):
             return
         self._tableData = self.tableOperations.search(self.tableSnapshot.get_master_table(), searchQuery, searchMode)
         self.table_data_changed.emit()
-        return    
-
+        return 
     @Slot()
     def convertSchema(self):
         print('Converting Old to New Schema') 
@@ -174,6 +194,11 @@ class MainWindow(QObject):
     def showChequeReportsSelection(self, selected):
         status, data = self.populateChequeReports()
         self.chequeReportsButtonClicked.emit(selected, status, data )
+    @Slot()
+    def beginWindowExitRoutine(self):
+        self.save_snapshot()
+
+
 
     @Slot(str, str)
     def companyChanged(self, companyname, screenName):
@@ -346,6 +371,7 @@ if __name__ == "__main__":
 
     app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
+    app.setWindowIcon(QIcon('logo.png'))
     
     #Get Context
     main = MainWindow()
@@ -357,7 +383,6 @@ if __name__ == "__main__":
 
     #Load QML File
     engine.load(os.fspath(Path(__file__).resolve().parent / "qml/main.qml"))
-
     if not engine.rootObjects():
         sys.exit(-1)
     sys.exit(app.exec_())

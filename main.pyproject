@@ -1,3 +1,3 @@
 {
-    "files": ["qml/controls/OptionsNotSelectedPage.qml","qml/controls/TopBarButton.qml","qml/controls/LeftPanelCustomList.qml","main.py","qml/controls/CustomTableView.qml","qml/controls/UploadChequeStatementPage.qml","qml/controls/CustomBorder.qml","qml/controls/CustomSubTitleButton.qml","main.qml","qml/controls/MenuButton.qml","qml/controls/MessageBox.qml","qml/controls/ChequeReportPage.qml","qml/controls/CustomCalendar.qml"]
+    "files": ["qml/controls/MenuButton.qml","qml/controls/TopBarButton.qml","qml/controls/CustomTableView.qml","qml/controls/LeftPanelCustomList.qml","main.qml","qml/controls/CustomCalendar.qml","qml/controls/OptionsNotSelectedPage.qml","qml/controls/ChequeReportPage.qml","main.py","qml/controls/CustomSubTitleButton.qml","qml/controls/UploadChequeStatementPage.qml","qml/controls/CustomBorder.qml","qml/controls/MessageBox.qml","qml/controls/CustomPopup.qml"]
 }
