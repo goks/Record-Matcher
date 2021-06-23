@@ -10,13 +10,16 @@ import  "../qml/controls"
 
 Window {
     id: window
-    width: 1562
-    height: 1180
+//    width: 1562
+//    height: 1180
+    width: 1280
+    height: 720
     visible: true
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
-    onClosing: backend.beginWindowExitRoutine()
-    //FontLoader { id: appFont; name: "PT Sans Caption"; source: "fonts/PTSansCaption-Regular.ttf" }
+//    onClosing: backend.beginWindowExitRoutine()
+    FontLoader { id: appFont; name: "PT Sans Caption"; source: "../fonts/PTSansCaption-Regular.ttf" }
+    FontLoader { id: appFont2; name: "Monoton"; source: "../fonts/Monoton-Regular.ttf" }
     property string chequeTimeData: ""
     Rectangle {
         id:backgroundBox
@@ -38,7 +41,7 @@ Window {
 
         Rectangle {
             id: headerBox
-            height: 101
+//            height: 101
             color: "#ffffff"
             anchors.left: parent.left
             anchors.right: parent.right
@@ -46,23 +49,19 @@ Window {
             anchors.rightMargin: 0
             anchors.leftMargin: 0
             anchors.topMargin: 0
+            implicitHeight: 101
             Label {
                 id: logoText
                 width: 411
                 visible: true
                 color: "#003366"
-                //FontLoader { id: headerFont; name: "Monoton"; source: "fonts/Monoton-Regular.ttf" }
                 text: qsTr("Record Matcher")
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
+                font.pixelSize: 36
                 font.family: "Monoton"
                 verticalAlignment: Text.AlignVCenter
-                font.strikeout: false
-                font.underline: false
-                font.italic: false
-                font.bold: false
-                font.pointSize: 28
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
                 anchors.leftMargin: 40
@@ -83,6 +82,7 @@ Window {
                 color: "#ffffff"
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
+                anchors.horizontalCenterOffset: 20
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
@@ -90,7 +90,7 @@ Window {
 
                 TopBarButton {
                     id: export_button
-                    width: 133
+                    // width: 133
                     text: qsTr("Export")
                     anchors.left: parent.left
                     anchors.top: parent.top
@@ -117,12 +117,11 @@ Window {
                 }
                 TopBarButton {
                     id: chequereport_button
-                    width: 230
+                    // width: 230
                     text: qsTr("Cheque Reports")
                     anchors.left: export_button.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    // font.pointSize: 16
                     leftPadding: 0
                     anchors.leftMargin: 1
                     anchors.bottomMargin: 0
@@ -137,12 +136,11 @@ Window {
                 }
                 TopBarButton {
                     id: delete_button
-                    width: 104
+                    // width: 104
                     text: qsTr("Delete")
                     anchors.left: chequereport_button.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    // font.pointSize: 16
                     leftPadding: 0
                     anchors.leftMargin: 1
                     anchors.bottomMargin: 0
@@ -151,12 +149,11 @@ Window {
                 }
                 TopBarButton {
                     id: help_button
-                    width: 88
+                    // width: 88
                     text: qsTr("Help")
                     anchors.left: delete_button.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    // font.pointSize: 16
                     leftPadding: 0
                     anchors.leftMargin: 1
                     anchors.bottomMargin: 0
@@ -1094,8 +1091,10 @@ Window {
 
 
 
+
+
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.5}
+    D{i:0;autoSize:true;formeditorZoom:0.66;height:480;width:640}
 }
 ##^##*/

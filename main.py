@@ -140,6 +140,11 @@ class MainWindow(QObject):
         if '' in [self.current_bank, self.current_company, self.current_month, self.current_year]:
             self.showChooseOptionsPage.emit()
             return -1
+        x = threading.Thread(target=self.threadedPopulate_table, args=(), daemon=True)
+        x.start()
+        return 1    
+
+    def threadedPopulate_table(self):      
         self.save_snapshot()
         print('POPULATING TABLE')
         self.tableSnapshot, self.masterDisplayTableData, credit_bal, debit_bal, start_date,end_date = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
@@ -372,7 +377,7 @@ if __name__ == "__main__":
     app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
     app.setWindowIcon(QIcon('logo.png'))
-    
+       
     #Get Context
     main = MainWindow()
     engine.rootContext().setContextProperty("backend", main)
