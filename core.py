@@ -659,7 +659,10 @@ class TableOperations:
         master_table = snapshot.get_master_table()
         start_date, end_date = "", ""
         for each in master_table:
-            bank_date = datetime.datetime.strptime(each['Bank Date'], "%d/%m/%y")
+            try:
+                bank_date = datetime.datetime.strptime(each['Bank Date'], "%d/%m/%y")
+            except ValueError:
+                bank_date = datetime.datetime.strptime(each['Bank Date'], "%d-%b-%Y")    
             if start_date == "" or start_date>bank_date:
                 start_date = bank_date 
             if end_date == "" or end_date<bank_date:
