@@ -34,9 +34,10 @@ Button {
     }
 
 
-    implicitWidth: 49
-    implicitHeight: 43
-    text: qsTr("Help")
+//    implicitWidth: 55
+//    implicitHeight: parent.width
+
+    text: qsTr("SABUSA")
     contentItem: Text {
         id: buttonLabel
         color: internal.dynamicTextColor
@@ -45,11 +46,10 @@ Button {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         anchors.topMargin: 10
-        minimumPointSize: 18
-        minimumPixelSize: 18
-        fontSizeMode: Text.Fit
+//        fontSizeMode: Text.Fit
         font.family: "PT Sans Caption"
-        font.pointSize: 18
+//        font.pointSize: 18
+        font.pixelSize: 22
         layer.enabled: true
         layer.effect: DropShadow {
                         id: dropShadow
@@ -65,6 +65,8 @@ Button {
         color: internal.dynamicColor
         anchors.fill: parent
         anchors.topMargin: 4
+//        width: buttonLabel.width+50
+        implicitWidth:  parent.width*1.3
         CustomBorder {
             visible: internal.dynamicVisibility
             commonBorder: false
@@ -80,24 +82,9 @@ Button {
             borderColor: "#33475b"
         }
 
-        // Rectangle {
-        //     id: rectangle
-        //     visible: internal.dynamicVisibility
-        //     color: "#33475b"
-        //     anchors.left: parent.left
-        //     anchors.right: parent.right
-        //     anchors.top: parent.top
-        //     anchors.bottom: parent.bottom
-        //     anchors.rightMargin: 0
-        //     anchors.leftMargin: 0
-        //     anchors.bottomMargin: 39
-        //     anchors.topMargin: 0
-        // }
+
     }
 
-    // onClicked: {
-    //     selected = selected?false:true
-    // }
 }
 
 
