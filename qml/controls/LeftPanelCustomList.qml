@@ -14,6 +14,7 @@ ListView {
     layoutDirection: Qt.LeftToRight
     topMargin: 0
     currentIndex: 0
+    property real scaleFactor : 1
 
     property color textcolorDefault: "#6a84a0"
     property color listItemSelected: "#EAF0F6"
@@ -31,12 +32,12 @@ ListView {
     delegate: Item {
         id: delegateItem
         width: listView.width
-        height: 27
+        height: 27*scaleFactor
 
             Rectangle {
                 id: rectangle
                 width: listView.width -4
-                height: 26
+                height: 26*scaleFactor
                 color: delegateItem.ListView.isCurrentItem ? listItemSelected : listItemUnselected
                 //color: listItemSelected
                 anchors.left: parent.left
@@ -80,7 +81,7 @@ ListView {
                 anchors.left: parent.left
                 verticalAlignment: Text.AlignVCenter
                 font.family: "PT Sans Caption"
-                font.pointSize: 10
+                font.pointSize: 10*scaleFactor
                 font.bold: false
                  color: textcolorDefault
             }

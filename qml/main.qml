@@ -10,10 +10,12 @@ import  "../qml/controls"
 
 Window {
     id: window
-//    width: 1562
-//    height: 1180
+    property int designWidth: 1562
+    property int designHeight: 1080
     width: 1280
     height: 720
+    minimumHeight: 720
+    minimumWidth: 1280
     visible: true
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
@@ -21,6 +23,7 @@ Window {
     FontLoader { id: appFont; name: "PT Sans Caption"; source: "../fonts/PTSansCaption-Regular.ttf" }
     FontLoader { id: appFont2; name: "Monoton"; source: "../fonts/Monoton-Regular.ttf" }
     property string chequeTimeData: ""
+    property double scaleFactorHeight: (window.height/window.designHeight)
     Rectangle {
         id:backgroundBox
         color: "#f4f6f8"
@@ -41,7 +44,6 @@ Window {
 
         Rectangle {
             id: headerBox
-//            height: 101
             color: "#ffffff"
             anchors.left: parent.left
             anchors.right: parent.right
@@ -50,6 +52,8 @@ Window {
             anchors.leftMargin: 0
             anchors.topMargin: 0
             implicitHeight: 101
+//            height: Math.min( parent.height*.12, implicitHeight)
+            height: scaleFactorHeight*101
             Label {
                 id: logoText
                 width: 411
@@ -59,7 +63,7 @@ Window {
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                font.pixelSize: 36
+                font.pixelSize: 36*scaleFactorHeight
                 font.family: "Monoton"
                 verticalAlignment: Text.AlignVCenter
                 anchors.bottomMargin: 0
@@ -77,8 +81,8 @@ Window {
             }
             Rectangle {
                 id: headerMenuContainer
-                x: 576
-                width: 460
+                implicitWidth: 460
+                width: Math.min(implicitWidth, parent.width*.30)
                 color: "#ffffff"
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
@@ -86,10 +90,12 @@ Window {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
+                implicitHeight: parent.implicitHeight
 
 
                 TopBarButton {
                     id: export_button
+                    scaleFactor: window.scaleFactorHeight
                     // width: 133
                     text: qsTr("Export")
                     anchors.left: parent.left
@@ -102,7 +108,7 @@ Window {
                     anchors.topMargin: 0
                     onPressed: {
                         export_button.selected = export_button.selected?false:true
-
+                        // console.log("scaleFactor: "+ window.scaleFactorHeight + " "+ headerBox.height+ " "+headerBox.implicitHeight)
                     }
                     onSelectedChanged: {
                         if (chequereport_button.selected){
@@ -117,6 +123,7 @@ Window {
                 }
                 TopBarButton {
                     id: chequereport_button
+                    scaleFactor: window.scaleFactorHeight
                     // width: 230
                     text: qsTr("Cheque Reports")
                     anchors.left: export_button.right
@@ -136,6 +143,7 @@ Window {
                 }
                 TopBarButton {
                     id: delete_button
+                    scaleFactor: window.scaleFactorHeight
                     // width: 104
                     text: qsTr("Delete")
                     anchors.left: chequereport_button.right
@@ -149,6 +157,7 @@ Window {
                 }
                 TopBarButton {
                     id: help_button
+                    scaleFactor: window.scaleFactorHeight
                     // width: 88
                     text: qsTr("Help")
                     anchors.left: delete_button.right
@@ -162,7 +171,7 @@ Window {
             }
             SettingsButton {
                 id: settingsBtn
-                width: 43
+                width: height
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
@@ -184,12 +193,12 @@ Window {
             anchors.bottom: parent.bottom
             anchors.rightMargin: 0
             anchors.leftMargin: 0
-            anchors.bottomMargin: 115
+            anchors.bottomMargin: footerBox.top
             anchors.topMargin: 5
 
             Rectangle {
                 id: leftmenuBox
-                width: 235
+                width: 235*scaleFactorHeight
                 border.color: "#00000000"
                 CustomBorder
                 {
@@ -374,7 +383,7 @@ Window {
                     id: headerAnimationClose
                     target: headerBox
                     property: "height"
-                    from:101
+                    from:101*scaleFactorHeight
                     to: 0
                     duration: 1000
                     easing.type: Easing.InOutQuint
@@ -384,7 +393,7 @@ Window {
                     target: headerBox
                     property: "height"
                     from:0
-                    to: 101
+                    to: 101*scaleFactorHeight
                     duration: 1000
                     easing.type: Easing.InOutQuint
                 }
@@ -393,7 +402,7 @@ Window {
                     target: headerBox
                     property: "height"
                     from:0
-                    to: 101
+                    to: 101*scaleFactorHeight
                     duration: 1000
                     easing.type: Easing.InOutQuint
                 }
@@ -401,10 +410,9 @@ Window {
                     id: leftMenuAnimationOpen
                     target: leftmenuBox
                     property: "width"
-                    to: 235
+                    to: 235*scaleFactorHeight
                     duration: 1000
                     easing.type: Easing.InOutQuint
-
                 }
                 PropertyAnimation{
                     id: menuBtnCloseAnimation
@@ -414,7 +422,6 @@ Window {
                     to: 0
                     duration: 1000
                     easing.type: Easing.InOutQuint
-
                 }
                 PropertyAnimation{
                     id: menuBtnOpenAnimation
@@ -424,7 +431,6 @@ Window {
                     to: 49
                     duration: 1000
                     easing.type: Easing.InOutQuint
-
                 }
                 PropertyAnimation{
                     id: menuBtnOpacityAnimation
@@ -434,7 +440,6 @@ Window {
                     to: 0
                     duration: 1000
                     easing.type: Easing.InOutQuint
-
                 }
                 PropertyAnimation{
                     id: menuBtnOpacityAnimation2
@@ -444,7 +449,6 @@ Window {
                     to: 1
                     duration: 1000
                     easing.type: Easing.InOutQuint
-
                 }
 
                 MenuButton {
@@ -481,7 +485,7 @@ Window {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     font.family: "PT Sans Caption"
-                    font.pixelSize: 26
+                    font.pixelSize: 26*scaleFactorHeight
                     font.weight: Font.Bold
                     verticalAlignment: Text.AlignVCenter
                     anchors.rightMargin: 29
@@ -510,7 +514,7 @@ Window {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: 18
+                        font.pixelSize: 18*scaleFactorHeight
                         verticalAlignment: Text.AlignBottom
                         font.weight: Font.Bold
                         minimumPointSize: 18
@@ -533,6 +537,7 @@ Window {
                         anchors.leftMargin: 0
                         currentIndex:1
                         selected: ''
+                        scaleFactor: scaleFactorHeight
                         data: backend.companyDict
                         onSelectedChanged: {
                             backend.companyChanged(selected, selectedName)
@@ -1032,7 +1037,10 @@ Window {
 
         Rectangle {
             id: footerBox
-            height: 110
+//            height: 110
+            implicitHeight: 101
+//            height: Math.min( parent.height*.12, implicitHeight)
+            height: scaleFactorHeight*101
             color: "#003366"
             anchors.left: parent.left
             anchors.right: parent.right
@@ -1051,7 +1059,7 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 font.pixelSize: 26
                 horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+//                verticalAlignment: Text.AlignVCenter
                 anchors.horizontalCenter: parent.horizontalCenter
                 layer.enabled: true
                 layer.effect: DropShadow {
@@ -1095,6 +1103,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;autoSize:true;formeditorZoom:0.66;height:480;width:640}
+    D{i:0;formeditorZoom:0.5}
 }
 ##^##*/

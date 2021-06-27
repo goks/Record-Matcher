@@ -140,7 +140,7 @@ class MainWindow(QObject):
         if '' in [self.current_bank, self.current_company, self.current_month, self.current_year]:
             self.showChooseOptionsPage.emit()
             return -1
-        x = threading.Thread(target=self.threadedPopulate_table, args=(), daemon=True)
+        x = threading.Thread(target=self.threadedPopulate_table, args=( ), daemon=True)
         x.start()
         return 1    
 

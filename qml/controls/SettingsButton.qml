@@ -21,7 +21,7 @@ Button {
                                    }
     }
 
-    implicitWidth: 49
+    implicitWidth: 43
     implicitHeight: 43
     background: Rectangle {
         color: internal.dynamicColor
