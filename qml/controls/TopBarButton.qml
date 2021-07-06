@@ -13,7 +13,18 @@ Button {
     property color textcolorDefault: "#33475B"
     property color textcolorMouseOver: "#043769"
     property bool selected: false
-    property real scaleFactor: 1
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+            return Math.round(size * scaleFactorWidth)
+        }
+        function vscale(size) {
+            return Math.round(size * scaleFactorHeight)
+        }
+    function tscale(size) {
+           return Math.round((hscale(size) + vscale(size)) / 2)
+       }
+    
     QtObject {
         id: internal
 
@@ -41,18 +52,18 @@ Button {
     text: qsTr("SABUSA")
     contentItem:
         Text {
-//        width: topBarButton.width
+    //    width: topBarButton.width
         id: buttonLabel
         color: internal.dynamicTextColor
         text: topBarButton.text
         anchors.fill: parent
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
-        anchors.topMargin: 10
+        anchors.topMargin: vscale(10)
 //        fontSizeMode: Text.Fit
         font.family: "PT Sans Caption"
 //        font.pointSize: 18
-        font.pixelSize: scaleFactor*22
+        font.pixelSize: tscale(22)
         layer.enabled: true
         layer.effect: DropShadow {
                         id: dropShadow
@@ -66,8 +77,8 @@ Button {
     background: Rectangle {
         color: internal.dynamicColor
         anchors.fill: parent
-        anchors.topMargin: 4
-        implicitWidth:  buttonLabel.paintedWidth + scaleFactor*50
+        anchors.topMargin: vscale(4)
+        implicitWidth:  buttonLabel.paintedWidth + hscale(50)
         CustomBorder {
             visible: internal.dynamicVisibility
             commonBorder: false

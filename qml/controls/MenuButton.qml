@@ -8,6 +8,17 @@ Button {
     property color bgcolorDefault: "#ffffff"
     property color bgcolorMouseOver: "#e5e5e5"
     property color bgcolorPressed: "#c4c4c4"
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+            return Math.round(size * scaleFactorWidth)
+        }
+        function vscale(size) {
+            return Math.round(size * scaleFactorHeight)
+        }
+    function tscale(size) {
+           return Math.round((hscale(size) + vscale(size)) / 2)
+       }
 
     QtObject {
         id: internal
@@ -19,8 +30,8 @@ Button {
                                    }
     }
 
-    implicitWidth: 49
-    implicitHeight: 43
+    implicitWidth: hscale(49)
+    implicitHeight: vscale(43)
     background: Rectangle {
         color: internal.dynamicColor
 

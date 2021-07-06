@@ -14,16 +14,36 @@ Window {
     property int designHeight: 1080
     width: 1280
     height: 720
-    minimumHeight: 720
-    minimumWidth: 1280
+//    minimumWidth: 1280
+//    minimumHeight: 720
     visible: true
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
+    // readonly property real refScreenWidth: 1562
+    // readonly property real refScreenHeight: 1180
+    readonly property real refScreenWidth: 1920
+    readonly property real refScreenHeight: 1080
+
+    readonly property real screenWidth: window.width
+    readonly property real screenHeight: window.height
+
+        property double scaleFactorHeight: (screenHeight / refScreenHeight)
+        property double scaleFactorWidth: (screenWidth / refScreenWidth)
+
+    function hscale(size) {
+            return Math.round(size * scaleFactorWidth)
+        }
+
+        function vscale(size) {
+            return Math.round(size * scaleFactorHeight)
+        }
+    function tscale(size) {
+           return Math.round((hscale(size) + vscale(size)) / 2)
+       }
 //    onClosing: backend.beginWindowExitRoutine()
     FontLoader { id: appFont; name: "PT Sans Caption"; source: "../fonts/PTSansCaption-Regular.ttf" }
     FontLoader { id: appFont2; name: "Monoton"; source: "../fonts/Monoton-Regular.ttf" }
     property string chequeTimeData: ""
-    property double scaleFactorHeight: (window.height/window.designHeight)
     Rectangle {
         id:backgroundBox
         color: "#f4f6f8"
@@ -51,24 +71,26 @@ Window {
             anchors.rightMargin: 0
             anchors.leftMargin: 0
             anchors.topMargin: 0
-            implicitHeight: 101
+            implicitHeight: vscale(101)
 //            height: Math.min( parent.height*.12, implicitHeight)
-            height: scaleFactorHeight*101
+//            height: scaleFactorHeight*101
+            height: vscale(101)
+//            transform: Scale { yScale: scaleFactorHeight; xScale: scaleFactorWidth;}
             Label {
                 id: logoText
-                width: 411
+                width: hscale(411)
                 visible: true
                 color: "#003366"
                 text: qsTr("Record Matcher")
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                font.pixelSize: 36*scaleFactorHeight
+                font.pixelSize: tscale(36)
                 font.family: "Monoton"
                 verticalAlignment: Text.AlignVCenter
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
-                anchors.leftMargin: 40
+                anchors.leftMargin: hscale(40)
                 layer.enabled: true
                 layer.effect: DropShadow {
                     id: dropShadow
@@ -81,12 +103,13 @@ Window {
             }
             Rectangle {
                 id: headerMenuContainer
-                implicitWidth: 460
-                width: Math.min(implicitWidth, parent.width*.30)
+                implicitWidth: hscale(460)
+//                width: Math.min(implicitWidth, parent.width*.30)
+                width: hscale(460)
                 color: "#ffffff"
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                anchors.horizontalCenterOffset: 20
+                anchors.horizontalCenterOffset: hscale(20)
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
@@ -95,7 +118,6 @@ Window {
 
                 TopBarButton {
                     id: export_button
-                    scaleFactor: window.scaleFactorHeight
                     // width: 133
                     text: qsTr("Export")
                     anchors.left: parent.left
@@ -106,6 +128,8 @@ Window {
                     anchors.leftMargin: 0
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
+                    scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                     onPressed: {
                         export_button.selected = export_button.selected?false:true
                         // console.log("scaleFactor: "+ window.scaleFactorHeight + " "+ headerBox.height+ " "+headerBox.implicitHeight)
@@ -123,7 +147,8 @@ Window {
                 }
                 TopBarButton {
                     id: chequereport_button
-                    scaleFactor: window.scaleFactorHeight
+                    scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                     // width: 230
                     text: qsTr("Cheque Reports")
                     anchors.left: export_button.right
@@ -143,7 +168,8 @@ Window {
                 }
                 TopBarButton {
                     id: delete_button
-                    scaleFactor: window.scaleFactorHeight
+                    scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                     // width: 104
                     text: qsTr("Delete")
                     anchors.left: chequereport_button.right
@@ -157,7 +183,8 @@ Window {
                 }
                 TopBarButton {
                     id: help_button
-                    scaleFactor: window.scaleFactorHeight
+                    scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                     // width: 88
                     text: qsTr("Help")
                     anchors.left: delete_button.right
@@ -171,14 +198,12 @@ Window {
             }
             SettingsButton {
                 id: settingsBtn
-                width: height
+                width: tscale(43)
+                height: width
+                anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
                 z: 1
-                anchors.topMargin: 29
-                anchors.bottomMargin: 29
-                anchors.rightMargin: 99
+                anchors.rightMargin: hscale(99)
                 btnIconSource: "../images/svg_images/settings_gear.svg"
                 onConvertSchemaClicked: backend.convertSchema()
 
@@ -194,11 +219,11 @@ Window {
             anchors.rightMargin: 0
             anchors.leftMargin: 0
             anchors.bottomMargin: footerBox.top
-            anchors.topMargin: 5
+            anchors.topMargin: vscale(5)
 
             Rectangle {
                 id: leftmenuBox
-                width: 235*scaleFactorHeight
+                width: hscale(235)
                 border.color: "#00000000"
                 CustomBorder
                 {
@@ -211,7 +236,7 @@ Window {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 z: 2
-                anchors.bottomMargin: 5
+                anchors.bottomMargin: vscale(5)
                 anchors.topMargin: 0
                 anchors.leftMargin: 0
 
@@ -383,7 +408,7 @@ Window {
                     id: headerAnimationClose
                     target: headerBox
                     property: "height"
-                    from:101*scaleFactorHeight
+                    from:vscale(101)
                     to: 0
                     duration: 1000
                     easing.type: Easing.InOutQuint
@@ -393,7 +418,7 @@ Window {
                     target: headerBox
                     property: "height"
                     from:0
-                    to: 101*scaleFactorHeight
+                    to: vscale(101)
                     duration: 1000
                     easing.type: Easing.InOutQuint
                 }
@@ -402,7 +427,7 @@ Window {
                     target: headerBox
                     property: "height"
                     from:0
-                    to: 101*scaleFactorHeight
+                    to: vscale(101)
                     duration: 1000
                     easing.type: Easing.InOutQuint
                 }
@@ -410,7 +435,7 @@ Window {
                     id: leftMenuAnimationOpen
                     target: leftmenuBox
                     property: "width"
-                    to: 235*scaleFactorHeight
+                    to: hscale(235)
                     duration: 1000
                     easing.type: Easing.InOutQuint
                 }
@@ -418,7 +443,7 @@ Window {
                     id: menuBtnCloseAnimation
                     target:burgerButton2
                     property: "width"
-                    from:49
+                    from: hscale(49)
                     to: 0
                     duration: 1000
                     easing.type: Easing.InOutQuint
@@ -428,7 +453,7 @@ Window {
                     target:burgerButton2
                     property: "width"
                     from:0
-                    to: 49
+                    to: hscale(49)
                     duration: 1000
                     easing.type: Easing.InOutQuint
                 }
@@ -458,11 +483,13 @@ Window {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.topMargin: 22
+                    anchors.topMargin: vscale(22)
                     bottomPadding: 0
                     checkable: false
-                    anchors.rightMargin: 15
-                    anchors.leftMargin: 171
+                    anchors.rightMargin: hscale(15)
+                    anchors.leftMargin: hscale(171)
+                    scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                     onClicked:{
                         menuBtnOpenAnimation .running = true
                         leftMenuAnimationClose.running = true
@@ -477,7 +504,7 @@ Window {
 
                 Text {
                     id: optionsText
-                    height: 45
+                    height: vscale(45)
                     text: qsTr("Options")
                     elide: Text.ElideRight
                     color: "#324254"
@@ -485,28 +512,28 @@ Window {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     font.family: "PT Sans Caption"
-                    font.pixelSize: 26*scaleFactorHeight
+                    font.pixelSize: tscale(26)
                     font.weight: Font.Bold
                     verticalAlignment: Text.AlignVCenter
-                    anchors.rightMargin: 29
-                    anchors.topMargin: 18
-                    anchors.leftMargin: 33
+                    anchors.rightMargin: hscale(29)
+                    anchors.leftMargin: hscale(33)
+                    anchors.topMargin: vscale(18)
                 }
 
                 Rectangle {
                     id: companyBox
-                    height: 97
+                    height: vscale(97)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: optionsText.bottom
-                    anchors.topMargin: 15
+                    anchors.topMargin: vscale(15)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
 
                     Text {
                         id: companyText
-                        height: 23
+                        height: vscale(23)
                         color: "#2e3f51"
                         text: qsTr("Company")
                         elide: Text.ElideRight
@@ -514,30 +541,31 @@ Window {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: 18*scaleFactorHeight
+                        font.pixelSize: tscale(18)
                         verticalAlignment: Text.AlignBottom
                         font.weight: Font.Bold
-                        minimumPointSize: 18
+                        // minimumPointSize: 18
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
-                        anchors.leftMargin: 33
+                        anchors.leftMargin: hscale(33)
                     }
 
                     LeftPanelCustomList {
                         id: companyList
-                        height: 61
+                        height: vscale(61)
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: companyText.bottom
                         anchors.bottom: parent.bottom
-                        //                                                boundsBehavior: Flickable.DragAndOvershootBounds
+                        // boundsBehavior: Flickable.DragAndOvershootBounds
                         anchors.bottomMargin: 0
-                        anchors.topMargin: 8
+                        anchors.topMargin: vscale(8)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         currentIndex:1
                         selected: ''
-                        scaleFactor: scaleFactorHeight
+                        scaleFactorWidth: window.scaleFactorWidth
+                        scaleFactorHeight: window.scaleFactorHeight
                         data: backend.companyDict
                         onSelectedChanged: {
                             backend.companyChanged(selected, selectedName)

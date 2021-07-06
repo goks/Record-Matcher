@@ -3,7 +3,7 @@ import  "../controls"
 
 ListView {
     id: listView
-    height: 50
+    height: vscale(50)
     property var data: [
             {"name": "HDFC", "value": "hdfc"},
             {"name": "ICICI", "value": "icici"}
@@ -14,7 +14,18 @@ ListView {
     layoutDirection: Qt.LeftToRight
     topMargin: 0
     currentIndex: 0
-    property real scaleFactor : 1
+    // property real scaleFactor : 1
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+            return Math.round(size * scaleFactorWidth)
+        }
+        function vscale(size) {
+            return Math.round(size * scaleFactorHeight)
+        }
+    function tscale(size) {
+           return Math.round((hscale(size) + vscale(size)) / 2)
+       }
 
     property color textcolorDefault: "#6a84a0"
     property color listItemSelected: "#EAF0F6"
@@ -32,16 +43,15 @@ ListView {
     delegate: Item {
         id: delegateItem
         width: listView.width
-        height: 27*scaleFactor
-
+        height: vscale(27)
             Rectangle {
                 id: rectangle
-                width: listView.width -4
-                height: 26*scaleFactor
+                width: listView.width-4
+                height: vscale(26)
                 color: delegateItem.ListView.isCurrentItem ? listItemSelected : listItemUnselected
                 //color: listItemSelected
                 anchors.left: parent.left
-                anchors.leftMargin: 4
+                anchors.leftMargin: hscale(4)
                 CustomBorder {
                     visible: delegateItem.ListView.isCurrentItem ? true : false
                     commonBorder: false
@@ -76,12 +86,12 @@ ListView {
                 elide: Text.ElideRight
                 width: parent.width
                 height: parent.height
-                anchors.leftMargin: 29
+                anchors.leftMargin: hscale(29) 
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 verticalAlignment: Text.AlignVCenter
                 font.family: "PT Sans Caption"
-                font.pointSize: 10*scaleFactor
+                font.pointSize: tscale(10)
                 font.bold: false
                  color: textcolorDefault
             }
@@ -97,7 +107,7 @@ ListView {
             model.append({name: data[i]['name'], value: data[i]['value']})
         }
     }
-    }
+}
 
 
 
