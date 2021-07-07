@@ -43,6 +43,8 @@ Window {
 //    onClosing: backend.beginWindowExitRoutine()
     FontLoader { id: appFont; name: "PT Sans Caption"; source: "../fonts/PTSansCaption-Regular.ttf" }
     FontLoader { id: appFont2; name: "Monoton"; source: "../fonts/Monoton-Regular.ttf" }
+    FontLoader { id: appFont3; source: "../fonts/PTSansCaption-Bold.ttf" }
+    FontLoader { id: appFont4; source: "../fonts/Sen-Regular.ttf" }
     property string chequeTimeData: ""
     Rectangle {
         id:backgroundBox
@@ -510,7 +512,7 @@ Window {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    font.family: "PT Sans Caption"
+                    font.family: appFont3.name
                     font.pixelSize: tscale(26)
                     font.weight: Font.Bold
                     verticalAlignment: Text.AlignVCenter
@@ -526,7 +528,7 @@ Window {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: optionsText.bottom
-                    anchors.topMargin: vscale(15)
+                    anchors.topMargin: vscale(26)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
 
@@ -536,7 +538,7 @@ Window {
                         color: "#2e3f51"
                         text: qsTr("Company")
                         elide: Text.ElideRight
-                        font.family: "PT Sans Caption"
+                        font.family: appFont3.name
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
@@ -576,13 +578,13 @@ Window {
 
                 Rectangle {
                     id: bankBox
-                    height: vscale(97)
+                    // height: vscale(97)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: companyBox.bottom
-                    // anchors.topMargin: vscale(15)
-                    anchors.topMargin: vscale(10)
+                    anchors.topMargin: vscale(20)
+                    // anchors.topMargin: vscale(10)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0   
 
@@ -592,7 +594,7 @@ Window {
                         color: "#2e3f51"
                         text: qsTr("Bank")
                         elide: Text.ElideRight
-                        font.family: "PT Sans Caption"
+                        font.family: appFont3.name
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
@@ -608,7 +610,7 @@ Window {
 
                     LeftPanelCustomList {
                         id: bankList
-                        height: vscale(61)
+                        // height: vscale(61)
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: bankText.bottom
@@ -636,7 +638,7 @@ Window {
                     anchors.right: parent.right
                     anchors.top: bankBox.bottom
                     // anchors.topMargin: vscale(15)
-                    anchors.topMargin: vscale(10)
+                    anchors.topMargin: vscale(20)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
                     
@@ -646,7 +648,7 @@ Window {
                         color: "#2e3f51"
                         text: qsTr("Year")
                         elide: Text.ElideRight
-                        font.family: "PT Sans Caption"
+                        font.family: appFont3.name
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
@@ -690,8 +692,8 @@ Window {
                     anchors.top: yearBox.bottom
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 0
-                    // anchors.topMargin: vscale(15)
-                    anchors.topMargin: vscale(10)
+                    anchors.topMargin: vscale(20)
+                    // anchors.topMargin: vscale(10)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
 
@@ -701,7 +703,7 @@ Window {
                         color: "#2e3f51"
                         text: qsTr("Month")
                         elide: Text.ElideRight
-                        font.family: "PT Sans Caption"
+                        font.family: appFont3.name
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
@@ -712,6 +714,7 @@ Window {
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
                         anchors.leftMargin: hscale(33)
+                        z:2
                     }
 
                     LeftPanelCustomList {
@@ -728,6 +731,7 @@ Window {
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         //                        currentIndex:2
+                        z:1
                         onSelectedChanged: {
                             backend.monthChanged(selected, selectedName)
                         }
@@ -807,7 +811,7 @@ Window {
                             anchors.leftMargin: hscale(35)
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
-                            font.family: "PT Sans Caption"
+                            font.family: appFont3.name
                             color: "#324254"
                             font.pixelSize: tscale(26)
                             font.weight: Font.Bold
@@ -934,7 +938,7 @@ Window {
 
                             CustomSubTitleButton {
                                 id: byDateBtn
-                                width: hscale(90)
+//                                width: hscale(90)
                                 anchors.left: parent.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -953,7 +957,7 @@ Window {
                             }
                             CustomSubTitleButton {
                                 id: byChqAmtBtn
-                                width: hscale(177)
+                                // width: hscale(177)
                                 anchors.left: byDateBtn.right
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -972,7 +976,7 @@ Window {
                             }
                             CustomSubTitleButton {
                                 id: byChqNoBtn
-                                width: hscale(177)
+                                // width: hscale(177)
                                 anchors.left: byChqAmtBtn.right
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -992,7 +996,7 @@ Window {
                             }
                             CustomSubTitleButton {
                                 id: debitIndicator
-                                width: hscale(120)
+//                                width: hscale(120)
                                 anchors.right: parent.right
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -1006,7 +1010,7 @@ Window {
                             }
                             CustomSubTitleButton {
                                 id: creditIndicator
-                                width: hscale(120)
+//                                width: hscale(120)
                                 anchors.right: debitIndicator.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -1173,6 +1177,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.5}
+    D{i:0;formeditorZoom:0.66}
 }
 ##^##*/

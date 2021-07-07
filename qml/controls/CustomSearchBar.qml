@@ -84,11 +84,11 @@ Rectangle {
             // width: 174
             width: hscale(74)
             height: vscale(25)
-            fontSize: tscale(10)
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             anchors.rightMargin: hscale(18)
             visible: containerBox.searchmode!="default"?true:false
+            font.pixelSize: tscale(10)
             // visible: true
             text: "Browse"
             onClicked: fileDialog.open()

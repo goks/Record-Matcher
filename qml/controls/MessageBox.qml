@@ -45,7 +45,7 @@ Rectangle {
         anchors.leftMargin: hscale(50)
         color: textColor
         font.family: "PT Sans Caption"
-                font.pointSize: tscale(22)
+        font.pointSize: tscale(22)
     }
 
     Text {
@@ -63,7 +63,7 @@ Rectangle {
         color: textColor
         font.family: "PT Sans Caption"
 //        font.pointSize: 20
-                        font.pointSize: tscale(18)
+        font.pointSize: tscale(18)
     }
 
     Text {
@@ -97,7 +97,7 @@ Rectangle {
         horizontalAlignment: Text.AlignHCenter
         color: textColor
         font.family: "PT Sans Caption"
-                font.pointSize: tscale(22)
+        font.pointSize: tscale(22)
     }
 }
 

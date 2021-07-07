@@ -90,7 +90,8 @@ ListView {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 verticalAlignment: Text.AlignVCenter
-                font.family: "PT Sans Caption"
+                // font.family: "PT Sans Caption"
+                font.family: appFont4.name
                 font.pointSize: tscale(10)
                 font.bold: false
                 color: textcolorDefault

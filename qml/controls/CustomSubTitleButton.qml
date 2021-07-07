@@ -23,8 +23,11 @@ Button {
     property int fontSize: tscale(10)
     enabled: true
 
-    implicitWidth: hscale(69)
+    // implicitWidth: hscale(69)
     implicitHeight: vscale(38)
+    width: implicitWidth
+    leftPadding: hscale(18)
+    rightPadding: hscale(18)
     contentItem: Text {
             id: buttonLabel
             color: selected?textColorHighLight:textColor
