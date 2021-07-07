@@ -9,11 +9,22 @@ Button {
     property color bgColor: "#F5F8FA"
     property color bgColorHighlight: "#003366"
     property bool selected: false
-    property int fontSize: 10
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return Math.round((hscale(size) + vscale(size)) / 2)
+    }
+    property int fontSize: tscale(10)
     enabled: true
 
-    implicitWidth: 69
-    implicitHeight: 38
+    implicitWidth: hscale(69)
+    implicitHeight: vscale(38)
     contentItem: Text {
             id: buttonLabel
             color: selected?textColorHighLight:textColor

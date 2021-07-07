@@ -61,7 +61,6 @@ Window {
     CustomPopup{
         id: popup
     }
-
         Rectangle {
             id: headerBox
             color: "#ffffff"
@@ -215,10 +214,10 @@ Window {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: headerBox.bottom
-            anchors.bottom: parent.bottom
+            anchors.bottom: footerBox.top
             anchors.rightMargin: 0
             anchors.leftMargin: 0
-            anchors.bottomMargin: footerBox.top
+            anchors.bottomMargin: 4
             anchors.topMargin: vscale(5)
 
             Rectangle {
@@ -271,7 +270,7 @@ Window {
                             monthBox.visible = true
                             bankBox.visible = true
                             bankLabel.visible = true
-                            bankBox.height = 97
+                            bankBox.height = vscale(97)
                             bodySubtitleStatementModeContainer.visible = true
                             export_button.selected = false
                             delete_button.selected = false
@@ -294,7 +293,7 @@ Window {
                         console.log("Showing table")
                         monthBox.visible = true
                         bankBox.visible = true
-                        bankBox.height = 97
+                        bankBox.height = vscale(97)
                         bodySubtitleStatementModeContainer.visible = true
                         chequereport_button.selected = false
                         export_button.selected = false
@@ -308,7 +307,7 @@ Window {
                         console.log("Showing upload Cheque Statement")
                         monthBox.visible = true
                         bankBox.visible = true
-                        bankBox.height = 97
+                        bankBox.height = vscale(97)
                         bodySubtitleStatementModeContainer.visible = false
                         chequereport_button.selected = false
                         export_button.selected = false
@@ -322,7 +321,7 @@ Window {
                         console.log("Showing select options component")
                         monthBox.visible = true
                         bankBox.visible = true
-                        bankBox.height = 97
+                        bankBox.height = vscale(97)
                         bodySubtitleStatementModeContainer.visible = true
                         chequereport_button.selected = false
                         export_button.selected = false
@@ -548,11 +547,12 @@ Window {
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
                         anchors.leftMargin: hscale(33)
+                        z:2
                     }
 
                     LeftPanelCustomList {
                         id: companyList
-                        height: vscale(61)
+                        // height: vscale(61)
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: companyText.bottom
@@ -567,6 +567,7 @@ Window {
                         scaleFactorWidth: window.scaleFactorWidth
                         scaleFactorHeight: window.scaleFactorHeight
                         data: backend.companyDict
+                            z:1
                         onSelectedChanged: {
                             backend.companyChanged(selected, selectedName)
                         }
@@ -575,18 +576,19 @@ Window {
 
                 Rectangle {
                     id: bankBox
-                    height: 97
+                    height: vscale(97)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: companyBox.bottom
-                    anchors.topMargin: 15
+                    // anchors.topMargin: vscale(15)
+                    anchors.topMargin: vscale(10)
                     anchors.rightMargin: 0
-                    anchors.leftMargin: 0
+                    anchors.leftMargin: 0   
 
                     Text {
                         id: bankText
-                        height: 23
+                        height: vscale(23)
                         color: "#2e3f51"
                         text: qsTr("Bank")
                         elide: Text.ElideRight
@@ -594,47 +596,53 @@ Window {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: 18
+                        font.pixelSize: tscale(18)
                         verticalAlignment: Text.AlignBottom
                         font.weight: Font.Bold
-                        minimumPointSize: 18
+                        // minimumPointSize: 18
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
-                        anchors.leftMargin: 33
+                        anchors.leftMargin: hscale(33)
+                        z:2
                     }
 
                     LeftPanelCustomList {
                         id: bankList
+                        height: vscale(61)
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: bankText.bottom
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 0
-                        anchors.topMargin: 8
+                        anchors.topMargin: vscale(8)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         currentIndex:0
+                        scaleFactorWidth: window.scaleFactorWidth
+                        scaleFactorHeight: window.scaleFactorHeight
                         selected: ''
+                        data: backend.bankDict
+                            z:1
                         onSelectedChanged: {
                             backend.bankChanged(selected, selectedName)
                         }
-                        data: backend.bankDict
                     }
                 }
                 Rectangle {
                     id: yearBox
-                    height: 180
+                    height: vscale(180)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: bankBox.bottom
-                    anchors.topMargin: 15
+                    // anchors.topMargin: vscale(15)
+                    anchors.topMargin: vscale(10)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
-
+                    
                     Text {
                         id: yearText
-                        height: 23
+                        height: vscale(23)
                         color: "#2e3f51"
                         text: qsTr("Year")
                         elide: Text.ElideRight
@@ -642,27 +650,31 @@ Window {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: 18
+                        font.pixelSize: tscale(18)
                         verticalAlignment: Text.AlignBottom
                         font.weight: Font.Bold
-                        minimumPointSize: 18
+                        // minimumPointSize: 18
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
-                        anchors.leftMargin: 33
+                        anchors.leftMargin: hscale(33)
+                        z:1
                     }
 
                     LeftPanelCustomList {
                         id: yearList
-                        height: 170
+                        height: vscale(170)
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: yearText.bottom
                         anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 17
-                        anchors.topMargin: 8
+                        anchors.bottomMargin: vscale(17)
+                        anchors.topMargin: vscale(8)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         currentIndex:2
+                        scaleFactorWidth: window.scaleFactorWidth
+                        scaleFactorHeight: window.scaleFactorHeight
+                        z:0
                         onSelectedChanged: {
                             backend.yearChanged(selected)
                         }
@@ -678,13 +690,14 @@ Window {
                     anchors.top: yearBox.bottom
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 0
-                    anchors.topMargin: 15
+                    // anchors.topMargin: vscale(15)
+                    anchors.topMargin: vscale(10)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
 
                     Text {
                         id: monthText
-                        height: 23
+                        height: vscale(23)
                         color: "#2e3f51"
                         text: qsTr("Month")
                         elide: Text.ElideRight
@@ -692,24 +705,26 @@ Window {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: 18
+                        font.pixelSize: tscale(18)
                         verticalAlignment: Text.AlignBottom
                         font.weight: Font.Bold
-                        minimumPointSize: 18
+                        // minimumPointSize: 18
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
-                        anchors.leftMargin: 33
+                        anchors.leftMargin: hscale(33)
                     }
 
                     LeftPanelCustomList {
                         id: monthList
                         visible: true
+                        scaleFactorWidth: window.scaleFactorWidth
+                        scaleFactorHeight: window.scaleFactorHeight
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: monthText.bottom
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 0
-                        anchors.topMargin: 8
+                        anchors.topMargin: vscale(8)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         //                        currentIndex:2
@@ -728,18 +743,21 @@ Window {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                anchors.leftMargin: 5
+                anchors.leftMargin: hscale(5)
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
                 anchors.rightMargin: 0
 
                 ToastManager {
                     id: toast
+                    scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
+
                 }
 
                 Rectangle {
                     id: bodyHeaderBox
-                    height: 126
+                    height: vscale(126)
                     color: "#ffffff"
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -751,14 +769,14 @@ Window {
 
                     Rectangle {
                         id: bodyTitleContainer
-                        height: 45
+                        height: vscale(45)
                         color: "#ffffff"
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
-                        anchors.topMargin: 18
+                        anchors.topMargin: vscale(18)
 
                         MenuButton {
                             id: burgerButton2
@@ -766,8 +784,10 @@ Window {
                             visible: true
                             anchors.left: parent.left
                             anchors.top: parent.top
-                            anchors.leftMargin: 15
-                            anchors.topMargin: 4
+                            anchors.leftMargin: hscale(15)
+                            anchors.topMargin: vscale(4)
+                            scaleFactorWidth: window.scaleFactorWidth
+                            scaleFactorHeight: window.scaleFactorHeight
                             clip: false
                             onClicked: {
                                 menuBtnCloseAnimation.running = true
@@ -784,12 +804,12 @@ Window {
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             verticalAlignment: Text.AlignVCenter
-                            anchors.leftMargin: 35
+                            anchors.leftMargin: hscale(35)
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
                             font.family: "PT Sans Caption"
                             color: "#324254"
-                            font.pixelSize: 26
+                            font.pixelSize: tscale(26)
                             font.weight: Font.Bold
                         }
                         Label {
@@ -800,12 +820,12 @@ Window {
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             verticalAlignment: Text.AlignVCenter
-                            anchors.leftMargin: 45
+                            anchors.leftMargin: hscale(45)
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
                             font.family: "PT Sans Caption"
                             color: "#324254"
-                            font.pixelSize: 26
+                            font.pixelSize: tscale(26)
                             //                            font.weight: Font.Bold
                         }
                         Label {
@@ -816,26 +836,26 @@ Window {
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             verticalAlignment: Text.AlignVCenter
-                            anchors.leftMargin: 45
+                            anchors.leftMargin: hscale(45)
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
                             font.family: "PT Sans Caption"
                             color: "#324254"
-                            font.pixelSize: 26
+                            font.pixelSize: tscale(26)
                             //                            font.weight: Font.Bold
                         }
                     }
 
                     Rectangle {
                         id: bodySubtitleContainer
-                        height: 38
+                        height: vscale(38)
                         color: "#ffffff"
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: bodyTitleContainer.bottom
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
-                        anchors.topMargin: 25
+                        anchors.topMargin: vscale(25)
 
                         CustomSearchBar {
                             id: textInput
@@ -844,12 +864,14 @@ Window {
                             anchors.left: parent.left
                             anchors.top: parent.top
 //                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: 42
+                            anchors.leftMargin: hscale(42)
 //                            anchors.bottomMargin: 0
                             anchors.topMargin: 0
                             searchbyMode: "off"
                             startDateCalendar: backend.startDateCalendar
                             endDateCalendar: backend.endDateCalendar
+                            scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                             onSearchBarTextChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                             onSearchbyModeChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                         }
@@ -864,11 +886,11 @@ Window {
                         
                         CustomSubTitleButton {
                             id: uploadBtn
-                            width: 177
+                            width: hscale(177)
                             anchors.left: textInput.right
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 23
+                            anchors.leftMargin: hscale(23)
                             anchors.bottomMargin: 0
                             anchors.topMargin: 0
                             text: qsTr("Import")
@@ -891,7 +913,7 @@ Window {
                         anchors.left: uploadBtn.right
                         anchors.top: parent.top
 //                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: 23
+                        anchors.leftMargin: hscale(23)
 //                        anchors.bottomMargin: 0
                         anchors.topMargin: 0
                         visible: false
@@ -912,14 +934,16 @@ Window {
 
                             CustomSubTitleButton {
                                 id: byDateBtn
-                                width: 90
+                                width: hscale(90)
                                 anchors.left: parent.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                anchors.leftMargin: 23
+                                anchors.leftMargin: hscale(23)
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: qsTr("By Date")
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
                                 onClicked: if(byDateBtn.selected){
                                     textInput.searchbyMode = "bydate"
                                     byChqNoBtn.selected = false
@@ -929,14 +953,16 @@ Window {
                             }
                             CustomSubTitleButton {
                                 id: byChqAmtBtn
-                                width: 177
+                                width: hscale(177)
                                 anchors.left: byDateBtn.right
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                anchors.leftMargin: 23
+                                anchors.leftMargin: hscale(23)
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: qsTr("By Cheque Amount")
+                                scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                                 onClicked: if(byChqAmtBtn.selected){
                                     textInput.searchbyMode = "bychqamt"
                                     byChqNoBtn.selected = false
@@ -946,13 +972,15 @@ Window {
                             }
                             CustomSubTitleButton {
                                 id: byChqNoBtn
-                                width: 177
+                                width: hscale(177)
                                 anchors.left: byChqAmtBtn.right
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                anchors.leftMargin: 23
+                                anchors.leftMargin: hscale(23)
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
+                                scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                                 text: qsTr("By Cheque Number")
                                 //selected: true
                                 onClicked: if(byChqNoBtn.selected){
@@ -964,27 +992,31 @@ Window {
                             }
                             CustomSubTitleButton {
                                 id: debitIndicator
-                                width: 120
+                                width: hscale(120)
                                 anchors.right: parent.right
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                anchors.rightMargin: 69
+                                anchors.rightMargin: hscale(69)
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: backend.debitBal
                                 enabled: false
+                                scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                             }
                             CustomSubTitleButton {
                                 id: creditIndicator
-                                width: 120
+                                width: hscale(120)
                                 anchors.right: debitIndicator.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                anchors.rightMargin: 23
+                                anchors.rightMargin: hscale(23)
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 text: backend.creditBal
                                 enabled: false
+                                scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                             }
                         }
 
@@ -992,18 +1024,18 @@ Window {
                 }
                 Rectangle {
                     id: bodyBodyBox
-                    width: 200
-                    height: 200
+                    width: hscale(200)
+                    height: vscale(200)
                     //                    visible: false
                     color: "#ffffff"
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     anchors.top: bodyHeaderBox.bottom
                     anchors.bottom: parent.bottom
-                    anchors.rightMargin: 29
-                    anchors.leftMargin: 29
-                    anchors.bottomMargin: 29
-                    anchors.topMargin: 29
+                    anchors.rightMargin: hscale(29)
+                    anchors.leftMargin: hscale(29)
+                    anchors.bottomMargin: vscale(29)
+                    anchors.topMargin: vscale(29)
                     StackView {
                         id: stackView
                         anchors.fill: parent
@@ -1019,6 +1051,8 @@ Window {
                             anchors.fill: parent
                             columns: backend.header
                             selectedRows : backend.selectedRows
+                            scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                             onSelectedRowsChanged: backend.selectedRowsChanged(selectedRows)
                         }
                     }
@@ -1026,7 +1060,9 @@ Window {
                         id: uploadStatementComponent
                         UploadChequeStatementPage {
                             anchors.top: parent.top
-                            anchors.topMargin: 59
+                            anchors.topMargin: vscale(59)
+                            scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
                     Component {
@@ -1034,21 +1070,27 @@ Window {
                         ChequeReportFoundPage {
                             timeData: window.chequeTimeData
                             anchors.top: parent.top
-                            anchors.topMargin: 59
+                            anchors.topMargin: vscale(59)
+                            scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
                     Component {
                         id: chequeReportNotFoundComponent
                         ChequeReportNotFoundPage {
                             anchors.top: parent.top
-                            anchors.topMargin: 59
+                            anchors.topMargin: vscale(59)
+                            scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
                     Component {
                         id: selectOptionsComponent
                         OptionsNotSelectedPage {
                             anchors.top: parent.top
-                            anchors.topMargin: 59
+                            anchors.topMargin: vscale(59)
+                            scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
 
@@ -1066,9 +1108,9 @@ Window {
         Rectangle {
             id: footerBox
 //            height: 110
-            implicitHeight: 101
+            implicitHeight: vscale(101)
 //            height: Math.min( parent.height*.12, implicitHeight)
-            height: scaleFactorHeight*101
+            height: vscale(101)
             color: "#003366"
             anchors.left: parent.left
             anchors.right: parent.right
@@ -1085,7 +1127,7 @@ Window {
                 font.family: "Monoton"
                 text: qsTr("Record Matcher")
                 anchors.verticalCenter: parent.verticalCenter
-                font.pixelSize: 26
+                font.pixelSize: tscale(26)
                 horizontalAlignment: Text.AlignHCenter
 //                verticalAlignment: Text.AlignVCenter
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -1107,10 +1149,10 @@ Window {
                 text: qsTr("©Copyright 2021. All rights reserved.")
                 anchors.left: parent.left
                 anchors.bottom: parent.bottom
-                font.pixelSize: 14
+                font.pixelSize: tscale(14)
                 verticalAlignment: Text.AlignVCenter
-                anchors.bottomMargin: 13
-                anchors.leftMargin: 214
+                anchors.bottomMargin: vscale(13)
+                anchors.leftMargin: hscale(214)
             }
         }
 

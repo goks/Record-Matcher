@@ -5,8 +5,19 @@ import QtQuick.Controls.Styles 1.1
 Calendar {
     // property var startDate: undefined
     // property var stopDate: undefined
-    width: 277
-    height: 255
+    width: hscale(277)
+    height: vscale(255)
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return Math.round((hscale(size) + vscale(size)) / 2)
+    }
 
     style: CalendarStyle {
                readonly property var eventColours: ["lightblue", "darkorange", "purple"]
@@ -59,7 +70,7 @@ Calendar {
                        text: styleData.date.getDate()
                        anchors.verticalCenter: parent.verticalCenter
                        font.family: "PT Sans Caption"
-                       font.pixelSize: 14
+                       font.pixelSize: tscale(14)
                        horizontalAlignment: Text.AlignHCenter
                        verticalAlignment: Text.AlignVCenter
                        anchors.horizontalCenter: parent.horizontalCenter
