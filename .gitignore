@@ -74,3 +74,6 @@ Thumbs.db
 *.dll
 *.exe
 
+#QT files
+*.pyproject
+*.pyproject.*
