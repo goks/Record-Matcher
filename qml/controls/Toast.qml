@@ -26,6 +26,18 @@ Rectangle {
       * @param {string} text Text to show
       * @param {real} duration Duration to show in milliseconds, defaults to 3000
       */
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
+    }
+
     function show(text, status, duration ) {
         switch(status){
         case "info":
@@ -72,7 +84,7 @@ Rectangle {
     property real time: defaultTime
     readonly property real fadeTime: 300
 
-    property real margin: 10
+    property real margin: tscale(10)
 
     property color status_color:"#60c67a"
 
@@ -83,8 +95,8 @@ Rectangle {
     }
 
     //    height: message.height + margin
-    width: 650
-    height: 103
+    width: hscale(650)
+    height: vscale(103)
     //    radius: margin
 
     opacity: 0
@@ -103,7 +115,7 @@ Rectangle {
     }
     Rectangle {
         id: iconBox
-        width: 46
+        width: hscale(46)
         color: "#ffffff"
         anchors.left: status_color_box.right
         anchors.top: parent.top
@@ -115,32 +127,32 @@ Rectangle {
         Image {
             id: image
             y: 35
-            width: 40
-            height: 40
+            width: hscale(40)
+            height: vscale(40)
             anchors.verticalCenter: parent.verticalCenter
             anchors.left: parent.left
             anchors.right: parent.right
             source: "../../images/svg_images/status_success_icon.svg"
             anchors.rightMargin: 0
-            anchors.leftMargin: 12
+            anchors.leftMargin: hscale(12)
             fillMode: Image.PreserveAspectFit
         }
     }
     Text {
         id: main_message
-        height: 22
+        height: vscale(22)
         color: "black"
         text: 'Success'
         anchors.left: iconBox.right
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.leftMargin: 20
+        anchors.leftMargin: hscale(20)
         horizontalAlignment: Text.AlignLeft
         verticalAlignment: Text.AlignVCenter
-        anchors.topMargin: 14
-        anchors.rightMargin: 36
+        anchors.topMargin: vscale(14)
+        anchors.rightMargin: vscale(36)
         font.family: "PT Sans Caption"
-        font.pixelSize: 20
+        font.pixelSize: tscale(20)
         font.weight: Font.Bold
     }
     Text {
@@ -151,35 +163,35 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: main_message.bottom
         anchors.bottom: parent.bottom
-        anchors.leftMargin: 20
+        anchors.leftMargin: hscale(20)
         horizontalAlignment: Text.AlignLeft
         verticalAlignment: Text.AlignVCenter
         wrapMode: Text.WordWrap
-        anchors.bottomMargin: 16
+        anchors.bottomMargin: vscale(16)
         font.styleName: "Regular"
-        anchors.topMargin: 6
-        anchors.rightMargin: 36
+        anchors.topMargin: vscale(6)
+        anchors.rightMargin: hscale(36)
         font.family: "PT Sans Caption"
-        font.pixelSize: 16
+        font.pixelSize: tscale(16)
         font.weight: Font.Normal
     }
     QtObject {
-            id: internal
+        id: internal
 
-            property var dynamicColor: if(close_btn.down){
-                                           close_btn.down ? "grey" : "transparent"
-                                       } else {
-                                           close_btn.hovered ? "grey" : "transparent"
-                                       }
-        }
+        property var dynamicColor: if(close_btn.down){
+                                       close_btn.down ? "grey" : "transparent"
+                                   } else {
+                                       close_btn.hovered ? "grey" : "transparent"
+                                   }
+    }
     Button{
         id: close_btn
-        width: 18
-        height: 18
+        width: hscale(18)
+        height: vscale(18)
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.topMargin: 14
-        anchors.rightMargin: 18
+        anchors.topMargin: vscale(14)
+        anchors.rightMargin: hscale(18)
         background: Rectangle {
             color: internal.dynamicColor
         }

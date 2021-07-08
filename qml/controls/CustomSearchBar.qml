@@ -8,10 +8,10 @@ Rectangle {
     //    height: 38
     // height: 100
     color: "#f5f8fa"
-    implicitHeight: 38
+    implicitHeight: vscale(38)
     radius: 8
     border.color: "#dee6ec"
-    width: searchmode!="default"?920:277
+    width: searchmode!="default"?hscale(920):hscale(277)
     property string placeholderText: searchmode!="default"?"File Path" :"Search"
     property string searchmode: "default"
     property string searchBarText: ""
@@ -22,7 +22,18 @@ Rectangle {
     property bool calendarButPressed: true
     property date startDateCalendar : undefined
     property date endDateCalendar: undefined
-
+    
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
+    }
     TextInput {
         id: searchInput
         color: "#324254"
@@ -32,13 +43,13 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         font.family: "PT Sans Caption"
-        font.pixelSize: 16
+        font.pixelSize: tscale(16)
         verticalAlignment: Text.AlignVCenter
         clip: true
         anchors.topMargin: 0
         anchors.bottomMargin: 0
-        anchors.leftMargin: 15
-        anchors.rightMargin: 15
+        anchors.leftMargin: hscale(15)
+        anchors.rightMargin: hscale(15)
         text: containerBox.textVal
         property string changed_date:  ""
         property string previous_date: ""
@@ -66,26 +77,26 @@ Rectangle {
             verticalAlignment: Text.AlignVCenter
             clip: true
             font.family: "PT Sans Caption"
-            font.pixelSize: 16
+            font.pixelSize: tscale(16)
         }
         CustomSubTitleButton {
             id:browseBut
             // width: 174
-            width: 74
-            height: 30
-            fontSize: 10
+            width: hscale(74)
+            height: vscale(25)
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
-            anchors.rightMargin: 18
+            anchors.rightMargin: hscale(18)
             visible: containerBox.searchmode!="default"?true:false
+            font.pixelSize: tscale(10)
             // visible: true
             text: "Browse"
             onClicked: fileDialog.open()
         }
         Button {
             id: calendarBut
-            width: 30
-            height: 30
+            width: hscale(30)
+            height: vscale(30)
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             anchors.rightMargin: 0
@@ -138,13 +149,16 @@ Rectangle {
     CustomCalendar {
         id: calendar
         anchors.top: searchInput.bottom
-        anchors.topMargin: 4
+        anchors.topMargin: vscale(4)
         anchors.rightMargin: 0
         anchors.left: searchInput.left
         anchors.right: parent.right
         visible: (searchmode==="default" && searchbyMode == "bydate" && calendarButPressed)?true:false
         minimumDate : startDateCalendar
         maximumDate : endDateCalendar
+        scaleFactorWidth: window.scaleFactorWidth
+        scaleFactorHeight: window.scaleFactorHeight
+
         onSelectedDateChanged: {
             if(searchbyMode == "bydate"){
                 containerBox.searchBarText = Qt.formatDate(selectedDate,"dd/MM/yyyy")

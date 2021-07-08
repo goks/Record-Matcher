@@ -661,8 +661,8 @@ class TableOperations:
         for each in master_table:
             try:
                 bank_date = datetime.datetime.strptime(each['Bank Date'], "%d/%m/%y")
-            except:
-                bank_date = datetime.datetime.strptime(each['Bank Date'], "%d-%b-%Y")
+            except ValueError:
+                bank_date = datetime.datetime.strptime(each['Bank Date'], "%d-%b-%Y")    
             if start_date == "" or start_date>bank_date:
                 start_date = bank_date 
             if end_date == "" or end_date<bank_date:

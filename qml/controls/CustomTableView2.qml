@@ -4,7 +4,7 @@ import QtQuick.Controls 2.1
 
 Rectangle{
     property var columns: [
-//        "name", "country", "subcountry", "latitude", "longitude"
+        //        "name", "country", "subcountry", "latitude", "longitude"
     ]
     property var tableData: [
         // { name: "Melbourne", country: "Australia", subcountry: "Victoria", latitude: -37.9716929, longitude: 144.7729583 },
@@ -16,10 +16,22 @@ Rectangle{
     property var selectedRows: []
     id: tableBox
     width: parent.width
-    height: 607
+    height: vscale(607)
     color: "#f2f6f9"
     border.color: "#f2f6f9"
     radius: 8
+
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
+    }
 
     property color textColor: "#324254"
     //    property color textColorHighlight: "#324254"
@@ -54,14 +66,14 @@ Rectangle{
                 text: styleData.value
                 font.styleName: "Bold"
                 font.family: "PT Sans Caption"
-                font.pointSize: 10
+                font.pointSize: tscale(10)
                 verticalAlignment: Text.AlignVCenter
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 anchors.rightMargin: 0
-                anchors.leftMargin: 19
+                anchors.leftMargin: hscale(19)
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
             }
@@ -82,7 +94,7 @@ Rectangle{
 
         rowDelegate: Rectangle {
             //color: styleData.selected ? "#0077CC" : styleData.row & 1 ? "white" : "#f5f5f5"
-            height: 51
+            height: vscale(51)
             id: itemRowBox
             color: dynamicRowColor
             focus: true
@@ -114,10 +126,10 @@ Rectangle{
             text: styleData.value
             font.styleName: "Regular"
             font.family: "PT Sans Caption"
-            font.pointSize: 10
+            font.pointSize: tscale(10)
             verticalAlignment: Text.AlignVCenter
             anchors.rightMargin: 0
-            anchors.leftMargin: 21
+            anchors.leftMargin: hscale(21)
             anchors.bottomMargin: 0
             anchors.topMargin: 0
         }
@@ -126,7 +138,7 @@ Rectangle{
     Component {
         id: columnComponent
         TableViewColumn {
-//            width: 100
+            //            width: 100
         }
     }
 

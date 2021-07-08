@@ -31,17 +31,28 @@ ListView {
     id: root
 
     z: Infinity
-    spacing: 5
-    width: 650
+    spacing: vscale(5)
+    width: hscale(650)
     anchors.left: parent.left
     anchors.top: parent.top
     anchors.bottom: parent.bottom
     anchors.topMargin: 0
     anchors.leftMargin: 0
-    anchors.bottomMargin: 10
+    anchors.bottomMargin: vscale(10)
     verticalLayoutDirection: ListView.BottomToTop
-
     interactive: false
+
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
+    }
 
     displaced: Transition {
         NumberAnimation {
@@ -51,6 +62,8 @@ ListView {
     }
     
     delegate: Toast {
+        scaleFactorHeight: root.scaleFactorHeight
+        scaleFactorWidth: root.scaleFactorWidth
 
         Component.onCompleted: {
             if (typeof duration === "undefined") {

@@ -44,6 +44,7 @@ class MainWindow(QObject):
         self.current_year = ''
         self.current_company = ''
         self.chequeReportActivated  = False
+        self.searchModeOffFirsttime = False    
         return   
 
     chequeReportsButtonClicked = Signal(bool,int,str, arguments=['selected','status','time'])
@@ -140,6 +141,7 @@ class MainWindow(QObject):
         if '' in [self.current_bank, self.current_company, self.current_month, self.current_year]:
             self.showChooseOptionsPage.emit()
             return -1
+        self.searchModeOffFirsttime=False
         x = threading.Thread(target=self.threadedPopulate_table, args=( ), daemon=True)
         x.start()
         return 1    
@@ -185,9 +187,10 @@ class MainWindow(QObject):
         print("Searching for ", searchQuery, " mode: ", searchMode)
         if not self.tableSnapshot:
             return
-        if searchMode == "off":
+        if searchMode == "off" and self.searchModeOffFirsttime:
             self.populate_table()
             return
+        self.searchModeOffFirsttime=False
         self._tableData = self.tableOperations.search(self.tableSnapshot.get_master_table(), searchQuery, searchMode)
         self.table_data_changed.emit()
         return 
