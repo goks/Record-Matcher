@@ -26,7 +26,7 @@ Rectangle {
       * @param {string} text Text to show
       * @param {real} duration Duration to show in milliseconds, defaults to 3000
       */
-      property real scaleFactorHeight: 1
+    property real scaleFactorHeight: 1
     property real scaleFactorWidth: 1
     function hscale(size) {
         return Math.round(size * scaleFactorWidth)
@@ -35,7 +35,7 @@ Rectangle {
         return Math.round(size * scaleFactorHeight)
     }
     function tscale(size) {
-        return Math.round((hscale(size) + vscale(size)) / 2)
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
 
     function show(text, status, duration ) {
@@ -176,14 +176,14 @@ Rectangle {
         font.weight: Font.Normal
     }
     QtObject {
-            id: internal
+        id: internal
 
-            property var dynamicColor: if(close_btn.down){
-                                           close_btn.down ? "grey" : "transparent"
-                                       } else {
-                                           close_btn.hovered ? "grey" : "transparent"
-                                       }
-        }
+        property var dynamicColor: if(close_btn.down){
+                                       close_btn.down ? "grey" : "transparent"
+                                   } else {
+                                       close_btn.hovered ? "grey" : "transparent"
+                                   }
+    }
     Button{
         id: close_btn
         width: hscale(18)

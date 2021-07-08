@@ -18,7 +18,7 @@ Button {
         return Math.round(size * scaleFactorHeight)
     }
     function tscale(size) {
-        return Math.round((hscale(size) + vscale(size)) / 2)
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
     property int fontSize: tscale(10)
     enabled: true
@@ -29,18 +29,18 @@ Button {
     leftPadding: hscale(18)
     rightPadding: hscale(18)
     contentItem: Text {
-            id: buttonLabel
-            color: selected?textColorHighLight:textColor
-            text: customBtn.text
-//            text: qsTr("By Date12342168")
-            anchors.fill: parent
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            lineHeightMode: Text.FixedHeight
-            fontSizeMode: Text.HorizontalFit
-            font.family: "PT Sans Caption"
-            font.pointSize: customBtn.fontSize
-        }
+        id: buttonLabel
+        color: selected?textColorHighLight:textColor
+        text: customBtn.text
+        //            text: qsTr("By Date12342168")
+        anchors.fill: parent
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+        lineHeightMode: Text.FixedHeight
+        fontSizeMode: Text.HorizontalFit
+        font.family: "PT Sans Caption"
+        font.pointSize: customBtn.fontSize
+    }
     background: Rectangle {
         id: container
         radius: 8
@@ -49,7 +49,7 @@ Button {
         antialiasing: true
     }
     onClicked: {
-            selected = selected?false:true
+        selected = selected?false:true
     }
 }
 

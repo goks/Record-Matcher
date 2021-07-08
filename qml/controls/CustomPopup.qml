@@ -12,6 +12,18 @@ Popup {
     focus: true
     closePolicy: Popup.CloseOnEscape
     //                     | Popup.CloseOnReleaseOutside
+
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
+    }
     background: Rectangle {
         id: popupBckgroundBox
         width: 560
@@ -127,8 +139,8 @@ Popup {
             text: "Browse"
             onClicked: {
                 browseBut.selected = true
-                        fileDialog.open()
-                        }
+                fileDialog.open()
+            }
         }
         FileDialog {
             id: fileDialog
@@ -217,6 +229,6 @@ Popup {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:1.1}D{i:8}
+    D{i:0;autoSize:true;formeditorZoom:1.1;height:480;width:640}
 }
 ##^##*/

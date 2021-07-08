@@ -11,6 +11,17 @@ Button {
     property color bgcolorPressed: "#c4c4c4"
     property color textcolorDefault: "#6a84a0"
     onClicked: menu.open()
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return (Math.round((hscale(size) + vscale(size)) / 2)+2)
+    }
     QtObject {
         id: internal
 
@@ -21,8 +32,8 @@ Button {
                                    }
     }
 
-    implicitWidth: 43
-    implicitHeight: 43
+    implicitWidth: hscale(43)
+    implicitHeight: vscale(43)
     background: Rectangle {
         color: internal.dynamicColor
 
@@ -51,8 +62,8 @@ Button {
         id: menu
         y: parent.height+4
         background: Item {
-            implicitWidth: 200
-            implicitHeight: 40
+            implicitWidth: menuControl.width
+            implicitHeight: vscale(40)
 
             Rectangle {
                 anchors.fill: parent
@@ -69,8 +80,9 @@ Button {
         MenuItem {
             id: menuControl
             background:  Item {
-                implicitWidth: 200
-                implicitHeight: 40
+                implicitWidth: hscale(250)
+                implicitHeight: vscale(40)
+
 
                 Rectangle {
                     anchors.fill: parent
@@ -85,11 +97,11 @@ Button {
                 text: menuControl.text
                 anchors.fill: parent
                 verticalAlignment: Text.AlignVCenter
-                anchors.topMargin: 4
-                anchors.bottomMargin: 4
-                anchors.rightMargin: 4
-                anchors.leftMargin: 4
-                padding: 10
+                anchors.topMargin: vscale(4)
+                anchors.bottomMargin: vscale(4)
+                anchors.rightMargin: hscale(4)
+                anchors.leftMargin: hscale(4)
+                padding: tscale(10)
                 color: menuControl.hovered ? "#ffffff" : "#003366"
             }
 
@@ -103,3 +115,9 @@ Button {
 
 
 
+
+/*##^##
+Designer {
+    D{i:0;formeditorZoom:1.66}
+}
+##^##*/

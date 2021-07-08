@@ -14,8 +14,8 @@ Window {
     property int designHeight: 1080
     width: 1280
     height: 720
-//    minimumWidth: 1280
-//    minimumHeight: 720
+    //    minimumWidth: 1280
+    //    minimumHeight: 720
     visible: true
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
@@ -27,20 +27,20 @@ Window {
     readonly property real screenWidth: window.width
     readonly property real screenHeight: window.height
 
-        property double scaleFactorHeight: (screenHeight / refScreenHeight)
-        property double scaleFactorWidth: (screenWidth / refScreenWidth)
+    property double scaleFactorHeight: (screenHeight / refScreenHeight)
+    property double scaleFactorWidth: (screenWidth / refScreenWidth)
 
     function hscale(size) {
-            return Math.round(size * scaleFactorWidth)
-        }
+        return Math.round(size * scaleFactorWidth)
+    }
 
-        function vscale(size) {
-            return Math.round(size * scaleFactorHeight)
-        }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
     function tscale(size) {
-           return Math.round((hscale(size) + vscale(size)) / 2)
-       }
-//    onClosing: backend.beginWindowExitRoutine()
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
+    }
+    //    onClosing: backend.beginWindowExitRoutine()
     FontLoader { id: appFont; name: "PT Sans Caption"; source: "../fonts/PTSansCaption-Regular.ttf" }
     FontLoader { id: appFont2; name: "Monoton"; source: "../fonts/Monoton-Regular.ttf" }
     FontLoader { id: appFont3; source: "../fonts/PTSansCaption-Bold.ttf" }
@@ -59,10 +59,13 @@ Window {
         //         toast.show("This important message has been shown " + (++i) + " times.",'success');
         //     }
         // }
-  
-    CustomPopup{
-        id: popup
-    }
+
+        CustomPopup{
+            id: popup
+            scaleFactorWidth: window.scaleFactorWidth
+            scaleFactorHeight: window.scaleFactorHeight
+
+        }
         Rectangle {
             id: headerBox
             color: "#ffffff"
@@ -73,10 +76,10 @@ Window {
             anchors.leftMargin: 0
             anchors.topMargin: 0
             implicitHeight: vscale(101)
-//            height: Math.min( parent.height*.12, implicitHeight)
-//            height: scaleFactorHeight*101
+            //            height: Math.min( parent.height*.12, implicitHeight)
+            //            height: scaleFactorHeight*101
             height: vscale(101)
-//            transform: Scale { yScale: scaleFactorHeight; xScale: scaleFactorWidth;}
+            //            transform: Scale { yScale: scaleFactorHeight; xScale: scaleFactorWidth;}
             Label {
                 id: logoText
                 width: hscale(411)
@@ -105,7 +108,7 @@ Window {
             Rectangle {
                 id: headerMenuContainer
                 implicitWidth: hscale(460)
-//                width: Math.min(implicitWidth, parent.width*.30)
+                //                width: Math.min(implicitWidth, parent.width*.30)
                 width: hscale(460)
                 color: "#ffffff"
                 anchors.top: parent.top
@@ -205,6 +208,8 @@ Window {
                 anchors.right: parent.right
                 z: 1
                 anchors.rightMargin: hscale(99)
+                scaleFactorWidth: window.scaleFactorWidth
+                scaleFactorHeight: window.scaleFactorHeight
                 btnIconSource: "../images/svg_images/settings_gear.svg"
                 onConvertSchemaClicked: backend.convertSchema()
 
@@ -335,28 +340,28 @@ Window {
                     }
                     function onValidationError(type){
                         switch(type){
-                            case 1: toast.show("Year or Company not selected." ,"warning");
-                                    break;
-                            case 2: // popup.popupText = "Invalid cheque report file. Update fail";
-                                    // popup.open();
-                                    toast.show("Invalid cheque report file." ,"error");
-                                    break;
-                            case 3: toast.show("Company or Bank or Year or Month not selected." ,"warning");
-                                    break;
-                            case 4: toast.show("No table to export.", "error")        ;
-                                    break
-                            case -1: toast.show("No Infi cheque report found for the financial year." ,"error");
-                                    break;
-                            case -2: toast.show("Invalid file path." ,"error");
-                                     break;
-                            case -3: toast.show("Invalid HDFC Bank statement file." ,"error");
-                                    break;
-                            case -4: toast.show("Invalid ICICI Bank statement file." ,"error");
-                                    break;
-                            case -5: toast.show("Permission error. Failed to write" ,"error");
-                                    break;        
-                            default:toast.show("Unknown error. Submit fail." ,"error");
-                                    break;
+                        case 1: toast.show("Year or Company not selected." ,"warning");
+                            break;
+                        case 2: // popup.popupText = "Invalid cheque report file. Update fail";
+                            // popup.open();
+                            toast.show("Invalid cheque report file." ,"error");
+                            break;
+                        case 3: toast.show("Company or Bank or Year or Month not selected." ,"warning");
+                            break;
+                        case 4: toast.show("No table to export.", "error")        ;
+                            break
+                        case -1: toast.show("No Infi cheque report found for the financial year." ,"error");
+                            break;
+                        case -2: toast.show("Invalid file path." ,"error");
+                            break;
+                        case -3: toast.show("Invalid HDFC Bank statement file." ,"error");
+                            break;
+                        case -4: toast.show("Invalid ICICI Bank statement file." ,"error");
+                            break;
+                        case -5: toast.show("Permission error. Failed to write" ,"error");
+                            break;
+                        default:toast.show("Unknown error. Submit fail." ,"error");
+                            break;
                         }
 
                         uploadBtn.selected = true
@@ -378,7 +383,7 @@ Window {
                         uploadBtn.selected = true;
                         busyIndicator.visible = false;
                     }
-                    function onStatementExportSuccess(){ 
+                    function onStatementExportSuccess(){
                         popup.close()
                         toast.show("Bank statement export success.", "success");
                     }
@@ -388,7 +393,7 @@ Window {
                     function onSnapshotDeleteFail() {
                         toast.show("Table deletion failed.", "error");
                     }
-                     function onChequeReportDeleteSuccess() {
+                    function onChequeReportDeleteSuccess() {
                         toast.show("Deleted cheque report successfully.", "success");
                     }
                     function onChequeReportDeleteFail() {
@@ -569,7 +574,7 @@ Window {
                         scaleFactorWidth: window.scaleFactorWidth
                         scaleFactorHeight: window.scaleFactorHeight
                         data: backend.companyDict
-                            z:1
+                        z:1
                         onSelectedChanged: {
                             backend.companyChanged(selected, selectedName)
                         }
@@ -586,7 +591,7 @@ Window {
                     anchors.topMargin: vscale(20)
                     // anchors.topMargin: vscale(10)
                     anchors.rightMargin: 0
-                    anchors.leftMargin: 0   
+                    anchors.leftMargin: 0
 
                     Text {
                         id: bankText
@@ -624,7 +629,7 @@ Window {
                         scaleFactorHeight: window.scaleFactorHeight
                         selected: ''
                         data: backend.bankDict
-                            z:1
+                        z:1
                         onSelectedChanged: {
                             backend.bankChanged(selected, selectedName)
                         }
@@ -864,29 +869,29 @@ Window {
                         CustomSearchBar {
                             id: textInput
                             // width: 277
-//                            height: 38
+                            //                            height: 38
                             anchors.left: parent.left
                             anchors.top: parent.top
-//                            anchors.bottom: parent.bottom
+                            //                            anchors.bottom: parent.bottom
                             anchors.leftMargin: hscale(42)
-//                            anchors.bottomMargin: 0
+                            //                            anchors.bottomMargin: 0
                             anchors.topMargin: 0
                             searchbyMode: "off"
                             startDateCalendar: backend.startDateCalendar
                             endDateCalendar: backend.endDateCalendar
                             scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                            scaleFactorHeight: window.scaleFactorHeight
                             onSearchBarTextChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                             onSearchbyModeChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                         }
-//                         CustomDatePicker2{
-//                             visible: true
-//                             anchors.right: textInput.right
-//                             anchors.top: textInput.bottom
-//                                 anchors.rightMargin: 0
-//                                 anchors.topMargin: 4
-// //                                z: 100
-//                         }
+                        //                         CustomDatePicker2{
+                        //                             visible: true
+                        //                             anchors.right: textInput.right
+                        //                             anchors.top: textInput.bottom
+                        //                                 anchors.rightMargin: 0
+                        //                                 anchors.topMargin: 4
+                        // //                                z: 100
+                        //                         }
                         
                         CustomSubTitleButton {
                             id: uploadBtn
@@ -901,29 +906,29 @@ Window {
                             selected: true
                             visible: false
                             onClicked : {
-                                            uploadBtn.selected = false
-                                            busyIndicator.visible = true
-                                            if (textInput.fileDialogText == ""){
-                                                toast.show("No file selected to import", "error")
-                                                uploadBtn.selected = true
-                                                busyIndicator.visible = false
-                                            return
-                                            }
-                                            backend.uploadFile(textInput.fileDialogText)
-                                        }
+                                uploadBtn.selected = false
+                                busyIndicator.visible = true
+                                if (textInput.fileDialogText == ""){
+                                    toast.show("No file selected to import", "error")
+                                    uploadBtn.selected = true
+                                    busyIndicator.visible = false
+                                    return
+                                }
+                                backend.uploadFile(textInput.fileDialogText)
+                            }
                         }
                         BusyIndicator {
-                        id: busyIndicator
-                        anchors.left: uploadBtn.right
-                        anchors.top: parent.top
-//                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: hscale(23)
-//                        anchors.bottomMargin: 0
-                        anchors.topMargin: 0
-                        visible: false
-                        anchors.verticalCenter: parent.verticalCenter
-                        // z: -1
-                    }
+                            id: busyIndicator
+                            anchors.left: uploadBtn.right
+                            anchors.top: parent.top
+                            //                        anchors.bottom: parent.bottom
+                            anchors.leftMargin: hscale(23)
+                            //                        anchors.bottomMargin: 0
+                            anchors.topMargin: 0
+                            visible: false
+                            anchors.verticalCenter: parent.verticalCenter
+                            // z: -1
+                        }
                         
                         Rectangle {
                             id: bodySubtitleStatementModeContainer
@@ -938,7 +943,7 @@ Window {
 
                             CustomSubTitleButton {
                                 id: byDateBtn
-//                                width: hscale(90)
+                                //                                width: hscale(90)
                                 anchors.left: parent.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -949,11 +954,11 @@ Window {
                                 scaleFactorWidth: window.scaleFactorWidth
                                 scaleFactorHeight: window.scaleFactorHeight
                                 onClicked: if(byDateBtn.selected){
-                                    textInput.searchbyMode = "bydate"
-                                    byChqNoBtn.selected = false
-                                    byChqAmtBtn.selected = false
-                                }
-                                else { textInput.searchbyMode = "off" }
+                                               textInput.searchbyMode = "bydate"
+                                               byChqNoBtn.selected = false
+                                               byChqAmtBtn.selected = false
+                                           }
+                                           else { textInput.searchbyMode = "off" }
                             }
                             CustomSubTitleButton {
                                 id: byChqAmtBtn
@@ -966,13 +971,13 @@ Window {
                                 anchors.topMargin: 0
                                 text: qsTr("By Cheque Amount")
                                 scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                                scaleFactorHeight: window.scaleFactorHeight
                                 onClicked: if(byChqAmtBtn.selected){
-                                    textInput.searchbyMode = "bychqamt"
-                                    byChqNoBtn.selected = false
-                                    byDateBtn.selected = false
-                                }
-                                else { textInput.searchbyMode = "off" }
+                                               textInput.searchbyMode = "bychqamt"
+                                               byChqNoBtn.selected = false
+                                               byDateBtn.selected = false
+                                           }
+                                           else { textInput.searchbyMode = "off" }
                             }
                             CustomSubTitleButton {
                                 id: byChqNoBtn
@@ -984,19 +989,19 @@ Window {
                                 anchors.bottomMargin: 0
                                 anchors.topMargin: 0
                                 scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                                scaleFactorHeight: window.scaleFactorHeight
                                 text: qsTr("By Cheque Number")
                                 //selected: true
                                 onClicked: if(byChqNoBtn.selected){
-                                    textInput.searchbyMode = "bychqno"
-                                    byChqAmtBtn.selected = false
-                                    byDateBtn.selected = false
-                                }
-                                else { textInput.searchbyMode = "off" }
+                                               textInput.searchbyMode = "bychqno"
+                                               byChqAmtBtn.selected = false
+                                               byDateBtn.selected = false
+                                           }
+                                           else { textInput.searchbyMode = "off" }
                             }
                             CustomSubTitleButton {
                                 id: debitIndicator
-//                                width: hscale(120)
+                                //                                width: hscale(120)
                                 anchors.right: parent.right
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -1006,11 +1011,11 @@ Window {
                                 text: backend.debitBal
                                 enabled: false
                                 scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                                scaleFactorHeight: window.scaleFactorHeight
                             }
                             CustomSubTitleButton {
                                 id: creditIndicator
-//                                width: hscale(120)
+                                //                                width: hscale(120)
                                 anchors.right: debitIndicator.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
@@ -1020,7 +1025,7 @@ Window {
                                 text: backend.creditBal
                                 enabled: false
                                 scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                                scaleFactorHeight: window.scaleFactorHeight
                             }
                         }
 
@@ -1056,7 +1061,7 @@ Window {
                             columns: backend.header
                             selectedRows : backend.selectedRows
                             scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                            scaleFactorHeight: window.scaleFactorHeight
                             onSelectedRowsChanged: backend.selectedRowsChanged(selectedRows)
                         }
                     }
@@ -1066,7 +1071,7 @@ Window {
                             anchors.top: parent.top
                             anchors.topMargin: vscale(59)
                             scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                            scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
                     Component {
@@ -1076,7 +1081,7 @@ Window {
                             anchors.top: parent.top
                             anchors.topMargin: vscale(59)
                             scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                            scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
                     Component {
@@ -1085,7 +1090,7 @@ Window {
                             anchors.top: parent.top
                             anchors.topMargin: vscale(59)
                             scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                            scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
                     Component {
@@ -1094,7 +1099,7 @@ Window {
                             anchors.top: parent.top
                             anchors.topMargin: vscale(59)
                             scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
+                            scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
 
@@ -1111,9 +1116,9 @@ Window {
 
         Rectangle {
             id: footerBox
-//            height: 110
+            //            height: 110
             implicitHeight: vscale(101)
-//            height: Math.min( parent.height*.12, implicitHeight)
+            //            height: Math.min( parent.height*.12, implicitHeight)
             height: vscale(101)
             color: "#003366"
             anchors.left: parent.left
@@ -1133,7 +1138,7 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 font.pixelSize: tscale(26)
                 horizontalAlignment: Text.AlignHCenter
-//                verticalAlignment: Text.AlignVCenter
+                //                verticalAlignment: Text.AlignVCenter
                 anchors.horizontalCenter: parent.horizontalCenter
                 layer.enabled: true
                 layer.effect: DropShadow {

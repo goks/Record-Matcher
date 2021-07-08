@@ -32,7 +32,7 @@ Rectangle {
         return Math.round(size * scaleFactorHeight)
     }
     function tscale(size) {
-        return Math.round((hscale(size) + vscale(size)) / 2)
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
     TextInput {
         id: searchInput

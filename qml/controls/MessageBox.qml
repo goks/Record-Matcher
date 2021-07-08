@@ -4,8 +4,8 @@ import QtGraphicalEffects 1.15
 
 Rectangle {
     id: rectangle
-    width: hscale(720)
-    height: singleText?vscale(157):vscale(375)
+    width: hscale(800)
+    height: singleText?vscale(200):vscale(425)
     // property color textColor: "#003366"
     property color textColor: "#324254"
     radius: 8
@@ -27,7 +27,7 @@ Rectangle {
         return Math.round(size * scaleFactorHeight)
     }
     function tscale(size) {
-        return Math.round((hscale(size) + vscale(size)) / 2)
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
 
     Text {
@@ -38,7 +38,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-//        font.pixelSize: 34
+        //        font.pixelSize: 34
         verticalAlignment: Text.AlignVCenter
         anchors.topMargin: vscale(76)
         anchors.rightMargin: hscale(50)
@@ -62,7 +62,7 @@ Rectangle {
         anchors.leftMargin: hscale(50)
         color: textColor
         font.family: "PT Sans Caption"
-//        font.pointSize: 20
+        //        font.pointSize: 20
         font.pointSize: tscale(18)
     }
 
@@ -92,7 +92,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-//        font.pixelSize: 34
+        //        font.pixelSize: 34
         verticalAlignment: Text.AlignVCenter
         horizontalAlignment: Text.AlignHCenter
         color: textColor

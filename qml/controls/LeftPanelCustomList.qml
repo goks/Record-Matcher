@@ -24,7 +24,7 @@ ListView {
         return Math.round(size * scaleFactorHeight)
     }
     function tscale(size) {
-        return Math.round((hscale(size) + vscale(size)) / 2)
+        return (Math.round((hscale(size) + vscale(size)) / 2)+2)
     }
 
     property color textcolorDefault: "#6a84a0"
@@ -90,9 +90,10 @@ ListView {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 verticalAlignment: Text.AlignVCenter
+                minimumPixelSize: 14
                 // font.family: "PT Sans Caption"
                 font.family: appFont4.name
-                font.pointSize: tscale(10)
+                font.pixelSize: tscale(16)
                 font.bold: false
                 color: textcolorDefault
             }
@@ -115,6 +116,6 @@ ListView {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.75}
+    D{i:0;autoSize:true;height:480;width:640}
 }
 ##^##*/

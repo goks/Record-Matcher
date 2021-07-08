@@ -4,7 +4,7 @@ import QtQuick.Controls 2.1
 
 Rectangle{
     property var columns: [
-//        "name", "country", "subcountry", "latitude", "longitude"
+        //        "name", "country", "subcountry", "latitude", "longitude"
     ]
     property var tableData: [
         // { name: "Melbourne", country: "Australia", subcountry: "Victoria", latitude: -37.9716929, longitude: 144.7729583 },
@@ -30,7 +30,7 @@ Rectangle{
         return Math.round(size * scaleFactorHeight)
     }
     function tscale(size) {
-        return Math.round((hscale(size) + vscale(size)) / 2)
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
 
     property color textColor: "#324254"
@@ -138,7 +138,7 @@ Rectangle{
     Component {
         id: columnComponent
         TableViewColumn {
-//            width: 100
+            //            width: 100
         }
     }
 

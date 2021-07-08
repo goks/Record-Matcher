@@ -11,14 +11,14 @@ Button {
     property real scaleFactorHeight: 1
     property real scaleFactorWidth: 1
     function hscale(size) {
-            return Math.round(size * scaleFactorWidth)
-        }
-        function vscale(size) {
-            return Math.round(size * scaleFactorHeight)
-        }
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
     function tscale(size) {
-           return Math.round((hscale(size) + vscale(size)) / 2)
-       }
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
+    }
 
     QtObject {
         id: internal

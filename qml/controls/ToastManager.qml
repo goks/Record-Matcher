@@ -21,7 +21,7 @@ ListView {
       * @param {real} duration Duration to show in milliseconds, defaults to 3000
       */
     function show(text, duration) {
-      model.insert(0, {text: text, duration: duration});
+        model.insert(0, {text: text, duration: duration});
     }
 
     /**
@@ -51,7 +51,7 @@ ListView {
         return Math.round(size * scaleFactorHeight)
     }
     function tscale(size) {
-        return Math.round((hscale(size) + vscale(size)) / 2)
+        return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
 
     displaced: Transition {
@@ -63,7 +63,7 @@ ListView {
     
     delegate: Toast {
         scaleFactorHeight: root.scaleFactorHeight
-        scaleFactorWidth: root.scaleFactorWidth 
+        scaleFactorWidth: root.scaleFactorWidth
 
         Component.onCompleted: {
             if (typeof duration === "undefined") {
