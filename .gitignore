@@ -3,6 +3,8 @@
 
 # Custom
 output/
+.venv/
+service-account/
 
 *~
 *.autosave

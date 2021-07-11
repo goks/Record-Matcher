@@ -1,13 +1,15 @@
 from time import strftime
-from typing_extensions import final
 import xlrd
 import xlwt
-import os
+import os,json
 import datetime, pytz
 import pickle
 import locale
 locale.setlocale(locale.LC_NUMERIC, 'hi_IN')
 from copy import deepcopy
+import firebase_admin
+from firebase_admin import credentials, db
+
 
 # Fix for opening xlsx
 xlrd.xlsx.ensure_elementtree_imported(False, None)
@@ -142,24 +144,37 @@ class InfiChequeStatement:
         self.worksheet = None
         self.entry_list = None
         self.year = None
-        self.bank = None
         self.company = None
-        self.save_path = None
+        self.last_edited_time = None
+        # self.save_path = None
         # self.createSavePath()
-        return         
-    def createSavePath(self):
-        self.save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\Snapshot_"+self.month+'_'+self.year+'_'+self.bank
-        return
+        return    
+    def get_json(self):
+        dict = {}
+        dict["entry_list"] = self.entry_list
+        dict["year"] = self.year
+        dict["company"] = self.company
+        # dict["last_edited_time"] = self.last_edited_time
+        return dict
+    def set_entry_list(self, val):
+        self.entry_list = val 
+        self.update_last_edited_time()   
+
+    # def createSavePath(self):
+    #     self.save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\Snapshot_"+self.month+'_'+self.year+'_'+self.bank
+    #     return
     def update_last_edited_time(self):
         self.last_edited_time = get_current_time()  
     def get_last_edited_time(self):
         return self.last_edited_time  
     def get_year(self):
-        return self.year
-    def get_bank(self):
-        return self.bank 
+        return self.year   
     def get_company(self):
         return self.company 
+    def set_year(self, val):
+        self.year = val
+    def set_company(self, val):
+        self.company = val
     def release_excel_file(self):
         self.workbook.release_resources()
         self.worksheet = None
@@ -416,6 +431,30 @@ class TableSnapshot:
         self.createSavePath()
         self.update_last_edited_time()
         return
+    def __init__(self, dict):
+        self.master_table = dict["master_table"]
+        self.month = dict["month"]
+        self.year = dict["year"]
+        self.bank = dict["bank"]
+        self.company = dict["company"]
+        self.creation_time = dict["creation_time"]
+        # self.creation_time = get_current_time()
+        self.master_selected_rows = []
+        self.master_excel_export_path = None
+        self.last_edited_time = None
+        self.createSavePath()
+        self.update_last_edited_time()
+        return
+
+    def get_json(self):
+        dict = {}
+        dict["master_table"] = self.master_table
+        dict["month"] = self.month
+        dict["year"] = self.year
+        dict["bank"] = self.bank
+        dict["company"] = self.company
+        dict["creation_time"] = self.creation_time
+        return dict  
 
     def update_last_edited_time(self):
         self.last_edited_time = get_current_time()
@@ -458,6 +497,8 @@ class ChequeReportCollection:
         return
     def get_years(self):
         return self.years   
+    def get_cheque_report_dict(self):
+        return self.cheque_report_dict         
     def load_cheque_report_collection(self):
         try:
             # raise FileNotFoundError
@@ -474,7 +515,7 @@ class ChequeReportCollection:
             print('Empty dict, save skip')
             return(True, 0)
         try:
-            print(self.cheque_report_dict)
+            # print(self.cheque_report_dict)
             with open(self.save_path, 'wb') as f:
                 pickle.dump(self.cheque_report_dict, f)    
         except TypeError: 
@@ -508,12 +549,15 @@ class ChequeReportCollection:
         else:
             print('ChequeReportCollection save fail with code ',code)   
         return True   
-    def add_cheque_report_to_colection(self, chequeReport,  year,  company):
-        ref = self.get_dict_reference(year,company)
+    def add_cheque_report_to_collection(self, chequeReport,ref=None):
+        if not ref:
+            year = chequeReport.get_year()
+            company = chequeReport.get_company()
+            ref = self.get_dict_reference(year,company)
         if not ref:
             print('FAIL: No reference for key in tabledict generated')
             return False
-        print('adding chequeReport to ',year,company,'to chequeReportCollection with ref',ref)    
+        print('adding chequeReport to chequeReportCollection with ref',ref)    
         self.cheque_report_dict[ref] = chequeReport
         status, code = self.save_cheque_report_collection()
         if status:
@@ -523,12 +567,15 @@ class ChequeReportCollection:
         return True   
     def get_cheque_report_from_collection(self,  year, company):
         ref = self.get_dict_reference(year,company)
+        return self.get_table_from_collection_by_reference(ref)
+    def get_table_from_collection_by_reference(self, ref):
         if not ref:
             return None
         try:
             return self.cheque_report_dict[ref]
         except KeyError:
-            return None        
+            return None    
+                    
 
 class TableSnapshotCollection:
     save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\tableSnapshotCollection.filv2"
@@ -612,7 +659,11 @@ class TableSnapshotCollection:
         else:
             print('TableCollection save fail with code ',code)   
         return True   
-    def add_table_to_colection(self, tableSnapshot, month, year, bank, company):
+    def add_table_to_colection(self, tableSnapshot):
+        month = tableSnapshot.get_month()
+        year = tableSnapshot.get_year()
+        company = tableSnapshot.get_company()
+        bank = tableSnapshot.get_bank()            
         ref = self.get_dict_reference(month,year,bank,company)
         if not ref:
             print('FAIL: No reference for key in tabledict generated')
@@ -627,13 +678,14 @@ class TableSnapshotCollection:
         return True   
     def get_table_from_collection(self, month, year, bank,company):
         ref = self.get_dict_reference(month,year,bank,company)
+        return self.get_table_from_collection_by_reference(ref)
+    def get_table_from_collection_by_reference(self,ref):
         if not ref:
             return None
         try:
             return self.table_list[ref]
         except KeyError:
             return None
-
 class TableOperations:
     def __init__(self):
         # self.hdfcBankChequeStatement = HDFCBankChequeStatement()
@@ -644,8 +696,65 @@ class TableOperations:
             print('ChequeReportCollection load success!!')
         if self.tableSnapshotCollection.load_table():
             print('TablesnapshotCollection load success!!')
-        self.TableSnapshot= None    
+        self.TableSnapshot= None   
+        self.firebaseControls = FirebaseControls()
+        self.leftMenuJsonPath = r'./data.json'
+        return
+
+    def upload_data_to_firebase_db(self):
+        print("Uploading left-menu values to db")
+        with open(self.leftMenuJsonPath) as f:
+            data = json.load(f)
+        self.firebaseControls.set_leftMenu_data(data) 
+        print("Uploading tableSnapshot values to db")
+        # print(self.tableSnapshotCollection.get_table_list())
+        table_list = self.tableSnapshotCollection.get_table_list()
+        for key in table_list:
+            print("Uploading tablesnapshot: ", key)
+            child = key
+            obj = table_list[key].get_json()
+            self.firebaseControls.set_tableSnapshot(child, obj)
+        print("Uploading chequeReport values to db")
+        print(self.chequeReportCollection.get_cheque_report_dict())
+        collection_dict = self.chequeReportCollection.get_cheque_report_dict()
+        for key in collection_dict:
+            print("Uploading chequeReport: ", key)
+            child = key
+            obj = collection_dict[key].get_json()
+            self.firebaseControls.set_chequeReport(child, obj)    
+        return
     
+    def get_data_from_firebase_db(self):
+        print("Getting left-menu values from db")
+        data = self.firebaseControls.get_leftMenu_data()
+        data = json.dumps(data, indent=4)
+        with open(self.leftMenuJsonPath, "w") as outfile:
+            outfile.write(data)
+        print("Downloading tableSnapshot values to db")
+        incomingTableSnapshotData = self.firebaseControls.get_tableSnapshot()
+        for key in incomingTableSnapshotData:
+            tableSnapshot = self.tableSnapshotCollection.get_table_from_collection_by_reference(key)
+            if not tableSnapshot:
+                print("new tableSnapshot for ", key)
+                tableSnapshot = TableSnapshot(incomingTableSnapshotData[key])
+                self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
+            else:
+                print("Existing tableSnapshot found for ", key, "Replacing master table data")    
+                tableSnapshot.set_master_table(incomingTableSnapshotData[key]['master_table'])    
+        self.tableSnapshotCollection.save_table()
+        incomingChequeReport = self.firebaseControls.get_chequeReport()
+        for key in incomingChequeReport:
+            chequeReport = self.chequeReportCollection.get_table_from_collection_by_reference(key)
+            if not chequeReport:
+                print("New chequeReport: " , key)
+            else:
+                print("Replacing existing chequeReport: " , key)
+            chequeReport = InfiChequeStatement()
+            chequeReport.set_entry_list(incomingChequeReport[key]['entry_list'])
+            self.chequeReportCollection.add_cheque_report_to_collection(chequeReport, key)
+        self.chequeReportCollection.save_cheque_report_collection()
+        return        
+
     def get_table_from_collection(self, month, year, bank, company):
         self.month = month
         self.year = year
@@ -838,7 +947,7 @@ class TableOperations:
                 row_dict['meta'] = row[8]
                 root_dict.append(row_dict)  
             snapshot.set_master_table(root_dict) 
-            self.tableSnapshotCollection.add_table_to_colection(snapshot, snapshot.get_month(), snapshot.get_year(), snapshot.get_bank(), snapshot.get_company())
+            self.tableSnapshotCollection.add_table_to_colection(snapshot)
         print('Renaming old file')
         oldTableSnapshotCollection.rename_old_save_path()
         print('Reloading table snapshot collection')
@@ -873,18 +982,20 @@ class TableOperations:
                 return False, -4    
             master_table = self.prepare_table_data(iciciBankChequeStatement, infiChequeStatement)    
         tableSnapshot = TableSnapshot(self.company, self.month, self.year, self.bank, master_table,[],None)
-        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot, self.month, self.year, self.bank, self.company)
+        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
         return True, 1
 
     def save_snapshot_to_table(self, tableSnapshot):
-        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot, self.month, self.year, self.bank, self.company)
+        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
 
     def save_chequeReport_to_collection(self, chequeReportpath):
         infiChequeStatement = InfiChequeStatement()
         if not infiChequeStatement.setPath(chequeReportpath):
             return False
         infiChequeStatement.grab_data()  
-        self.chequeReportCollection.add_cheque_report_to_colection(infiChequeStatement,self.year,self.company)  
+        infiChequeStatement.set_year(self.year)
+        infiChequeStatement.set_company(self.company)
+        self.chequeReportCollection.add_cheque_report_to_collection(infiChequeStatement)  
         return True
 
     def search(self, masterTableData, searchQuery, searchMode):
@@ -987,4 +1098,42 @@ class TableOperations:
             return False, -5          
         except Exception as e:
             return False, 99
+
+class FirebaseControls:
+    def __init__(self):
+        cred = credentials.Certificate("./service-account/recordmatcher-firebase-adminsdk-mfcn7-d0ee2c6bad.json")
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': 'https://recordmatcher-default-rtdb.firebaseio.com/'
+        })
+        self.tableSnapshot_ref = db.reference("/tableSnapshot/") 
+        self.leftMenu_ref = db.reference('/leftMenu/') 
+        self.chequeReport_ref = db.reference('/chequeReport')
+    def set_tableSnapshot(self, child, data):
+        return self.tableSnapshot_ref.child(child).set(data)
+    def remove_tableSnapshot(self, child):
+        return self.tableSnapshot_ref.child(child).set({}) 
+    def get_tableSnapshot(self):
+        return self.tableSnapshot_ref.get() 
+    def set_chequeReport(self, child, data):
+        return self.chequeReport_ref.child(child).set(data)
+    def remove_chequeReport(self, child):
+        return self.chequeReport_ref.child(child).set({}) 
+    def get_chequeReport(self):
+        return self.chequeReport_ref.get()     
+    def set_leftMenu_data(self, data):
+        return self.leftMenu_ref.set(data)
+    def get_leftMenu_data(self):
+        return self.leftMenu_ref.get()
         
+# firebaseControls = FirebaseControls()
+# print("Hello")
+# ts = TableOperations()
+# ts.upload_data_to_firebase_db()
+# ts.get_data_from_firebase_db()
+# a = ts.get_table_list()
+# # print(a)
+# b = a['universal_april_2019_icici']
+# print(b.get_master_table()[0])
+# main()    
+
+#  to firebase => master_table 

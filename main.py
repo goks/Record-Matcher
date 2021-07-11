@@ -17,18 +17,12 @@ CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 class MainWindow(QObject):
     def __init__(self):
         QObject.__init__(self)
-        json_path = os.path.join(CURRENT_DIR, "data.json")
-        with open(json_path) as f:
-            data = json.load(f)
         self.hdfcBankChequeStatement = C.HDFCBankChequeStatement()
         self.iciciBankChequeStatement = C.ICICIBankChequeStatement() 
         self.tableOperations = C.TableOperations()  
         self.tableSnapshot = None
         self.masterDisplayTableData = list()
-        self._monthDict = data['Months']    
-        self._yearDict = data['Years']    
-        self._bankDict = data['Banks'] 
-        self._companyDict = data['Companies']  
+        self.populate_left_menu(True)
         self._monthYearData = ''
         self._companyData = ''
         self._bankData = ''
@@ -44,8 +38,24 @@ class MainWindow(QObject):
         self.current_year = ''
         self.current_company = ''
         self.chequeReportActivated  = False
-        self.searchModeOffFirsttime = False    
+        self.searchModeOffFirsttime = False  
+        # self.tableOperations.upload_data_to_firebase_db()  
+        self.tableOperations.get_data_from_firebase_db()
         return   
+    def populate_left_menu(self, first_time=False):
+        json_path = os.path.join(CURRENT_DIR, "data.json")
+        with open(json_path) as f:
+            data = json.load(f)
+        self._monthDict = data['Months']    
+        self._yearDict = data['Years']    
+        self._bankDict = data['Banks'] 
+        self._companyDict = data['Companies']  
+        if not first_time:
+            self.monthDict_changed.emit()
+            self.yearDict_changed.emit()
+            self.bankDict_changed.emit()
+            self.companyDict_changed.emit()
+        return
 
     chequeReportsButtonClicked = Signal(bool,int,str, arguments=['selected','status','time'])
     showTablePage = Signal()

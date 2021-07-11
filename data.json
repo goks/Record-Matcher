@@ -1,42 +1,76 @@
 {
-    "Months": [{
-        "name": "April",
-        "value": "april"
-    }, {
-        "name": "May",
-        "value": "may"
-    }, {
-        "name": "June",
-        "value": "june"
-    }, {
-        "name": "July",
-        "value": "july"
-    }, {
-        "name": "August",
-        "value": "august"
-    }, {
-        "name": "September",
-        "value": "september"
-    }, {
-        "name": "October",
-        "value": "october"
-    }, {
-        "name": "November",
-        "value": "november"
-    }, {
-        "name": "December",
-        "value": "december"
-    }, {
-        "name": "January",
-        "value": "january"
-    }, {
-        "name": "February",
-        "value": "february"
-    }, {
-        "name": "March",
-        "value": "march"
-    }],
-    "Years": [{
+    "Banks": [
+        {
+            "name": "HDFC",
+            "value": "hdfc"
+        },
+        {
+            "name": "ICICI",
+            "value": "icici"
+        }
+    ],
+    "Companies": [
+        {
+            "name": "Gokul Agencies",
+            "value": "gokul"
+        },
+        {
+            "name": "Universal Enterprises",
+            "value": "universal"
+        }
+    ],
+    "Months": [
+        {
+            "name": "April",
+            "value": "april"
+        },
+        {
+            "name": "May",
+            "value": "may"
+        },
+        {
+            "name": "June",
+            "value": "june"
+        },
+        {
+            "name": "July",
+            "value": "july"
+        },
+        {
+            "name": "August",
+            "value": "august"
+        },
+        {
+            "name": "September",
+            "value": "september"
+        },
+        {
+            "name": "October",
+            "value": "october"
+        },
+        {
+            "name": "November",
+            "value": "november"
+        },
+        {
+            "name": "December",
+            "value": "december"
+        },
+        {
+            "name": "January",
+            "value": "january"
+        },
+        {
+            "name": "February",
+            "value": "february"
+        },
+        {
+            "name": "March",
+            "value": "march"
+        }
+    ],
+    "Years": [
+        {
             "name": "2018",
             "value": "2018"
         },
@@ -51,28 +85,6 @@
         {
             "name": "2021",
             "value": "2021"
-        },
-        {
-            "name": "2022",
-            "value": "2022"
-        }
-    ],
-    "Banks": [{
-            "name": "HDFC",
-            "value": "hdfc"
-        },
-        {
-            "name": "ICICI",
-            "value": "icici"
-        }
-    ],
-    "Companies": [{
-            "name": "Gokul Agencies",
-            "value": "gokul"
-        },
-        {
-            "name": "Universal Enterprises",
-            "value": "universal"
         }
     ]
 }
