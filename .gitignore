@@ -80,3 +80,4 @@ Thumbs.db
 *.pyproject
 *.pyproject.*
 main.pyproject.user
+main.pyproject

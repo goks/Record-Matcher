@@ -40,7 +40,7 @@ class MainWindow(QObject):
         self.chequeReportActivated  = False
         self.searchModeOffFirsttime = False  
         # self.tableOperations.upload_data_to_firebase_db()  
-        self.tableOperations.get_data_from_firebase_db()
+        # self.tableOperations.get_data_from_firebase_db()
         return   
     def populate_left_menu(self, first_time=False):
         json_path = os.path.join(CURRENT_DIR, "data.json")
@@ -390,6 +390,8 @@ if __name__ == "__main__":
     app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
     app.setWindowIcon(QIcon('logo.png'))
+    app.setOrganizationName('Neo Productions')
+    app.setOrganizationDomain('Fly fly fly')
        
     #Get Context
     main = MainWindow()

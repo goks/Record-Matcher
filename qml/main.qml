@@ -16,7 +16,7 @@ Window {
     height: 720
     //    minimumWidth: 1280
     //    minimumHeight: 720
-    visible: true
+    visible: false
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
     // readonly property real refScreenWidth: 1562
@@ -47,6 +47,7 @@ Window {
     FontLoader { id: appFont4; source: "../fonts/Sen-Regular.ttf" }
     property string chequeTimeData: ""
     Rectangle {
+        z:0
         id:backgroundBox
         color: "#f4f6f8"
         anchors.fill: parent
@@ -59,6 +60,10 @@ Window {
         //         toast.show("This important message has been shown " + (++i) + " times.",'success');
         //     }
         // }
+        LoadingOverlay{
+            // visible: false
+            z:15
+        }
 
         CustomPopup{
             id: popup
@@ -212,6 +217,8 @@ Window {
                 scaleFactorHeight: window.scaleFactorHeight
                 btnIconSource: "../images/svg_images/settings_gear.svg"
                 onConvertSchemaClicked: backend.convertSchema()
+                onDownloadFromDbClicked: backend.downloadfromDb()
+                onUploadtoDbClicked: backend.uploadtoDb()
 
             }
         }
@@ -1182,6 +1189,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.66}
+    D{i:0;formeditorZoom:0.5}
 }
 ##^##*/
