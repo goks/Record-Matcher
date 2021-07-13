@@ -16,7 +16,7 @@ Window {
     height: 720
     //    minimumWidth: 1280
     //    minimumHeight: 720
-    visible: false
+    visible: true
     color: "#f4f6f8"
     title: qsTr("Record Matcher")
     // readonly property real refScreenWidth: 1562
@@ -61,8 +61,15 @@ Window {
         //     }
         // }
         LoadingOverlay{
-            // visible: false
+            id: fullScreenLoading
+            visible: false
             z:15
+            scaleFactorWidth: window.scaleFactorWidth
+            scaleFactorHeight: window.scaleFactorHeight
+            progressBarValue: 0.0
+            text1: ""
+            text2: ""
+
         }
 
         CustomPopup{

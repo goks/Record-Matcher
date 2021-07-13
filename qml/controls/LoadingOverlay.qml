@@ -32,14 +32,16 @@ Rectangle{
         anchors.margins: 100
         color: "#00000000"
         Text {
-            text: "Loading ChequeReports"
+            // text: "Loading ChequeReports"
+            text: loadingOverlay.text1
             anchors.verticalCenter: parent.verticalCenter
             font.pixelSize: tscale(40)
             anchors.verticalCenterOffset: -100
             font.family: appFont4.name
         }
         Text {
-            text: "processing Jun 2020 gokul"
+            // text: "processing Jun 2020 gokul"
+            text: loadingOverlay.text2
             anchors.verticalCenter: parent.verticalCenter
             font.pixelSize: tscale(20)
             anchors.verticalCenterOffset: -50

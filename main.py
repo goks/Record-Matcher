@@ -39,8 +39,6 @@ class MainWindow(QObject):
         self.current_company = ''
         self.chequeReportActivated  = False
         self.searchModeOffFirsttime = False  
-        # self.tableOperations.upload_data_to_firebase_db()  
-        # self.tableOperations.get_data_from_firebase_db()
         return   
     def populate_left_menu(self, first_time=False):
         json_path = os.path.join(CURRENT_DIR, "data.json")
@@ -154,7 +152,10 @@ class MainWindow(QObject):
         self.searchModeOffFirsttime=False
         x = threading.Thread(target=self.threadedPopulate_table, args=( ), daemon=True)
         x.start()
-        return 1    
+        return 1   
+
+    def callBackFunction_for_Updating_fullScreenLoading(self, text1, text2, prograssbarVal):
+        print(text1, text2, prograssbarVal)
 
     def threadedPopulate_table(self):      
         self.save_snapshot()
@@ -215,8 +216,13 @@ class MainWindow(QObject):
     @Slot()
     def beginWindowExitRoutine(self):
         self.save_snapshot()
+    @Slot()
+    def downloadfromDb(self):
+        self.tableOperations.get_data_from_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
 
-
+    @Slot()
+    def uploadtoDb(self):
+        self.tableOperations.upload_data_to_firebase_db()
 
     @Slot(str, str)
     def companyChanged(self, companyname, screenName):

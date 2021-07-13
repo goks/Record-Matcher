@@ -724,26 +724,23 @@ class TableOperations:
             self.firebaseControls.set_chequeReport(child, obj)    
         return
     
-    def get_data_from_firebase_db(self):
+    def get_data_from_firebase_db(self, callbackFuncforProgress):
         print("Getting left-menu values from db")
+        callbackFuncforProgress("Processing Left Menu values", "Downloading values from Firebase",0.0)
         data = self.firebaseControls.get_leftMenu_data()
         data = json.dumps(data, indent=4)
+        callbackFuncforProgress("Processing Left Menu values", "Writin values to local file",0.5)
         with open(self.leftMenuJsonPath, "w") as outfile:
             outfile.write(data)
-        print("Downloading tableSnapshot values to db")
-        incomingTableSnapshotData = self.firebaseControls.get_tableSnapshot()
-        for key in incomingTableSnapshotData:
-            tableSnapshot = self.tableSnapshotCollection.get_table_from_collection_by_reference(key)
-            if not tableSnapshot:
-                print("new tableSnapshot for ", key)
-                tableSnapshot = TableSnapshot(incomingTableSnapshotData[key])
-                self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
-            else:
-                print("Existing tableSnapshot found for ", key, "Replacing master table data")    
-                tableSnapshot.set_master_table(incomingTableSnapshotData[key]['master_table'])    
-        self.tableSnapshotCollection.save_table()
+        callbackFuncforProgress("Processing Left Menu values", "Finished",1.0)
+
+        callbackFuncforProgress("Processing cheque reports", "Downloading values from Firebase",0.0)
         incomingChequeReport = self.firebaseControls.get_chequeReport()
+        total_val = len(incomingChequeReport)
+        count=0
         for key in incomingChequeReport:
+            count+=1
+            callbackFuncforProgress("Processing cheque reports", "Downloading values from Firebase",round(count*8/total_val)*0.1)
             chequeReport = self.chequeReportCollection.get_table_from_collection_by_reference(key)
             if not chequeReport:
                 print("New chequeReport: " , key)
@@ -752,7 +749,26 @@ class TableOperations:
             chequeReport = InfiChequeStatement()
             chequeReport.set_entry_list(incomingChequeReport[key]['entry_list'])
             self.chequeReportCollection.add_cheque_report_to_collection(chequeReport, key)
+        callbackFuncforProgress("Processing cheque reports", "Finalizing",0.9)
         self.chequeReportCollection.save_cheque_report_collection()
+        print("Downloading tableSnapshot values to db")
+        callbackFuncforProgress("Processing table snapshots", "Downloading values from Firebase",0.0)
+        incomingTableSnapshotData = self.firebaseControls.get_tableSnapshot()
+        total_val = len(incomingTableSnapshotData)
+        count=0
+        for key in incomingTableSnapshotData:
+            count+=1
+            callbackFuncforProgress("Processing table snapshots", "Downloading values from Firebase",round(count*8/total_val)*0.1)
+            tableSnapshot = self.tableSnapshotCollection.get_table_from_collection_by_reference(key)
+            if not tableSnapshot:
+                print("new tableSnapshot for ", key)
+                tableSnapshot = TableSnapshot(incomingTableSnapshotData[key])
+                self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
+            else:
+                print("Existing tableSnapshot found for ", key, "Replacing master table data")    
+                tableSnapshot.set_master_table(incomingTableSnapshotData[key]['master_table'])    
+        callbackFuncforProgress("Processing table snapshots", "Finalizing",0.9)
+        self.tableSnapshotCollection.save_table()
         return        
 
     def get_table_from_collection(self, month, year, bank, company):
