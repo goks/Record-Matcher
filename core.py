@@ -10,7 +10,6 @@ from copy import deepcopy
 import firebase_admin
 from firebase_admin import credentials, db
 
-
 # Fix for opening xlsx
 xlrd.xlsx.ensure_elementtree_imported(False, None)
 xlrd.xlsx.Element_has_iter = True
@@ -663,7 +662,8 @@ class TableSnapshotCollection:
         month = tableSnapshot.get_month()
         year = tableSnapshot.get_year()
         company = tableSnapshot.get_company()
-        bank = tableSnapshot.get_bank()            
+        bank = tableSnapshot.get_bank()     
+        # print(month, year,company,bank)       
         ref = self.get_dict_reference(month,year,bank,company)
         if not ref:
             print('FAIL: No reference for key in tabledict generated')
@@ -701,27 +701,44 @@ class TableOperations:
         self.leftMenuJsonPath = r'./data.json'
         return
 
-    def upload_data_to_firebase_db(self):
+    def upload_data_to_firebase_db(self, callbackFuncforProgress):
         print("Uploading left-menu values to db")
+        callbackFuncforProgress("Processing Left Menu values", "Retrieving values to upload",0.0)
         with open(self.leftMenuJsonPath) as f:
             data = json.load(f)
         self.firebaseControls.set_leftMenu_data(data) 
         print("Uploading tableSnapshot values to db")
-        # print(self.tableSnapshotCollection.get_table_list())
+        callbackFuncforProgress("Processing Left Menu values", "Finished uploading",1.0)
+
+        callbackFuncforProgress("Processing cheque reports", "Retrieving snapshots to upload",0.0)
+        # print(self.chequeReportCollection.get_cheque_report_dict())
+        collection_dict = self.chequeReportCollection.get_cheque_report_dict()
+        total_val = len(collection_dict)
+        count=0
+        print(collection_dict)
+        for key in collection_dict:
+            count+=1
+            print("Uploading chequeReport: ", key)
+            callbackFuncforProgress("Processing cheque reports", "Uploading "+key,round(count*8/total_val)/10)
+            child = key
+            obj = collection_dict[key]
+            if(obj):
+                self.firebaseControls.set_chequeReport(child, obj.get_json())   
+        callbackFuncforProgress("Processing cheque reports", "Finished",1.0)     
+
+        callbackFuncforProgress("Processing table snapshots", "Retrieving values to upload",0.0)
         table_list = self.tableSnapshotCollection.get_table_list()
+        total_val = len(table_list)
+        count=0
         for key in table_list:
+            count+=1
+            callbackFuncforProgress("Processing table snapshots", "Uploading "+key,round(count*8/total_val)/10)
             print("Uploading tablesnapshot: ", key)
             child = key
-            obj = table_list[key].get_json()
-            self.firebaseControls.set_tableSnapshot(child, obj)
-        print("Uploading chequeReport values to db")
-        print(self.chequeReportCollection.get_cheque_report_dict())
-        collection_dict = self.chequeReportCollection.get_cheque_report_dict()
-        for key in collection_dict:
-            print("Uploading chequeReport: ", key)
-            child = key
-            obj = collection_dict[key].get_json()
-            self.firebaseControls.set_chequeReport(child, obj)    
+            obj = table_list[key]
+            if(obj):
+                self.firebaseControls.set_tableSnapshot(child, obj.get_json())
+        callbackFuncforProgress("Processing table snapshots", "Finished",1.0)
         return
     
     def get_data_from_firebase_db(self, callbackFuncforProgress):
@@ -729,7 +746,7 @@ class TableOperations:
         callbackFuncforProgress("Processing Left Menu values", "Downloading values from Firebase",0.0)
         data = self.firebaseControls.get_leftMenu_data()
         data = json.dumps(data, indent=4)
-        callbackFuncforProgress("Processing Left Menu values", "Writin values to local file",0.5)
+        callbackFuncforProgress("Processing Left Menu values", "Writing values to local file",0.5)
         with open(self.leftMenuJsonPath, "w") as outfile:
             outfile.write(data)
         callbackFuncforProgress("Processing Left Menu values", "Finished",1.0)
@@ -740,7 +757,7 @@ class TableOperations:
         count=0
         for key in incomingChequeReport:
             count+=1
-            callbackFuncforProgress("Processing cheque reports", "Downloading values from Firebase",round(count*8/total_val)*0.1)
+            callbackFuncforProgress("Processing cheque reports", "Writing "+key,round(count*8/total_val)/10)
             chequeReport = self.chequeReportCollection.get_table_from_collection_by_reference(key)
             if not chequeReport:
                 print("New chequeReport: " , key)
@@ -758,7 +775,7 @@ class TableOperations:
         count=0
         for key in incomingTableSnapshotData:
             count+=1
-            callbackFuncforProgress("Processing table snapshots", "Downloading values from Firebase",round(count*8/total_val)*0.1)
+            callbackFuncforProgress("Processing table snapshots", "Writing "+key,round(count*8/total_val)/10)
             tableSnapshot = self.tableSnapshotCollection.get_table_from_collection_by_reference(key)
             if not tableSnapshot:
                 print("new tableSnapshot for ", key)
@@ -1140,16 +1157,3 @@ class FirebaseControls:
         return self.leftMenu_ref.set(data)
     def get_leftMenu_data(self):
         return self.leftMenu_ref.get()
-        
-# firebaseControls = FirebaseControls()
-# print("Hello")
-# ts = TableOperations()
-# ts.upload_data_to_firebase_db()
-# ts.get_data_from_firebase_db()
-# a = ts.get_table_list()
-# # print(a)
-# b = a['universal_april_2019_icici']
-# print(b.get_master_table()[0])
-# main()    
-
-#  to firebase => master_table 

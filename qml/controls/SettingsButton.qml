@@ -161,7 +161,7 @@ Button {
                 color: menuControl.hovered ? "#ffffff" : "#003366"
             }
             text: "Convert old schema to new"
-            onTriggered: menuBtn.convertSchemaClicked
+            onTriggered: menuBtn.convertSchemaClicked()
             signal downloadFromDbClicked()
         }
 

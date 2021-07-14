@@ -5,6 +5,7 @@
 output/
 .venv/
 service-account/
+RecordMatcher_env/
 
 *~
 *.autosave

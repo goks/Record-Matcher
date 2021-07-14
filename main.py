@@ -33,6 +33,9 @@ class MainWindow(QObject):
         self._selectedRows = [1,2,3]
         self._endDateCalendar =  QDate(2020,6,5)
         self._startDateCalendar = QDate(2016,1,1)
+        self._progressBarValue = 0.0
+        self._fullScreenLoadingInfo1 = ''
+        self._fullScreenLoadingInfo2 = ''
         self.current_month = ''
         self.current_bank = ''
         self.current_year = ''
@@ -68,7 +71,9 @@ class MainWindow(QObject):
     snapshotDeleteFail = Signal()
     chequeReportDeleteSuccess = Signal()
     chequeReportDeleteFail = Signal()
-
+    fullScreenLoadingStart = Signal()
+    fullScreenLoadingEnd = Signal()
+    
     def save_snapshot(self):
         if(self.tableSnapshot):  
             print("saving selected rows",self.selectedRows)
@@ -155,7 +160,13 @@ class MainWindow(QObject):
         return 1   
 
     def callBackFunction_for_Updating_fullScreenLoading(self, text1, text2, prograssbarVal):
-        print(text1, text2, prograssbarVal)
+        self._fullScreenLoadingInfo1 = text1
+        self._fullScreenLoadingInfo2 = text2
+        self._progressBarValue = prograssbarVal
+        self.fullScreenLoadingInfo1_changed.emit()
+        self.fullScreenLoadingInfo2_changed.emit()
+        self.progressBarValue_changed.emit()
+        return
 
     def threadedPopulate_table(self):      
         self.save_snapshot()
@@ -218,11 +229,23 @@ class MainWindow(QObject):
         self.save_snapshot()
     @Slot()
     def downloadfromDb(self):
+        self.fullScreenLoadingStart.emit()
+        x = threading.Thread(target=self.downloadfromDbThreaded, args=(), daemon=True)
+        x.start()
+    def  downloadfromDbThreaded(self):
         self.tableOperations.get_data_from_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
-
+        self.fullScreenLoadingEnd.emit()
+        return
     @Slot()
     def uploadtoDb(self):
-        self.tableOperations.upload_data_to_firebase_db()
+        self.fullScreenLoadingStart.emit()
+        x = threading.Thread(target=self.uploadtoDbThreaded, args=(), daemon=True)
+        x.start()
+    def uploadtoDbThreaded(self):    
+        self.tableOperations.upload_data_to_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
+        self.fullScreenLoadingEnd.emit()
+        return
+
 
     @Slot(str, str)
     def companyChanged(self, companyname, screenName):
@@ -352,7 +375,22 @@ class MainWindow(QObject):
     def endDateCalendar_changed(self):
         return
     def get_endDateCalendar(self):
-        return self._endDateCalendar           
+        return self._endDateCalendar
+    @Signal
+    def progressBarValue_changed(self):
+        return
+    def get_progressBarValue(self):
+        return self._progressBarValue
+    @Signal
+    def fullScreenLoadingInfo1_changed(self):
+        return
+    def get_fullScreenLoadingInfo1(self):
+        return self._fullScreenLoadingInfo1 
+    @Signal
+    def fullScreenLoadingInfo2_changed(self):
+        return
+    def get_fullScreenLoadingInfo2(self):
+        return self._fullScreenLoadingInfo2                      
 
     startDateCalendar = Property(QDate, get_startDateCalendar, notify=startDateCalendar_changed)
     endDateCalendar = Property(QDate, get_endDateCalendar, notify=endDateCalendar_changed)
@@ -368,7 +406,9 @@ class MainWindow(QObject):
     companyData = Property(str, get_companyData, notify=companyData_changed)
     bankData = Property(str, get_bankData, notify=bankData_changed)
     selectedRows = Property('QVariantList', get_selectedRows, notify=selectedRows_changed)
-    
+    progressBarValue = Property(float, get_progressBarValue, notify=progressBarValue_changed)
+    fullScreenLoadingInfo1 = Property(str, get_fullScreenLoadingInfo1, notify=fullScreenLoadingInfo1_changed)
+    fullScreenLoadingInfo2 = Property(str, get_fullScreenLoadingInfo2, notify=fullScreenLoadingInfo2_changed)
 
 
 class TableBackend(QObject):

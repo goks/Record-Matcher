@@ -66,9 +66,9 @@ Window {
             z:15
             scaleFactorWidth: window.scaleFactorWidth
             scaleFactorHeight: window.scaleFactorHeight
-            progressBarValue: 0.0
-            text1: ""
-            text2: ""
+            progressBarValue: backend.progressBarValue
+            text1: backend.fullScreenLoadingInfo1
+            text2: backend.fullScreenLoadingInfo2
 
         }
 
@@ -412,6 +412,12 @@ Window {
                     }
                     function onChequeReportDeleteFail() {
                         toast.show("Cheque report deletion failed.", "error");
+                    }
+                    function onFullScreenLoadingStart() {
+                        fullScreenLoading.visible=true
+                    }
+                    function onFullScreenLoadingEnd() {
+                        fullScreenLoading.visible=false
                     }
                 }
 
