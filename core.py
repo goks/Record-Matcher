@@ -9,6 +9,7 @@ locale.setlocale(locale.LC_NUMERIC, 'hi_IN')
 from copy import deepcopy
 import firebase_admin
 from firebase_admin import credentials, db
+import dateutil.parser
 
 # Fix for opening xlsx
 xlrd.xlsx.ensure_elementtree_imported(False, None)
@@ -218,9 +219,10 @@ class InfiChequeStatement:
         # date2 format dd/mm/yy or dd-bbb-yyyy
         assert datetime.datetime.strptime(date1, "%d-%m-%Y")
         try:
-            date2 = datetime.datetime.strptime(date2, "%d/%m/%y")
-        except ValueError:
-            date2 = datetime.datetime.strptime(date2, "%d-%b-%Y")
+            date2 = dateutil.parser.parse(date2)
+        except :
+            print(date2)
+            raise
         date2 = date2.strftime("%d/%m/%y")
         # print(date1, date2)
         date1 = date1.split('-')
@@ -375,10 +377,11 @@ class ICICIBankChequeStatement:
     def process_date(self, entry):
         date = entry[2]
         try:
-            date= datetime.datetime.strptime(date,'%d-%b-%Y')
-        except ValueError:
-            date = datetime.datetime.strptime(date,'%d/%m/%Y')
-            entry[2] = date.strftime('%d-%b-%Y')
+            date= dateutil.parser.parse(date)
+        except :
+            print(date)
+            raise
+        entry[2] = date.strftime('%d-%b-%Y')
         return entry        
 
     def grab_data(self):
@@ -417,7 +420,14 @@ class TableSnapshot:
     company = None
     save_path = None
 
-    def __init__(self,company,month,year,bank,master_table, master_selected_rows, master_excel_export_path):
+    def __init__(self, *inp):
+        if len(inp) == 1:
+            self.initialize_mode1(inp[0])
+        elif len(inp) == 7:
+            self.initialize_mode2(inp[0], inp[1],inp[2] ,inp[3] ,inp[4] ,inp[5] ,inp[6])
+        return  
+
+    def initialize_mode2(self,company,month,year,bank,master_table, master_selected_rows, master_excel_export_path):
         self.master_table = master_table
         self.master_selected_rows = master_selected_rows
         self.master_excel_export_path = master_excel_export_path
@@ -430,7 +440,7 @@ class TableSnapshot:
         self.createSavePath()
         self.update_last_edited_time()
         return
-    def __init__(self, dict):
+    def initialize_mode1(self, dict):
         self.master_table = dict["master_table"]
         self.month = dict["month"]
         self.year = dict["year"]
@@ -466,6 +476,8 @@ class TableSnapshot:
         return self.master_selected_rows
     def get_master_excel_export_path(self):
         return self.master_excel_export_path  
+    def get_save_path(self):
+        return self.save_path  
     def get_month(self):
         return self.month
     def get_year(self):
@@ -473,7 +485,9 @@ class TableSnapshot:
     def get_bank(self):
         return self.bank 
     def get_company(self):
-        return self.company      
+        return self.company 
+    def set_company(self, val):
+        self.company = val       
     def get_last_edited_time(self):
         return self.last_edited_time   
     def set_master_selected_rows(self, val):
@@ -663,7 +677,7 @@ class TableSnapshotCollection:
         year = tableSnapshot.get_year()
         company = tableSnapshot.get_company()
         bank = tableSnapshot.get_bank()     
-        # print(month, year,company,bank)       
+        print(month, year,company,bank, tableSnapshot.get_master_excel_export_path(), tableSnapshot.get_save_path())       
         ref = self.get_dict_reference(month,year,bank,company)
         if not ref:
             print('FAIL: No reference for key in tabledict generated')
@@ -802,9 +816,14 @@ class TableOperations:
         start_date, end_date = "", ""
         for each in master_table:
             try:
-                bank_date = datetime.datetime.strptime(each['Bank Date'], "%d/%m/%y")
-            except ValueError:
-                bank_date = datetime.datetime.strptime(each['Bank Date'], "%d-%b-%Y")    
+                bank_date = dateutil.parser.parse(each['Bank Date'])
+            except:
+                if(each['meta'] == 'double'):
+                    each['Bank Narration'] = "Double Match"
+                    continue
+                else:
+                    print("Error at entry ",each)
+                    raise
             if start_date == "" or start_date>bank_date:
                 start_date = bank_date 
             if end_date == "" or end_date<bank_date:
@@ -827,7 +846,8 @@ class TableOperations:
                 each['Credit'] = locale.format_string("%.2f", float(each['Credit']), grouping=True)
             if(each['Debit'] != ''):
                 each['Debit'] = locale.format_string("%.2f", float(each['Debit']), grouping=True)
-            each['Closing Balance'] = locale.format_string("%.2f", float(each['Closing Balance']), grouping=True)    
+            if each['Closing Balance']!='':    
+                each['Closing Balance'] = locale.format_string("%.2f", float(each['Closing Balance']), grouping=True)    
         return tableData    
 
     def delete_table_from_collection(self, month, year, bank, company):
@@ -967,6 +987,16 @@ class TableOperations:
         for key,snapshot in collection.items():    
             master_table = snapshot.get_master_table()
             root_dict = []
+            if not snapshot.get_company():
+                company = key.split('_')[0]
+                snapshot.set_company(company)
+            selected_rows_new = []    
+            selected_rows_old = snapshot.get_master_selected_rows()
+            for each in selected_rows_old:
+                if isinstance(each, list):
+                    selected_rows_new.append(each[0])
+            if selected_rows_new!=[]:            
+                snapshot.set_master_selected_rows(selected_rows_new)
             for row in master_table:
                 row_dict={}
                 row_dict['Bank Date'] = row[0]
