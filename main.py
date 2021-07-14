@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import json
 import threading
+import dateutil.parser
 
 from PySide2.QtGui import QGuiApplication, QIcon
 from PySide2.QtQml import QQmlApplicationEngine
@@ -177,8 +178,8 @@ class MainWindow(QObject):
         self._creditBal = credit_bal
         self.creditBal_changed.emit()
         self._debitBal = debit_bal
-        self.debitBal_changed.emit()
         print(start_date, end_date)
+        self.debitBal_changed.emit()
         self._startDateCalendar = QDate(int(start_date.split('/')[0]), int(start_date.split('/')[1]), int(start_date.split('/')[2]))
         self.startDateCalendar_changed.emit()
         self._endDateCalendar = QDate(int(end_date.split('/')[0]), int(end_date.split('/')[1]), int(end_date.split('/')[2]))
@@ -300,8 +301,7 @@ class MainWindow(QObject):
         print("STATUS: ",status)
     @Slot()
     def call_populate_table(self):
-        self.populate_table()
-    
+        self.populate_table()    
     
 
     @Signal

@@ -322,6 +322,9 @@ Window {
                         help_button.selected = false
                         textInput.searchmode = "default"
                         uploadBtn.visible = false
+                        byDateBtn.selected = false
+                        byChqAmtBtn.selected = false
+                        byChqNoBtn.selected = false
                         stackView.push(tableComponent)
                     }
                     function onShowUploadBankStatementPage(){
@@ -350,7 +353,11 @@ Window {
                         help_button.selected = false
                         textInput.searchmode = "default"
                         uploadBtn.visible = false
+                        byDateBtn.selected = false
+                        byChqAmtBtn.selected = false
+                        byChqNoBtn.selected = false
                         stackView.push(selectOptionsComponent)
+
                     }
                     function onValidationError(type){
                         switch(type){
@@ -787,7 +794,6 @@ Window {
                     id: toast
                     scaleFactorWidth: window.scaleFactorWidth
                     scaleFactorHeight: window.scaleFactorHeight
-
                 }
                 BusyIndicator{
                     id: mainScreenBusyIndicator

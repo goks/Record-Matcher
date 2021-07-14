@@ -219,7 +219,7 @@ class InfiChequeStatement:
         # date2 format dd/mm/yy or dd-bbb-yyyy
         assert datetime.datetime.strptime(date1, "%d-%m-%Y")
         try:
-            date2 = dateutil.parser.parse(date2)
+            date2 = dateutil.parser.parse(date2, dayfirst=True)
         except :
             print(date2)
             raise
@@ -377,7 +377,7 @@ class ICICIBankChequeStatement:
     def process_date(self, entry):
         date = entry[2]
         try:
-            date= dateutil.parser.parse(date)
+            date= dateutil.parser.parse(date , dayfirst=True)
         except :
             print(date)
             raise
@@ -816,7 +816,8 @@ class TableOperations:
         start_date, end_date = "", ""
         for each in master_table:
             try:
-                bank_date = dateutil.parser.parse(each['Bank Date'])
+                bank_date = dateutil.parser.parse(each['Bank Date'], dayfirst=True)
+                print(bank_date)
             except:
                 if(each['meta'] == 'double'):
                     each['Bank Narration'] = "Double Match"
@@ -834,7 +835,7 @@ class TableOperations:
                 debit_bal+=float(each['Debit'])
         credit_bal = locale.format_string("%.2f", credit_bal, grouping=True)  
         debit_bal =  locale.format_string("%.2f", debit_bal, grouping=True)  
-        print(start_date, end_date)
+        # print(start_date, end_date)
         start_date = start_date.strftime("%Y/%m/%d")
         end_date = end_date.strftime("%Y/%m/%d")
         return snapshot, self.format_table_data(master_table), credit_bal, debit_bal, start_date, end_date
@@ -1073,7 +1074,8 @@ class TableOperations:
                     final_table.append(each)
         elif searchMode == "bydate":
             for each in masterTableData:
-                stmtdate = each['Bank Date'].split('/')
+                date = dateutil.parser.parse(each['Bank Date'], dayfirst=True).strftime("%d/%m/%Y")
+                stmtdate = date.split('/')
                 querydate = searchQuery.split('/')
                 if stmtdate[0] == querydate[0]:
                     if stmtdate[1] == querydate[1]:
