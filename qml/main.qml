@@ -419,6 +419,12 @@ Window {
                     function onFullScreenLoadingEnd() {
                         fullScreenLoading.visible=false
                     }
+                    function onShowMainScreenLoadingIndicator() {
+                        mainScreenBusyIndicator.running = true
+                    }
+                    function onHideMainScreenLoadingIndicator() {
+                        mainScreenBusyIndicator.running = false
+                    }
                 }
 
                 PropertyAnimation{
@@ -783,6 +789,13 @@ Window {
                     scaleFactorHeight: window.scaleFactorHeight
 
                 }
+                BusyIndicator{
+                    id: mainScreenBusyIndicator
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    running: true
+                    z:12
+                }
 
                 Rectangle {
                     id: bodyHeaderBox
@@ -1122,14 +1135,6 @@ Window {
                             scaleFactorHeight: window.scaleFactorHeight
                         }
                     }
-
-                    // BusyIndicator {
-                    //     id: busyIndicator2
-                    //     anchors.verticalCenter: parent.verticalCenter
-                    //     running: false
-                    //     anchors.horizontalCenter: parent.horizontalCenter
-                    //     z: -1
-                    // }
                 }
             }
         }

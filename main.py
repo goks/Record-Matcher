@@ -73,6 +73,8 @@ class MainWindow(QObject):
     chequeReportDeleteFail = Signal()
     fullScreenLoadingStart = Signal()
     fullScreenLoadingEnd = Signal()
+    showMainScreenLoadingIndicator = Signal()
+    hideMainScreenLoadingIndicator = Signal()
     
     def save_snapshot(self):
         if(self.tableSnapshot):  
@@ -150,24 +152,16 @@ class MainWindow(QObject):
         return    
 
     def populate_table(self):
+        self.showMainScreenLoadingIndicator.emit()
         print(self.current_bank, self.current_company, self.current_month, self.current_year)
         if '' in [self.current_bank, self.current_company, self.current_month, self.current_year]:
             self.showChooseOptionsPage.emit()
+            self.hideMainScreenLoadingIndicator.emit()
             return -1
         self.searchModeOffFirsttime=False
         x = threading.Thread(target=self.threadedPopulate_table, args=( ), daemon=True)
         x.start()
         return 1   
-
-    def callBackFunction_for_Updating_fullScreenLoading(self, text1, text2, prograssbarVal):
-        self._fullScreenLoadingInfo1 = text1
-        self._fullScreenLoadingInfo2 = text2
-        self._progressBarValue = prograssbarVal
-        self.fullScreenLoadingInfo1_changed.emit()
-        self.fullScreenLoadingInfo2_changed.emit()
-        self.progressBarValue_changed.emit()
-        return
-
     def threadedPopulate_table(self):      
         self.save_snapshot()
         print('POPULATING TABLE')
@@ -175,6 +169,7 @@ class MainWindow(QObject):
         if not self.tableSnapshot:
             self.showUploadBankStatementPage.emit()
             print("No tablesnapshot saved")
+            self.hideMainScreenLoadingIndicator.emit()
             return 0
         print("Snapshot found")
         self._tableData = self.masterDisplayTableData
@@ -191,7 +186,18 @@ class MainWindow(QObject):
         self._selectedRows = self.tableSnapshot.get_master_selected_rows()
         self.selectedRows_changed.emit()
         self.showTablePage.emit()
+        self.hideMainScreenLoadingIndicator.emit()
         return 1
+
+    def callBackFunction_for_Updating_fullScreenLoading(self, text1, text2, prograssbarVal):
+        self._fullScreenLoadingInfo1 = text1
+        self._fullScreenLoadingInfo2 = text2
+        self._progressBarValue = prograssbarVal
+        self.fullScreenLoadingInfo1_changed.emit()
+        self.fullScreenLoadingInfo2_changed.emit()
+        self.progressBarValue_changed.emit()
+        return
+
     def populateChequeReports(self):    
         if '' in [self.current_company,self.current_year]:
             return -1, ''
