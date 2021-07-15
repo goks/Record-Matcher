@@ -817,7 +817,6 @@ class TableOperations:
         for each in master_table:
             try:
                 bank_date = dateutil.parser.parse(each['Bank Date'], dayfirst=True)
-                print(bank_date)
             except:
                 if(each['meta'] == 'double'):
                     each['Bank Narration'] = "Double Match"

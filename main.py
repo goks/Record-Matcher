@@ -51,12 +51,14 @@ class MainWindow(QObject):
         self._monthDict = data['Months']    
         self._yearDict = data['Years']    
         self._bankDict = data['Banks'] 
-        self._companyDict = data['Companies']  
+        self._companyDict = data['Companies']
+        self._adminPassword = data['AdminPassword']  
         if not first_time:
             self.monthDict_changed.emit()
             self.yearDict_changed.emit()
             self.bankDict_changed.emit()
             self.companyDict_changed.emit()
+            self.adminPassword_changed.emit()
         return
 
     chequeReportsButtonClicked = Signal(bool,int,str, arguments=['selected','status','time'])
@@ -396,7 +398,13 @@ class MainWindow(QObject):
     def fullScreenLoadingInfo2_changed(self):
         return
     def get_fullScreenLoadingInfo2(self):
-        return self._fullScreenLoadingInfo2                      
+        return self._fullScreenLoadingInfo2  
+    @Signal
+    def adminPassword_changed(self):
+        return
+    def get_adminPassword(self):
+        return self._adminPassword      
+
 
     startDateCalendar = Property(QDate, get_startDateCalendar, notify=startDateCalendar_changed)
     endDateCalendar = Property(QDate, get_endDateCalendar, notify=endDateCalendar_changed)
@@ -415,6 +423,7 @@ class MainWindow(QObject):
     progressBarValue = Property(float, get_progressBarValue, notify=progressBarValue_changed)
     fullScreenLoadingInfo1 = Property(str, get_fullScreenLoadingInfo1, notify=fullScreenLoadingInfo1_changed)
     fullScreenLoadingInfo2 = Property(str, get_fullScreenLoadingInfo2, notify=fullScreenLoadingInfo2_changed)
+    adminPassword = Property(str, get_adminPassword, notify=adminPassword_changed)
 
 
 class TableBackend(QObject):

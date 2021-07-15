@@ -29,14 +29,14 @@ Rectangle{
     Rectangle {
         id: rectangle
         anchors.fill: parent
-        anchors.margins: 100
+        anchors.margins: tscale(100)
         color: "#00000000"
         Text {
             // text: "Loading ChequeReports"
             text: loadingOverlay.text1
             anchors.verticalCenter: parent.verticalCenter
             font.pixelSize: tscale(40)
-            anchors.verticalCenterOffset: -100
+            anchors.verticalCenterOffset: vscale(-100)
             font.family: appFont4.name
         }
         Text {
@@ -44,7 +44,7 @@ Rectangle{
             text: loadingOverlay.text2
             anchors.verticalCenter: parent.verticalCenter
             font.pixelSize: tscale(20)
-            anchors.verticalCenterOffset: -50
+            anchors.verticalCenterOffset: vscale(-50)
             font.family: appFont4.name
         }
 

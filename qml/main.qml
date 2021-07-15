@@ -78,6 +78,21 @@ Window {
             scaleFactorHeight: window.scaleFactorHeight
 
         }
+        PasswordPopup{
+            id: passwordPopup
+            scaleFactorWidth: window.scaleFactorWidth
+            scaleFactorHeight: window.scaleFactorHeight
+            passwordFieldText: ""
+            password: backend.adminPassword
+            matchStatus: false
+            onClosed: {
+                            if(passwordPopup.matchStatus === true){
+                                        passwordPopup.matchStatus = false
+                                        backend.uploadtoDb()
+                                    }
+                        }
+
+        }
         Rectangle {
             id: headerBox
             color: "#ffffff"
@@ -225,8 +240,9 @@ Window {
                 btnIconSource: "../images/svg_images/settings_gear.svg"
                 onConvertSchemaClicked: backend.convertSchema()
                 onDownloadFromDbClicked: backend.downloadfromDb()
-                onUploadtoDbClicked: backend.uploadtoDb()
-
+                onUploadtoDbClicked:{
+                                    passwordPopup.open()
+                                    }
             }
         }
         Rectangle {
@@ -311,7 +327,7 @@ Window {
                         else stackView.clear()
                     }
                     function onShowTablePage(){
-                        console.log("Showing table")
+                        // console.log("Showing table")
                         monthBox.visible = true
                         bankBox.visible = true
                         bankBox.height = vscale(97)
@@ -328,7 +344,7 @@ Window {
                         stackView.push(tableComponent)
                     }
                     function onShowUploadBankStatementPage(){
-                        console.log("Showing upload Cheque Statement")
+                        // console.log("Showing upload Cheque Statement")
                         monthBox.visible = true
                         bankBox.visible = true
                         bankBox.height = vscale(97)
@@ -342,7 +358,7 @@ Window {
                         stackView.push(uploadStatementComponent)
                     }
                     function onShowChooseOptionsPage(){
-                        console.log("Showing select options component")
+                        // console.log("Showing select options component")
                         monthBox.visible = true
                         bankBox.visible = true
                         bankBox.height = vscale(97)
