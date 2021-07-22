@@ -1,7 +1,7 @@
 from time import strftime
 import xlrd
 import xlwt
-import os,json
+import os,json,sys
 import datetime, pytz
 import pickle
 import locale
@@ -214,34 +214,20 @@ class InfiChequeStatement:
         self.update_last_edited_time()
         return True
 
-    def compare_date(self,date1, date2):
-        # date1 format dd-mm-yyyy
-        # date2 format dd/mm/yy or dd-bbb-yyyy
-        assert datetime.datetime.strptime(date1, "%d-%m-%Y")
+    def compare_date(self,infiChqStmtDate, bank_date):
+        # infiChqStmtDate format dd/mm/yyyy
+        # bank_date format dd/mm/yy or dd-bbb-yyyy
+        assert datetime.datetime.strptime(infiChqStmtDate, "%d/%m/%Y")
         try:
-            date2 = dateutil.parser.parse(date2, dayfirst=True)
+            bank_date = dateutil.parser.parse(bank_date, dayfirst=True)
         except :
-            print(date2)
+            print(bank_date)
             raise
-        date2 = date2.strftime("%d/%m/%y")
-        # print(date1, date2)
-        date1 = date1.split('-')
-        date1[2] = date1[2][2:]
-        date2 = date2.split('/')
-        if date1[2] == date2[2]:
-            if date1[1] == date2[1]:
-                if date1[0] >= date2[0]:
-                    return False
-                else:
-                    return True
-            elif date1[1] > date2[1]:
-                return False
-            else:
-                return True
-        elif date1[2] > date2[2]:
+        infiChqStmtDate = datetime.datetime.strptime(infiChqStmtDate, "%d/%m/%Y")
+        if infiChqStmtDate>bank_date:
             return False
-        else:
-            return True                   
+        return True    
+                       
 
     def findMatchByChequeNumber(self,bank_chequeNumber, bank_debit, bank_date):
         match_list = []
@@ -256,8 +242,10 @@ class InfiChequeStatement:
         for each in self.entry_list:
             infiChqNo = each[4]
             infiDebitamt = each[5]
-            infiTransDate = each[1]
+            infiTransDate = each[0]
             # print(infiTransDate, bank_date) 
+            # if infiChqNo=="531189":
+            #     print(each, infiTransDate, bank_date)
             if(len(infiChqNo)>=1):
                 newInfiChqNo = makeChequeNumberStandard(infiChqNo)
                 bank_chequeNumber = makeChequeNumberStandard(bank_chequeNumber)
@@ -712,7 +700,13 @@ class TableOperations:
             print('TablesnapshotCollection load success!!')
         self.TableSnapshot= None   
         self.firebaseControls = FirebaseControls()
-        self.leftMenuJsonPath = r'./data.json'
+        try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        req_path = os.path.join(base_path, 'data.json')
+        self.leftMenuJsonPath = req_path
         return
 
     def upload_data_to_firebase_db(self, callbackFuncforProgress):
@@ -860,7 +854,7 @@ class TableOperations:
         self.company = company
         return self.chequeReportCollection.get_cheque_report_from_collection(year, company)     
 
-    def prepare_table_data(self, statementObj, infiChequeStatement):
+    def prepare_table_data(self, statementObj, infiChequeStatement, previous_infiChequeStatement):
         # Bank
         # Date	Narration	Chq./Ref.No.	Value Dt	Withdrawal Amt.	Deposit Amt.	Closing Balance
         # 0     1           2               3           4               5               6
@@ -876,6 +870,8 @@ class TableOperations:
                 match_list = infiChequeStatement.findMatchByChequeNumber(bank_entry[2], bank_entry[5], bank_entry[0])
                 # if len(match_list)>1:
                 #     print("match_list: ",match_list)
+                if len(match_list)==0 and previous_infiChequeStatement:
+                    match_list = previous_infiChequeStatement.findMatchByChequeNumber(bank_entry[2], bank_entry[5], bank_entry[0])
                 if len(match_list)>0:
                     for i in range(len(match_list)):
                         infi_entry = match_list[i]
@@ -926,12 +922,14 @@ class TableOperations:
             for bank_entry in bank_statement:
                 if(bank_entry[4]!=None or bank_entry[4] != ''):
                     match_list = infiChequeStatement.findMatchByChequeNumber(bank_entry[4], bank_entry[7], bank_entry[2])
+                if len(match_list)==0 and previous_infiChequeStatement:
+                    match_list = previous_infiChequeStatement.findMatchByChequeNumber(bank_entry[4], bank_entry[7], bank_entry[2])    
                 cred_amt = ''
                 deb_amt = ''
                 if bank_entry[6] == 'CR':
                     cred_amt = bank_entry[7]
                 elif bank_entry[6] == 'DR':
-                    deb_amt = bank_entry[7]    
+                    deb_amt = bank_entry[7]  
                 if len(match_list)>0:
                     for i in range(len(match_list)):
                         infi_entry = match_list[i]
@@ -940,8 +938,8 @@ class TableOperations:
                             table_row['Bank Date'] = bank_entry[2]
                             table_row['Bank Narration'] = bank_entry[5]
                             table_row['Chq No'] = bank_entry[4]
-                            table_row['Party Name'] = bank_entry[3]
-                            table_row['Infi Date'] = bank_entry[0]
+                            table_row['Party Name'] = infi_entry[3]
+                            table_row['Infi Date'] = infi_entry[0]
                             table_row['Credit'] = cred_amt
                             table_row['Debit'] = deb_amt
                             table_row['Closing Balance'] = bank_entry[8]
@@ -1023,7 +1021,9 @@ class TableOperations:
             financial_year = str(int(self.year)-1)
         else:
             financial_year = self.year    
+        previous_financial_year = str(int(financial_year)-1)   
         infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(financial_year,self.company)
+        previous_infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(previous_financial_year,self.company)
         if not infiChequeStatement:
             return False, -1
         if self.bank == 'hdfc':
@@ -1034,7 +1034,7 @@ class TableOperations:
                 hdfcBankChequeStatement.grab_data()    
             except TypeError:
                 return False, -3                    
-            master_table = self.prepare_table_data(hdfcBankChequeStatement, infiChequeStatement)    
+            master_table = self.prepare_table_data(hdfcBankChequeStatement, infiChequeStatement, previous_infiChequeStatement)    
         else:
             iciciBankChequeStatement = ICICIBankChequeStatement()
             if not iciciBankChequeStatement.setPath(statement_path):
@@ -1043,7 +1043,7 @@ class TableOperations:
                 iciciBankChequeStatement.grab_data()    
             except TypeError:
                 return False, -4    
-            master_table = self.prepare_table_data(iciciBankChequeStatement, infiChequeStatement)    
+            master_table = self.prepare_table_data(iciciBankChequeStatement, infiChequeStatement, previous_infiChequeStatement)    
         tableSnapshot = TableSnapshot(self.company, self.month, self.year, self.bank, master_table,[],None)
         self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
         return True, 1
@@ -1165,7 +1165,14 @@ class TableOperations:
 
 class FirebaseControls:
     def __init__(self):
-        cred = credentials.Certificate("./service-account/recordmatcher-firebase-adminsdk-mfcn7-d0ee2c6bad.json")
+        # correction for auto-py-to-exe
+        try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        certificate_path = os.path.join(base_path, r"service-account\\recordmatcher-firebase-adminsdk-mfcn7-d0ee2c6bad.json")
+        cred = credentials.Certificate(certificate_path)
         firebase_admin.initialize_app(cred, {
             'databaseURL': 'https://recordmatcher-default-rtdb.firebaseio.com/'
         })

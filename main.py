@@ -450,7 +450,14 @@ if __name__ == "__main__":
 
     app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
-    app.setWindowIcon(QIcon('logo.png'))
+    # correction for auto-py-to-exe
+    try:
+    # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    logo_path = os.path.join(base_path, 'logo.png')
+    app.setWindowIcon(QIcon(logo_path))
     app.setOrganizationName('Neo Productions')
     app.setOrganizationDomain('Fly fly fly')
        
