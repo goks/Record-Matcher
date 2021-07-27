@@ -10,6 +10,7 @@ from copy import deepcopy
 import firebase_admin
 from firebase_admin import credentials, db
 import dateutil.parser
+import pandas as pd
 
 # Fix for opening xlsx
 xlrd.xlsx.ensure_elementtree_imported(False, None)
@@ -1195,3 +1196,153 @@ class FirebaseControls:
         return self.leftMenu_ref.set(data)
     def get_leftMenu_data(self):
         return self.leftMenu_ref.get()
+
+class InfiDaybookModifier:
+    path = None
+    df = None
+    header = None
+    valid_ids = None
+    id_count = 0
+    
+    def setPath(self, path):
+        if validate_path(path):
+            self.path = path
+            self.df = pd.read_excel(self.path)
+            self.header = list(self.df.columns)
+            return True
+        else:
+            return False            
+    def getPath(self):
+        return self.path
+    def getdf(self):
+        return self.df      
+    def convert_to_datetime_obj(self, date):
+        try:
+            val = datetime.datetime.strptime(date, '%d-%m-%Y')     
+        except ValueError:
+            val = datetime.datetime.strptime(date,'%d-%b-%Y')
+        return val    
+    def grab_data(self):
+        self.df = self.df[self.df['Number'].notna()]
+        self.df['Date'] = self.df['Date'].apply(self.convert_to_datetime_obj)
+        return
+    def prepare_valid_ids_without_bank_receipt_voucher_filtering(self, startDate, endDate):
+        vouchers_with_receipt_df = self.df[(self.df["Voucher Type"]=="Receipt Voucher") & (self.df["Debit Ledger"] == "Cash Book")]
+        # valid_ids__without_receipt = vouchers_without_receipt_df['Number'].unique()
+        valid_ids__with_receipt = vouchers_with_receipt_df['Number'].unique()
+        if valid_ids__with_receipt is []:
+            return pd.DataFrame()
+        vouchers_without_receipt_df = self.df[((self.df['Voucher Type']!="Receipt Voucher") & (self.df['Voucher Type']!="Payment Voucher"))]
+        daybook_wih_fixed_data = self.df[ self.df['Number'].isin(valid_ids__with_receipt)].copy()
+        daybook_wih_fixed_data = daybook_wih_fixed_data.append(vouchers_without_receipt_df, ignore_index=True)
+        daybook_wih_fixed_data.reset_index(inplace=True, drop=True)
+        daybook_wih_fixed_data = daybook_wih_fixed_data[(daybook_wih_fixed_data['Date']>=startDate) & (daybook_wih_fixed_data['Date']<=endDate)]
+        daybook_wih_fixed_data['Date'] = daybook_wih_fixed_data['Date'].apply(lambda x: str(datetime.datetime.strftime(x, '%d-%m-%Y')))
+        daybook_wih_fixed_data.reset_index(inplace=True, drop=True)
+        daybook_wih_fixed_data.to_excel("./intermediary_files/daybook_wih_fixed_data.xlsx")
+        return daybook_wih_fixed_data
+    # def prepare_valid_ids_with_bank_receipt_voucher_filtering(self, consolidatedChequeReport, startDate, endDate):
+    #     valid_list, filtered_df = consolidatedChequeReport.get_id_list_in_time_range(startDate,endDate)
+    #     if valid_list is []:
+    #         return pd.DataFrame()
+    #     daybook_with_added_data = self.df[ self.df['Number'].isin(valid_list)].copy()
+    #     daybook_with_added_data.reset_index(inplace=True, drop=True)
+    #     daybook_with_added_data['Debit Ledger'] = daybook_with_added_data.apply(lambda x: filtered_df['Bank Name'][x['Number']] if not pd.isnull(x["Debit Ledger"]) else None, axis=1)
+    #     daybook_with_added_data['Date'] = daybook_with_added_data['Number'].apply(lambda x: str(datetime.datetime.strftime(filtered_df['Bank Date'][x], '%d-%m-%Y')))
+    #     daybook_with_added_data['Narration'] = daybook_with_added_data.apply(lambda x: x['Narration'] + ' ' + filtered_df['Narration'][x['Number']],axis=1)
+    #     daybook_with_added_data.to_excel("./intermediary_files/daybook_wih_added_data.xlsx")
+    #     return daybook_with_added_data
+    def create_id_for_voucher(self, Bank_Name,Date,type='p'):
+        bank_letter = Bank_Name[0].upper()
+        month_number = str(int(Date.strftime('%m')))
+        self.id_count+=1
+        return type.upper()+bank_letter+month_number+'-'+str(self.id_count)        
+    def prepare_payment_voucher_daybook_entries(self, consolidatedBankPaymentVouchers, startDate, endDate):
+        consolidated_df = consolidatedBankPaymentVouchers.getdf()
+        if consolidated_df.empty:
+            return pd.DataFrame()
+        consolidated_df = consolidated_df[(consolidated_df['Date']>=startDate) & (consolidated_df['Date']<=endDate)]
+        if consolidated_df.empty:
+            return pd.DataFrame()
+        row_1_df = pd.DataFrame()
+        row_1_df['Number'] = consolidated_df.apply( lambda x: self.create_id_for_voucher(x['Bank Name'],x['Date']), axis=1 )
+        consolidated_df['Date'] = consolidated_df['Date'].apply( lambda x: str(x.strftime("%d-%m-%Y")))    
+        row_1_df['Date'] = consolidated_df['Date']
+        row_1_df['Voucher Type'] = "Payment Voucher"
+        row_1_df['Debit Ledger'] =  PAYMENT_INTERMEDIARY_TALLY_LEDGERNAME
+        row_1_df['Debit Amount'] =  consolidated_df['Amount']
+        row_1_df['Narration'] = consolidated_df['Narration']
+        row_2_df = pd.DataFrame()
+        row_2_df['Number'] = row_1_df['Number']
+        row_2_df['Date'] = consolidated_df['Date']
+        row_2_df['Voucher Type'] = "Payment Voucher"
+        row_2_df["Credit Ledger"] = consolidated_df["Bank Name"]
+        row_2_df["Credit Amount"] = consolidated_df["Amount"]
+        row_2_df['Narration'] = consolidated_df['Narration']
+        output_df = pd.concat([row_1_df, row_2_df]).sort_index(kind='merge')
+        output_df.to_excel('./intermediary_files/payment_voucher_only_daybook.xlsx')
+        return output_df   
+    def prepare_receipt_voucher_without_cheques_daybook_entries(self, consolidatedWithoutChequeReceiptVouchers, startDate, endDate):
+        consolidated_df = consolidatedWithoutChequeReceiptVouchers.getdf()
+        if consolidated_df.empty:
+            return pd.DataFrame()
+        consolidated_df = consolidated_df[(consolidated_df['Date']>=startDate) & (consolidated_df['Date']<=endDate)]
+        row_1_df = pd.DataFrame()
+        row_1_df['Number'] = consolidated_df.apply( lambda x: self.create_id_for_voucher(x['Bank Name'],x['Date'],type='r'), axis=1 )
+        row_1_df['Date'] = consolidated_df['Date'].apply( lambda x: str(x.strftime("%d-%m-%Y")))    
+        row_1_df['Voucher Type'] = "Receipt Voucher"
+        row_1_df['Debit Ledger'] =  consolidated_df["Bank Name"]
+        row_1_df['Debit Amount'] =  consolidated_df['Amount']
+        row_1_df['Narration'] = consolidated_df['Narration']
+        row_2_df = pd.DataFrame()
+        row_2_df['Number'] = row_1_df['Number']
+        row_2_df['Date'] = row_1_df['Date']
+        row_2_df['Voucher Type'] = "Receipt Voucher"
+        row_2_df["Credit Ledger"] = RECEIPT_INTERMEDIARY_TALLY_LEDGERNAME
+        row_2_df["Credit Amount"] = consolidated_df["Amount"]
+        row_2_df['Narration'] = consolidated_df['Narration']
+        output_df = pd.concat([row_1_df, row_2_df]).sort_index(kind='merge')
+        output_df.to_excel('./intermediary_files/receipt_voucher_without_cheques_daybook.xlsx')
+        return output_df  
+    def prepare_receipt_voucher_with_cheques_daybook_entries(self, consolidatedChequeReceiptVouchers, startDate, endDate):
+        consolidated_df = consolidatedChequeReceiptVouchers.getdf()
+        consolidated_df = consolidated_df[(consolidated_df['Date']>=startDate) & (consolidated_df['Date']<=endDate)]
+        if consolidated_df.empty:
+            print("Empty consolidatedChequeReceiptVouchers")
+            return pd.DataFrame()
+        consolidated_df['Narration'] = consolidated_df.apply(lambda x: x['Cheque No.'] if x['Bank Name']==HDFC_TALLY_LEDGERNAME else x['Narration'], axis=1 )
+        row_1_df = pd.DataFrame()
+        row_1_df['Number'] = consolidated_df.apply( lambda x: self.create_id_for_voucher(x['Bank Name'],x['Date'],type='c'), axis=1 )
+        row_1_df['Date'] = consolidated_df['Date'].apply( lambda x: str(x.strftime("%d-%m-%Y")))    
+        row_1_df['Voucher Type'] = "Receipt Voucher"
+        row_1_df['Debit Ledger'] =  consolidated_df["Bank Name"]
+        row_1_df['Debit Amount'] =  consolidated_df['Amount']
+        row_1_df['Narration'] = consolidated_df['Narration']   
+        row_2_df = pd.DataFrame()
+        row_2_df['Number'] = row_1_df['Number']
+        row_2_df['Date'] = row_1_df['Date']
+        row_2_df['Voucher Type'] = "Receipt Voucher"
+        row_2_df["Credit Ledger"] = consolidated_df['Debit Ledger']
+        row_2_df["Credit Amount"] = consolidated_df["Amount"]
+        row_2_df['Narration'] = consolidated_df['Narration']
+        output_df = pd.concat([row_1_df, row_2_df]).sort_index(kind='merge')
+        output_df.to_excel('./intermediary_files/receipt_voucher_with_cheques_daybook.xlsx')
+        return output_df   
+    def prepare_daybook(self, consolidatedChequeReceiptVouchers, consolidatedBankPaymentVouchers, consolidatedWithoutChequeReceiptVouchers,startDate, endDate):
+        final_daybook = pd.DataFrame()    
+        final_daybook = final_daybook.append(self.prepare_valid_ids_without_bank_receipt_voucher_filtering(startDate, endDate), ignore_index=True)
+        # final_daybook = final_daybook.append(self.prepare_valid_ids_with_bank_receipt_voucher_filtering(consolidatedChequeReport, startDate, endDate), ignore_index=True)
+        final_daybook = final_daybook.append(self.prepare_receipt_voucher_with_cheques_daybook_entries(consolidatedChequeReceiptVouchers,startDate,endDate), ignore_index=True)
+        final_daybook = final_daybook.append(self.prepare_payment_voucher_daybook_entries(consolidatedBankPaymentVouchers, startDate, endDate), ignore_index=True)
+        final_daybook = final_daybook.append(self.prepare_receipt_voucher_without_cheques_daybook_entries(consolidatedWithoutChequeReceiptVouchers, startDate, endDate), ignore_index=True)
+        column_list = "Number	Date	Voucher Type	Debit Ledger	Debit Amount	Credit Ledger	Credit Amount	Narration".split('\t')
+        final_daybook = final_daybook.reindex(columns=column_list)
+        final_daybook.to_excel('./final_daybook.xlsx', index=False)
+        return final_daybook
+
+class ConsolidatedChequeReceiptVouchers:
+    pass
+class ConsolidatedBankPaymentVouchers:
+    pass
+class ConsolidatedWithoutChequeReceiptVouchers:
+    pass

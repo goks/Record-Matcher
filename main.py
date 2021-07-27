@@ -76,6 +76,8 @@ class MainWindow(QObject):
     chequeReportDeleteFail = Signal()
     fullScreenLoadingStart = Signal()
     fullScreenLoadingEnd = Signal()
+    fullScreenLoading2Start = Signal()
+    fullScreenLoading2End = Signal()
     showMainScreenLoadingIndicator = Signal()
     hideMainScreenLoadingIndicator = Signal()
     
@@ -152,7 +154,10 @@ class MainWindow(QObject):
         if not status:
             self.validationError.emit(status_code)
         else: self.statementExportSuccess.emit()
-        return    
+        return  
+    @Slot(str, str, str)
+    def createIntermediateDaybook(self, daybookURL, fromDate, toDate):
+        print(daybookURL, fromDate, toDate, "Create inty daybook here")
 
     def populate_table(self):
         self.showMainScreenLoadingIndicator.emit()
@@ -244,7 +249,7 @@ class MainWindow(QObject):
     def  downloadfromDbThreaded(self):
         self.tableOperations.get_data_from_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
         self.fullScreenLoadingEnd.emit()
-        return
+        return    
     @Slot()
     def uploadtoDb(self):
         self.fullScreenLoadingStart.emit()
@@ -254,6 +259,10 @@ class MainWindow(QObject):
         self.tableOperations.upload_data_to_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
         self.fullScreenLoadingEnd.emit()
         return
+    @Slot()
+    def createTallyXMLFromDaybook(self):
+        self.fullScreenLoading2Start.emit()
+        print("Create TALLY XML here")
 
 
     @Slot(str, str)

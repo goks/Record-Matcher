@@ -7,6 +7,7 @@ Button {
     signal convertSchemaClicked
     signal downloadFromDbClicked
     signal uploadtoDbClicked
+    signal createTallyXMLFromDaybookClicked
     property url btnIconSource: "../../images/svg_images/menu.svg"
     property color bgcolorDefault: "#ffffff"
     property color bgcolorMouseOver: "#e5e5e5"
@@ -62,7 +63,7 @@ Button {
         y: parent.height+4
 //        x: parent.x-100
         background: Item {
-            implicitWidth: menuControl2.implicitWidth
+            implicitWidth: menuControl4.implicitWidth
             implicitHeight: vscale(40)
             Rectangle {
                 anchors.fill: parent
@@ -133,6 +134,37 @@ Button {
             onTriggered: menuBtn.uploadtoDbClicked()
         }
         MenuItem {
+            id: menuControl4
+            background:  Item {
+                implicitWidth: hscale(280)
+                implicitHeight: vscale(40)
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    // radius: 8
+                    color: menuControl4.hovered ? "#003366" : "transparent"
+                }
+            }
+            contentItem: Text {
+                text: menuControl4.text
+                anchors.fill: parent
+                verticalAlignment: Text.AlignVCenter
+                // horizontalAlignment: Text.AlignHCenter
+                anchors.topMargin: vscale(4)
+                anchors.bottomMargin: vscale(4)
+                anchors.rightMargin: hscale(4)
+                anchors.leftMargin: hscale(4)
+                padding: 10
+                minimumPixelSize: 14
+                font.pixelSize: tscale(18)
+                font.family: appFont4.name
+                color: menuControl4.hovered ? "#ffffff" : "#003366"
+            }
+            text: "Create Tally XML from Infi Daybook"
+            onTriggered: menuBtn.createTallyXMLFromDaybookClicked()
+        }
+        MenuItem {
             id: menuControl
             background:  Item {
                 implicitWidth: hscale(280)
@@ -162,7 +194,7 @@ Button {
             }
             text: "Convert old schema to new"
             onTriggered: menuBtn.convertSchemaClicked()
-            signal downloadFromDbClicked()
+            // signal downloadFromDbClicked()
         }
 
 
