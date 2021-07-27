@@ -69,9 +69,17 @@ Window {
             progressBarValue: backend.progressBarValue
             text1: backend.fullScreenLoadingInfo1
             text2: backend.fullScreenLoadingInfo2
-
         }
-
+        LoadingOverlay2{
+            id: fullScreenLoading2
+            visible: false
+            z:15
+            scaleFactorWidth: window.scaleFactorWidth
+            scaleFactorHeight: window.scaleFactorHeight
+            progressBarValue: backend.progressBarValue
+            text1: backend.fullScreenLoadingInfo1
+            text2: backend.fullScreenLoadingInfo2
+        }
         CustomPopup{
             id: popup
             scaleFactorWidth: window.scaleFactorWidth
@@ -243,6 +251,7 @@ Window {
                 onUploadtoDbClicked:{
                                     passwordPopup.open()
                                     }
+                onCreateTallyXMLFromDaybookClicked: backend.createTallyXMLFromDaybook()
             }
         }
         Rectangle {
@@ -441,6 +450,12 @@ Window {
                     }
                     function onFullScreenLoadingEnd() {
                         fullScreenLoading.visible=false
+                    }
+                    function onFullScreenLoading2Start() {
+                        fullScreenLoading2.visible=true
+                    }
+                    function onFullScreenLoading2End() {
+                        fullScreenLoading2.visible=false
                     }
                     function onShowMainScreenLoadingIndicator() {
                         mainScreenBusyIndicator.running = true
