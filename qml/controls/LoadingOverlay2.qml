@@ -5,8 +5,10 @@ import  "../controls"
 
 Rectangle{
     id: loadingOverlay
-    color: "#eeffffff"
+    color: "#ddffffff"
     anchors.fill: parent
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
     property real progressBarValue: 0.0
     property string text1: "123"
     property string text2: "456"
