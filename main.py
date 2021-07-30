@@ -155,9 +155,16 @@ class MainWindow(QObject):
             self.validationError.emit(status_code)
         else: self.statementExportSuccess.emit()
         return  
-    @Slot(str, str, str)
-    def createIntermediateDaybook(self, daybookURL, fromDate, toDate):
-        print(daybookURL, fromDate, toDate, "Create inty daybook here")
+
+    @Slot(str, str, str, str)
+    def createIntermediateDaybook(self, daybookURL, fromDate, toDate, company):
+        print(daybookURL, fromDate, toDate,company, "Validating intermediate daybook ")
+        status, code = self.tableOperations.validateIntermediateDaybook(daybookURL, fromDate, toDate, company)
+        print(status, code)
+        if not status:
+            # do error handling
+            return
+        self.tableOperations.generateIntermediateDaybook()    
 
     def populate_table(self):
         self.showMainScreenLoadingIndicator.emit()

@@ -11,12 +11,20 @@ import firebase_admin
 from firebase_admin import credentials, db
 import dateutil.parser
 import pandas as pd
+import numpy as np
+from dateutil.relativedelta import relativedelta
 
 # Fix for opening xlsx
 xlrd.xlsx.ensure_elementtree_imported(False, None)
 xlrd.xlsx.Element_has_iter = True
 
 APP_NAME = "Infi Hdfc Analyzer"
+
+HDFC_TALLY_LEDGERNAME = "HDFC Bank A/c No.50200008623602"
+ICICI_TALLY_LEDGERNAME_GOK = "ICICI Bank A/c No.099005000974"
+ICICI_TALLY_LEDGERNAME_UNI = "ICICI 1027"
+PAYMENT_INTERMEDIARY_TALLY_LEDGERNAME = "OTHER CREDITORS"
+RECEIPT_INTERMEDIARY_TALLY_LEDGERNAME = "OTHER DEBTORS"
 
 def get_current_time():
     t = datetime.datetime.now(pytz.timezone('Asia/Kolkata')) 
@@ -1164,6 +1172,45 @@ class TableOperations:
         except Exception as e:
             return False, 99
 
+    def validateIntermediateDaybook(self, path, fromDate, toDate, company):
+        path = path[8:]
+        self.intermediateDaybook = IntermediateDaybook(path, fromDate, toDate, company)
+        return self.intermediateDaybook.validateAndSetValues()
+
+    def generateIntermediateDaybook(self):
+        # Step 1: Grab Date => Abstracted
+        startDate = self.intermediateDaybook.getFromDate()
+        endDate = self.intermediateDaybook.getToDate()
+        company = self.intermediateDaybook.getCompany()
+        list_of_months = []
+        i=1
+        tempDate = startDate
+        while True:
+            month_name = tempDate.strftime('%B')
+            month = tempDate.month 
+            year = tempDate.year
+            list_of_months.append([month_name,year])
+            if month == endDate.month and year == endDate.year:
+                break
+            tempDate = tempDate+relativedelta(months=+1)
+        print(list_of_months)
+        snapshot_list = []
+        banks = ['hdfc']
+        if company=='gokul':
+            banks.append('icici')
+        for bank in banks:
+            for [month, year] in list_of_months:
+                snapshot = self.tableSnapshotCollection.get_table_from_collection(month,str(year),bank,company) 
+                if not snapshot:
+                    print("No snapshot for ",month,year,bank,company)
+                    return -1
+                snapshot_list.append(snapshot)   
+        print(snapshot_list)            
+
+        # Step 2: Prepare Consolidated Stmt from startDate to EndDate for MATCH RECEIPTS
+        consolidatedChequeReceiptVouchers = ConsolidatedChequeReceiptVouchers(snapshot_list)
+        # Step 3: Prepare Consolidated Stmt from startDate to EndDate for NON-MATCH RECEIPTS
+        # Step 4: Prepare Consolidated Stmt from startDate to EndDate for PAYMENT RECEIPTS
 class FirebaseControls:
     def __init__(self):
         # correction for auto-py-to-exe
@@ -1197,21 +1244,52 @@ class FirebaseControls:
     def get_leftMenu_data(self):
         return self.leftMenu_ref.get()
 
-class InfiDaybookModifier:
+# class InfiDaybookModifier:
+class IntermediateDaybook:
     path = None
     df = None
     header = None
     valid_ids = None
     id_count = 0
-    
-    def setPath(self, path):
-        if validate_path(path):
-            self.path = path
+
+    def __init__(self, path, fromDate, toDate, company):
+        self.path = path
+        self.toDate = toDate
+        self.fromDate = fromDate
+        self.company = company
+        return 
+    def validateAndSetValues(self):
+        if validate_path(self.path):
             self.df = pd.read_excel(self.path)
             self.header = list(self.df.columns)
-            return True
         else:
-            return False            
+            return False, -1  
+        try:             
+            self.fromDate = datetime.datetime.strptime(self.fromDate, "%d/%m/%Y")
+        except ValueError:
+            return False, -2   
+        try:             
+            self.toDate = datetime.datetime.strptime(self.toDate, "%d/%m/%Y")   
+        except ValueError:
+            return False, -3
+        if self.fromDate>=self.toDate:
+            return False, -4    
+        no_of_months = (self.toDate.year - self.fromDate.year) * 12 + (self.toDate.month - self.fromDate.month)
+        if no_of_months>12:
+            return False, -5    
+        if self.company not in ['gokul', 'universal']:
+            return False, -6
+        try:
+            self.grab_data()
+        except:
+            raise        
+        return True, 1    
+    def getFromDate(self):
+        return self.fromDate    
+    def getToDate(self):
+        return self.toDate  
+    def getCompany(self):
+        return self.company            
     def getPath(self):
         return self.path
     def getdf(self):
@@ -1341,7 +1419,73 @@ class InfiDaybookModifier:
         return final_daybook
 
 class ConsolidatedChequeReceiptVouchers:
-    pass
+    def __init__(self, snapshot_list):
+        self.snapshot_list = snapshot_list
+        self.main_df = pd.DataFrame()
+        for each in snapshot_list:
+            temp_df = pd.DataFrame(each.get_master_table())
+            if not temp_df.empty:
+                if each.get_company()=='universal':
+                    bank_name = ICICI_TALLY_LEDGERNAME_UNI
+                elif each.get_bank() =='icici':
+                    bank_name = ICICI_TALLY_LEDGERNAME_GOK
+                else: 
+                    bank_name = HDFC_TALLY_LEDGERNAME
+                temp_df['Bank Name'] = bank_name         
+                self.main_df = self.main_df.append(temp_df, ignore_index=True)
+        self.main_df.drop('Closing Balance', axis='columns', inplace=True)
+        self.main_df.drop('Infi Date', axis='columns', inplace=True)
+        self.main_df = self.main_df[ (self.main_df['meta'].isna())]
+        self.main_df.drop('meta', axis='columns', inplace=True)
+        self.main_df.drop('Credit', axis='columns', inplace=True)
+        self.main_df = self.get_cheque_only_entries()
+        self.main_df.rename(columns={'Bank Date': 'Date', 'Chq No': 'Cheque No.', 'Bank Narration':'Narration', 'Debit':'Amount', 'Party Name': 'Debit Ledger'}, inplace=True)
+
+        self.main_df.reset_index(inplace=True, drop=True) 
+        self.main_df.to_excel('./temp/receipt cheque voucher consolidated.xlsx')    
+        print('Prepared consolidated Receipt Vouchers df')
+
+    def get_cheque_only_entries(self):
+        new_df = self.main_df[ (self.main_df['Debit'].notna())]
+        new_df =  new_df[ (new_df['Bank Narration'] == "CHQ DEP - MICR 1 CLG - KOTTARAKARA") | (new_df['Bank Narration'].str.contains("CLG/", regex=False)) ]
+        new_df["Debit"] = new_df["Debit"].replace(np.nan, RECEIPT_INTERMEDIARY_TALLY_LEDGERNAME, regex=True)  
+        return new_df
+
+
+
+
+    def prepare_df(self):
+        self.prepare_consolidated_bank_statements()
+        final_output_df = pd.DataFrame()
+        if not self.consolidated_hdfc_statement.empty :
+            self.consolidated_hdfc_statement["Debit Ledger"] = self.consolidated_hdfc_statement.apply(lambda x: self.chequeReport.check_chqno_in_df(x['Chq./Ref.No.'], x['Deposit Amt.']), axis=1)
+            # self.consolidated_hdfc_statement.drop('Chq./Ref.No.', axis='columns', inplace=True)
+            self.consolidated_hdfc_statement.drop('Value Dt', axis='columns', inplace=True)
+            self.consolidated_hdfc_statement.drop("Withdrawal Amt.", axis='columns', inplace=True)
+            self.consolidated_hdfc_statement.drop('Closing Balance', axis='columns', inplace=True)
+            self.consolidated_hdfc_statement.rename(columns={'Deposit Amt.': 'Amount', 'Chq./Ref.No.': 'Cheque No.'}, inplace=True)
+            self.consolidated_hdfc_statement['Bank Name'] = HDFC_TALLY_LEDGERNAME
+            final_output_df = final_output_df.append(self.consolidated_hdfc_statement)
+        # self.consolidated_hdfc_statement.to_excel('./temp/consolidated_hdfc_statement.xlsx')     
+        if not self.consolidated_icici_statement.empty :
+            self.consolidated_icici_statement["Debit Ledger"] = self.consolidated_icici_statement.apply(lambda x: self.chequeReport.check_chqno_in_df(x['ChequeNo.'], x['Transaction Amount(INR)']), axis=1)
+            self.consolidated_icici_statement.drop('No.', axis='columns', inplace=True)
+            self.consolidated_icici_statement.drop('Transaction ID', axis='columns', inplace=True)
+            self.consolidated_icici_statement.drop('Txn Posted Date', axis='columns', inplace=True)
+            # self.consolidated_icici_statement.drop('ChequeNo.', axis='columns', inplace=True)
+            self.consolidated_icici_statement.drop('Cr/Dr', axis='columns', inplace=True)
+            # self.consolidated_icici_statement.drop('Available Balance(INR)', axis='columns', inplace=True)
+            self.consolidated_icici_statement.rename(columns={"Value Date": 'Date', 'Description':'Narration', 'Transaction Amount(INR)':'Amount', 'ChequeNo.':'Cheque No.'}, inplace=True)
+            self.consolidated_icici_statement['Bank Name'] = ICICI_tally_ledgername
+            final_output_df = final_output_df.append(self.consolidated_icici_statement)
+        # self.consolidated_icici_statement.to_excel('./temp/consolidated_icici_statement.xlsx')     
+        final_output_df.reset_index(inplace=True, drop=True)  
+        final_output_df["Debit Ledger"] = final_output_df["Debit Ledger"].replace(np.nan, RECEIPT_INTERMEDIARY_TALLY_LEDGERNAME, regex=True)  
+        final_output_df.to_excel('./temp/receipt cheque voucher consolidated.xlsx')    
+        self.consolidatedWithoutChequeReceiptVouchers_df = final_output_df
+        print('Prepared consolidated Receipt Vouchers df')
+        return        
+
 class ConsolidatedBankPaymentVouchers:
     pass
 class ConsolidatedWithoutChequeReceiptVouchers:

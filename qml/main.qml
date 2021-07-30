@@ -82,8 +82,9 @@ Window {
             fromDate: ""
             toDate: ""
             daybookFileURL: ""
+            company: "gokul"
             onCreateIntermediateDaybookButtonClicked: {
-               backend.createIntermediateDaybook(fullScreenLoading2.daybookFileURL, fullScreenLoading2.fromDate, fullScreenLoading2.toDate)
+               backend.createIntermediateDaybook(fullScreenLoading2.daybookFileURL, fullScreenLoading2.fromDate, fullScreenLoading2.toDate, fullScreenLoading2.company)
             }
         }
         CustomPopup{

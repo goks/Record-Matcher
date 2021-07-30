@@ -82,3 +82,5 @@ Thumbs.db
 *.pyproject.*
 main.pyproject.user
 main.pyproject
+temp/receipt cheque voucher consolidated_1.xlsx
+temp/receipt cheque voucher consolidated.xlsx

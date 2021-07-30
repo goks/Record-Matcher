@@ -7,14 +7,13 @@ Rectangle{
     id: loadingOverlay
     color: "#ddffffff"
     anchors.fill: parent
-    property real scaleFactorHeight: 1
-    property real scaleFactorWidth: 1
     property real progressBarValue: 0.0
     property string text1: "123"
     property string text2: "456"
     property string daybookFileURL: ""
     property string fromDate: ""
     property string toDate: ""
+    property string company: "gokul"
     signal createIntermediateDaybookButtonClicked
     property real scaleFactorHeight: 1
     property real scaleFactorWidth: 1
@@ -44,7 +43,7 @@ Rectangle{
         Text {
             // text: "Loading ChequeReports"
             id: h1
-            text: "Select Daybook file from start of financial year. ( from Daybook-export )."
+            text: "Prepare intermediate daybook file "
             font.pixelSize: tscale(30)
             font.family: appFont4.name
         }
@@ -81,7 +80,7 @@ Rectangle{
 
                 Text {
                     id: placeholder
-                    text: "Infi Daybook location"
+                    text: "Daybook from start of financial year, from Accounts>Reports>Daybook-Export"
                     anchors.fill: parent
                     color: "#c4c4c4"
                     visible: !searchInput.text
@@ -120,11 +119,61 @@ Rectangle{
                 }
             }
         }
+        Rectangle{
+            id: companySelectionContainer
+            anchors.left: parent.left
+            anchors.top: fileImportContainerBox.bottom
+            anchors.leftMargin: 0
+            anchors.topMargin: vscale(25)
+            height: vscale(50)
+
+            Text{
+                id: h3
+                text: "for the company "
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 0
+                anchors.bottomMargin: 0
+                anchors.topMargin: 0
+                font.pixelSize: tscale(30)
+                font.family: appFont4.name
+            }
+            RadioButton {
+                id: gokulRadio
+                checked: true
+                text: qsTr("Gokul Agencies")
+                anchors.left: h3.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 0
+                anchors.topMargin: 0
+                anchors.leftMargin: hscale(10)
+                font.pixelSize: tscale(30)
+                font.family: appFont4.name
+                onClicked: if(checked)
+                            loadingOverlay.company="gokul"
+            }
+            RadioButton {
+                id: universalRadio
+                text: qsTr("Universal Enterprises")
+                anchors.left: gokulRadio.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 0
+                anchors.topMargin: 0
+                anchors.leftMargin: hscale(10)
+                font.pixelSize: tscale(30)
+                font.family: appFont4.name
+                onClicked: if(checked)
+                            loadingOverlay.company="universal"
+            }
+        }
         Text {
             // text: "Loading ChequeReports"
             id: h2
-            text: "Select date range"
-            anchors.top: fileImportContainerBox.bottom
+            text: "for the date range"
+            anchors.top: companySelectionContainer.bottom
             font.pixelSize: tscale(30)
             anchors.topMargin: vscale(25)
             font.family: appFont4.name
@@ -161,6 +210,7 @@ Rectangle{
                 anchors.topMargin: 0
                 placeHolderText: "from Date"
                 dateVal: loadingOverlay.fromDate
+                onDateValChanged: loadingOverlay.fromDate = fromDateSelector.dateVal
                 scaleFactorWidth: loadingOverlay.scaleFactorWidth
                 scaleFactorHeight: loadingOverlay.scaleFactorHeight
             }
@@ -188,6 +238,7 @@ Rectangle{
                 anchors.topMargin: 0
                 placeHolderText: "to Date"
                 dateVal: loadingOverlay.toDate
+                onDateValChanged: loadingOverlay.toDate = toDateSelector.dateVal
                 scaleFactorWidth: loadingOverlay.scaleFactorWidth
                 scaleFactorHeight: loadingOverlay.scaleFactorHeight
             }
