@@ -13,6 +13,8 @@ from PySide2.QtCore import QObject, SIGNAL, Slot, Signal, Property, QDate
 import core as C
 from core import TableOperations, TableSnapshot, InfiChequeStatement
 
+from core import TableSnapshotCollection
+
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 class MainWindow(QObject):

@@ -1,3 +1,4 @@
+from re import template
 from time import strftime
 import xlrd
 import xlwt
@@ -301,7 +302,7 @@ class HDFCBankChequeStatement:
 
     def grab_data(self):
         i = self.start_row
-        # transDate, transNo, book, code, ledgerName, chqNo, chqDate, transtypeVoucher, narration, debit, credit = None
+        # transDate, transNo, book, code, ledgerName, chqNo, chqDate, transtypeVoucher, narration, credit, debit = None
         self.entry_list = []
         while True:
             entry = []
@@ -613,7 +614,7 @@ class TableSnapshotCollection:
         except FileNotFoundError:
             return False
         print('LOAD OK')    
-        self.print_table()    
+        # self.print_table()    
         return True
     def load_old_table(self):
         print(self.save_path_old)
@@ -638,7 +639,7 @@ class TableSnapshotCollection:
         except FileNotFoundError:    
             return None,-2
         print('SAVE OK')     
-        self.print_table()    
+        # self.print_table()    
         return True, 0        
     def print_table(self, old=False):
         if old:
@@ -669,7 +670,7 @@ class TableSnapshotCollection:
         else:
             print('TableCollection save fail with code ',code)   
         return True   
-    def add_table_to_colection(self, tableSnapshot):
+    def add_table_to_colection(self, tableSnapshot, save=True):
         month = tableSnapshot.get_month()
         year = tableSnapshot.get_year()
         company = tableSnapshot.get_company()
@@ -681,6 +682,8 @@ class TableSnapshotCollection:
             return False
         print('adding table to ',month,year,bank,company,'to table list with ref',ref,'.')    
         self.table_list[ref] = tableSnapshot
+        if not save: 
+            return
         status, code = self.save_table()
         if status:
             print('TableCollection save success!!')
@@ -891,8 +894,8 @@ class TableOperations:
                             table_row['Chq No'] = bank_entry[2]
                             table_row['Party Name'] = infi_entry[3]
                             table_row['Infi Date'] = infi_entry[0]
-                            table_row['Credit'] = bank_entry[4]
-                            table_row['Debit'] = bank_entry[5]
+                            table_row['Debit'] = bank_entry[4]
+                            table_row['Credit'] = bank_entry[5]
                             table_row['Closing Balance'] = bank_entry[6]
                             if len(match_list)==1:
                                 table_row['meta'] =""
@@ -906,8 +909,8 @@ class TableOperations:
                             table_row['Chq No'] = bank_entry[2]
                             table_row['Party Name'] = infi_entry[3]
                             table_row['Infi Date'] = infi_entry[0]
-                            table_row['Credit'] = ""
-                            table_row['Debit'] = bank_entry[5]
+                            table_row['Debit'] = ""
+                            table_row['Credit'] = bank_entry[5]
                             table_row['Closing Balance'] = ""
                             table_row['meta'] = "double"
                         final_table.append(table_row)            
@@ -919,8 +922,8 @@ class TableOperations:
                     table_row['Chq No'] = bank_entry[2]
                     table_row['Party Name'] = ""
                     table_row['Infi Date'] = ""
-                    table_row['Credit'] = bank_entry[4]
-                    table_row['Debit'] = bank_entry[5]
+                    table_row['Debit'] = bank_entry[4]
+                    table_row['Credit'] = bank_entry[5]
                     table_row['Closing Balance'] = bank_entry[6]
                     table_row['meta'] = ""                    
                     final_table.append(table_row)      
@@ -1490,3 +1493,30 @@ class ConsolidatedBankPaymentVouchers:
     pass
 class ConsolidatedWithoutChequeReceiptVouchers:
     pass
+
+# def invert_credit_and_debit_in_hdfc():
+#     tableSnapshotCollection = TableSnapshotCollection()
+#     tableSnapshotCollection.load_table()
+#     table_list = tableSnapshotCollection.get_table_list()
+#     refs = []
+#     for table_ref in table_list:
+#         snapshot = tableSnapshotCollection.get_table_from_collection_by_reference(ref=table_ref)
+#         if not snapshot:
+#             continue
+#         if(snapshot.get_bank() != 'hdfc'):
+#             continue
+#         refs.append(snapshot)
+
+#     total = len(refs)
+#     count=0
+#     for snapshot in refs:  
+#         count+=1
+#         print(count,'/',total)
+#         table = snapshot.get_master_table()
+#         print( snapshot.get_month(), snapshot.get_year())
+#         for entry in table:
+#             temp = entry['Credit']
+#             entry['Credit'] = entry['Debit']
+#             entry['Debit'] = temp   
+#         tableSnapshotCollection.add_table_to_colection(snapshot)
+#         print('OK')     
