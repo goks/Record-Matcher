@@ -68,6 +68,7 @@ class MainWindow(QObject):
     showUploadBankStatementPage = Signal()
     showChooseOptionsPage = Signal()
     validationError = Signal(int, arguments=['type'])
+    dayBookExportHandlingError = Signal(int,str, arguments=['type', 'data'])
     checkReportUploadSuccess = Signal()
     showChequeReportPage = Signal(int,str, arguments=['status','time'])
     bankStatementUploadSuccess = Signal()
@@ -164,9 +165,11 @@ class MainWindow(QObject):
         status, code = self.tableOperations.validateIntermediateDaybook(daybookURL, fromDate, toDate, company)
         print(status, code)
         if not status:
-            # do error handling
+            self.dayBookExportHandlingError.emit(code, '')            
             return
-        self.tableOperations.generateIntermediateDaybook()    
+        status, code, data = self.tableOperations.generateIntermediateDaybook()    
+        if not status:
+            self.dayBookExportHandlingError.emit(code, data)
 
     def populate_table(self):
         self.showMainScreenLoadingIndicator.emit()

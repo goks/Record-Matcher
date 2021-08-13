@@ -79,13 +79,20 @@ Window {
             progressBarValue: backend.progressBarValue
             text1: backend.fullScreenLoadingInfo1
             text2: backend.fullScreenLoadingInfo2
-            fromDate: ""
-            toDate: ""
-            daybookFileURL: ""
+            fromDate: "01/06/2021"
+            toDate: "30/06/2021"
+            daybookFileURL: "C:\\Users\\Gokul\\Documents\\Cheque Reports\\Daybook 21.xlsx"
             company: "gokul"
             onCreateIntermediateDaybookButtonClicked: {
                backend.createIntermediateDaybook(fullScreenLoading2.daybookFileURL, fullScreenLoading2.fromDate, fullScreenLoading2.toDate, fullScreenLoading2.company)
             }
+            ToastManager {
+                    id: toastOverlay2
+                    leftMargin: hscale(100)
+                    bottomMargin: vscale(100)
+                    scaleFactorWidth: window.scaleFactorWidth
+                    scaleFactorHeight: window.scaleFactorHeight
+                }
         }
         CustomPopup{
             id: popup
@@ -420,6 +427,27 @@ Window {
                         uploadBtn.selected = true
                         busyIndicator.visible = false
 
+                    }
+
+                    function onDayBookExportHandlingError(type, data){
+                        switch(type){
+                            case -1: toastOverlay2.show("Cannot import Daybook. Check file path/ file.", "error")
+                                break;
+                            case -2: toastOverlay2.show("Invalid from-date.", "warning")
+                                break;
+                            case -3: toastOverlay2.show("Invalid to-date.", "warning")
+                                break;        
+                            case -4: toastOverlay2.show("From-date is greater than or equal to to-date", "warning")
+                                break;        
+                            case -5: toastOverlay2.show("Interval is greater than 12 months", "warning")
+                                break;        
+                            case -6: toastOverlay2.show("Selected companies not in list", "error")
+                                break;   
+                            case -7: toastOverlay2.show("No bank statement for "+ data, "error")
+                                break         
+                            default: toastOverlay2.show("Unknown error. Could not start process." ,"error");
+                            break;
+                        }
                     }
                     function onCheckReportUploadSuccess(){
                         // popup.popupText = "Cheque report file save success"

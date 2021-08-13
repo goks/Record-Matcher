@@ -84,3 +84,10 @@ main.pyproject.user
 main.pyproject
 temp/receipt cheque voucher consolidated_1.xlsx
 temp/receipt cheque voucher consolidated.xlsx
+temp/receipt_voucher_without_cheques_daybook.xlsx
+temp/daybook_wih_fixed_data.xlsx
+temp/final_daybook.xlsx
+temp/payment voucher consolidated.xlsx
+temp/payment_voucher_only_daybook.xlsx
+temp/receipt voucher without cheques daybook.xlsx
+temp/receipt_voucher_with_cheques_daybook.xlsx
