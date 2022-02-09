@@ -1,4 +1,5 @@
 {
+    "AdminPassword": "1234",
     "Banks": [
         {
             "name": "HDFC",
@@ -71,10 +72,6 @@
     ],
     "Years": [
         {
-            "name": "2018",
-            "value": "2018"
-        },
-        {
             "name": "2019",
             "value": "2019"
         },
@@ -85,7 +82,10 @@
         {
             "name": "2021",
             "value": "2021"
+        },
+        {
+            "name": "2022",
+            "value": "2022"
         }
-    ],
-    "AdminPassword": "1234"
+    ]
 }

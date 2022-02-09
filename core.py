@@ -19,6 +19,8 @@ from dateutil.relativedelta import relativedelta
 xlrd.xlsx.ensure_elementtree_imported(False, None)
 xlrd.xlsx.Element_has_iter = True
 
+# TODO: Check if the uploaded statement are in correct date range!
+
 APP_NAME = "Infi Hdfc Analyzer"
 
 HDFC_TALLY_LEDGERNAME = "HDFC Bank A/c No.50200008623602"
@@ -700,7 +702,7 @@ class TableSnapshotCollection:
             return self.table_list[ref]
         except KeyError:
             return None
-class TableOperations:
+class  TableOperations:
     def __init__(self):
         # self.hdfcBankChequeStatement = HDFCBankChequeStatement()
         # self.iciciBankChequeStatement = ICICIBankChequeStatement()
@@ -1029,11 +1031,15 @@ class TableOperations:
         return True
         
     def add_snapshot_to_table(self, statement_path):
+        
         if self.month in ['january', 'february', 'march']:
             financial_year = str(int(self.year)-1)
         else:
             financial_year = self.year    
+        
+        # financial_year = self.year            
         previous_financial_year = str(int(financial_year)-1)   
+        print("FINANCIAL YEAR =", financial_year)
         infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(financial_year,self.company)
         previous_infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(previous_financial_year,self.company)
         if not infiChequeStatement:
@@ -1198,9 +1204,9 @@ class TableOperations:
             tempDate = tempDate+relativedelta(months=+1)
         print(list_of_months)
         snapshot_list = []
-        banks = ['hdfc']
+        banks = ['icici']
         if company=='gokul':
-            banks.append('icici')
+            banks.append('hdfc')
         for bank in banks:
             for [month, year] in list_of_months:
                 snapshot = self.tableSnapshotCollection.get_table_from_collection(month,str(year),bank,company) 
@@ -1208,7 +1214,7 @@ class TableOperations:
                     print("No snapshot for ",month,year,bank,company)
                     return False, -7 , month +' '+ str(year) + ' ' + bank
                 snapshot_list.append(snapshot)   
-        print(snapshot_list)            
+        # print(snapshot_list)            
 
         # Step 2: Prepare Consolidated Stmt from startDate to EndDate for MATCH RECEIPTS
         consolidatedReceiptVouchers = ConsolidatedReceiptVouchers(snapshot_list)
@@ -1273,7 +1279,10 @@ class IntermediateDaybook:
         return 
     def validateAndSetValues(self):
         if validate_path(self.path):
-            self.df = pd.read_excel(self.path)
+            try:
+                self.df = pd.read_excel(self.path)
+            except ValueError:
+                return False, -8
             self.header = list(self.df.columns)
         else:
             return False, -1  
@@ -1444,7 +1453,10 @@ class ConsolidatedReceiptVouchers:
                 temp_df['Bank Name'] = bank_name         
                 self.main_df = self.main_df.append(temp_df, ignore_index=True)
         if self.main_df.empty:
-            return        
+            return       
+        
+        self.main_df.to_excel('./temp/test123.xlsx')
+         
         self.main_df.drop('Closing Balance', axis='columns', inplace=True)
         self.main_df.drop('Infi Date', axis='columns', inplace=True)
         self.main_df = self.main_df[ ~(self.main_df['meta'].isna())]
@@ -1522,6 +1534,7 @@ class ConsolidatedPaymentVouchers:
         # self.main_df.drop('Credit', axis='columns', inplace=True)
         self.main_df.drop('Chq No', axis='columns', inplace=True)
         self.main_df['Date'] = self.main_df['Bank Date'].map( lambda x: self.process_date(x))
+        self.main_df = self.main_df[ (self.main_df['Date']>=startDate) & (self.main_df['Date']<=endDate) ]
         self.main_df.drop('Bank Date', axis='columns', inplace=True)
         self.main_df.drop('meta', axis='columns', inplace=True)
         self.main_df.rename(columns={'Bank Date': 'Date', 'Bank Narration':'Narration', 'Debit':'Amount', }, inplace=True)
@@ -1532,7 +1545,9 @@ class ConsolidatedPaymentVouchers:
         self.paymentVoucherDF = self.main_df
     def process_date(self, val):
             try:
-                return dateutil.parser.parse(val, dayfirst=True)
+                final_val = dateutil.parser.parse(val, dayfirst=True)
+                # print(val, final_val)
+                return final_val
             except :
                 raise
     def get_payment_entries_df(self):

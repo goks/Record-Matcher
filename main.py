@@ -8,7 +8,7 @@ import dateutil.parser
 
 from PySide2.QtGui import QGuiApplication, QIcon
 from PySide2.QtQml import QQmlApplicationEngine
-from PySide2.QtCore import QObject, SIGNAL, Slot, Signal, Property, QDate
+from PySide2.QtCore import QBitArray, QObject, SIGNAL, Slot, Signal, Property, QDate
 
 import core as C
 from core import TableOperations, TableSnapshot, InfiChequeStatement
@@ -170,6 +170,10 @@ class MainWindow(QObject):
         status, code, data = self.tableOperations.generateIntermediateDaybook()    
         if not status:
             self.dayBookExportHandlingError.emit(code, data)
+
+    @Slot(list)
+    def createTallyXMLVoucher(self, propertyArray):
+        print("CREATE TALLY XML DAYBOOK", propertyArray)        
 
     def populate_table(self):
         self.showMainScreenLoadingIndicator.emit()
