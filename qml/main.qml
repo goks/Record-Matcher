@@ -83,8 +83,12 @@ Window {
             toDate: "30/06/2021"
             daybookFileURL: "C:\\Users\\Gokul\\Documents\\Cheque Reports\\Daybook 21.xlsx"
             company: "gokul"
+            tallyXMLVoucherOptions: [true,true,true,true,true]
             onCreateIntermediateDaybookButtonClicked: {
                backend.createIntermediateDaybook(fullScreenLoading2.daybookFileURL, fullScreenLoading2.fromDate, fullScreenLoading2.toDate, fullScreenLoading2.company)
+            }
+            onCreateTallyVoucherXMlButtonClicked: {
+                backend.createTallyXMLVoucher(fullScreenLoading2.tallyXMLVoucherOptions)
             }
             ToastManager {
                     id: toastOverlay2
@@ -444,7 +448,9 @@ Window {
                             case -6: toastOverlay2.show("Selected companies not in list", "error")
                                 break;   
                             case -7: toastOverlay2.show("No bank statement for "+ data, "error")
-                                break         
+                                break 
+                            case -8: toastOverlay2.show("Error opening file. Try opening the file in excel and saving it.", "error")
+                                break           
                             default: toastOverlay2.show("Unknown error. Could not start process." ,"error");
                             break;
                         }
