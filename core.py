@@ -21,7 +21,7 @@ xlrd.xlsx.Element_has_iter = True
 
 # TODO: Check if the uploaded statement are in correct date range!
 
-APP_NAME = "Infi Hdfc Analyzer"
+APP_NAME = "Record Matcher"
 
 HDFC_TALLY_LEDGERNAME = "HDFC Bank A/c No.50200008623602"
 ICICI_TALLY_LEDGERNAME_GOK = "ICICI Bank A/c No.099005000974"
@@ -504,7 +504,7 @@ class ChequeReportCollection:
     save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\ChequeReportCollection.fil"
     years = ['2019','2020','2021','2022','2023', '2024']
     banks = ['hdfc', 'icici']
-    companies = ['gokul','universal']
+    companies = ['gokul','universal','gawel1','gawel2','focus']
     cheque_report_dict = {}
     def __init__(self):
         return
@@ -513,6 +513,18 @@ class ChequeReportCollection:
     def get_cheque_report_dict(self):
         return self.cheque_report_dict         
     def load_cheque_report_collection(self):
+        # Checking if directory exists
+        if os.getenv('APPDATA'):
+            target_dir = os.path.join(os.getenv('APPDATA'), APP_NAME)
+            
+            if not os.path.exists(target_dir):
+                os.makedirs(target_dir)
+                print(f"Directory created: {target_dir}")
+            else:
+                print(f"Directory already exists: {target_dir}")
+        else:
+            print("APPDATA environment variable is not set.")
+            return
         try:
             # raise FileNotFoundError
             with open(self.save_path, 'rb') as f:
@@ -597,8 +609,7 @@ class TableSnapshotCollection:
     months = ['april','may','june','july','august','september','october','november','december','january', 'february', 'march']
     years = ['2019','2020','2021','2022','2023', '2024']
     banks = ['hdfc', 'icici']
-    companies = ['gokul','universal']
-
+    companies = ['gokul','universal','gawel1','gawel2','focus']
     def __init__(self):
         return
     def get_months(self):
@@ -614,6 +625,7 @@ class TableSnapshotCollection:
                 data_loaded = pickle.load(f)
                 self.table_list = data_loaded
         except FileNotFoundError:
+            print("Load Failed. New installation?.")
             return False
         print('LOAD OK')    
         # self.print_table()    
@@ -1301,7 +1313,7 @@ class IntermediateDaybook:
         no_of_months = (self.toDate.year - self.fromDate.year) * 12 + (self.toDate.month - self.fromDate.month)
         if no_of_months>12:
             return False, -5    
-        if self.company not in ['gokul', 'universal']:
+        if self.company not in ['gokul','universal','gawel1','gawel2','focus']:
             return False, -6
         try:
             self.grab_data()
