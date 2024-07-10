@@ -502,7 +502,7 @@ class TableSnapshot:
 
 class ChequeReportCollection:
     save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\ChequeReportCollection.fil"
-    years = ['2019','2020','2021','2022','2023']
+    years = ['2019','2020','2021','2022','2023', '2024']
     banks = ['hdfc', 'icici']
     companies = ['gokul','universal']
     cheque_report_dict = {}
@@ -595,7 +595,7 @@ class TableSnapshotCollection:
     save_path_old = os.getenv('APPDATA')+'\\'+APP_NAME+"\\tableSnapshotCollection.fil"
     table_list = {}
     months = ['april','may','june','july','august','september','october','november','december','january', 'february', 'march']
-    years = ['2019','2020','2021','2022','2023']
+    years = ['2019','2020','2021','2022','2023', '2024']
     banks = ['hdfc', 'icici']
     companies = ['gokul','universal']
 
@@ -1044,6 +1044,8 @@ class  TableOperations:
         previous_infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(previous_financial_year,self.company)
         if not infiChequeStatement:
             return False, -1
+            # TODO WORKAROUND FOR BUSY
+            pass
         if self.bank == 'hdfc':
             hdfcBankChequeStatement = HDFCBankChequeStatement()
             if not hdfcBankChequeStatement.setPath(statement_path):
