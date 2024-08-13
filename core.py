@@ -893,7 +893,10 @@ class  TableOperations:
             for bank_entry in bank_statement:
                 # if(not isinstance(bank_entry[2], int)):
                 #     continue
-                match_list = infiChequeStatement.findMatchByChequeNumber(bank_entry[2], bank_entry[5], bank_entry[0])
+                if not infiChequeStatement:
+                    match_list = []
+                else:
+                    match_list = infiChequeStatement.findMatchByChequeNumber(bank_entry[2], bank_entry[5], bank_entry[0])
                 # if len(match_list)>1:
                 #     print("match_list: ",match_list)
                 if len(match_list)==0 and previous_infiChequeStatement:
@@ -947,7 +950,10 @@ class  TableOperations:
             final_table = []
             for bank_entry in bank_statement:
                 if(bank_entry[4]!=None or bank_entry[4] != ''):
-                    match_list = infiChequeStatement.findMatchByChequeNumber(bank_entry[4], bank_entry[7], bank_entry[2])
+                    if not infiChequeStatement:
+                        match_list = []
+                    else:
+                        match_list = infiChequeStatement.findMatchByChequeNumber(bank_entry[4], bank_entry[7], bank_entry[2])
                 if len(match_list)==0 and previous_infiChequeStatement:
                     match_list = previous_infiChequeStatement.findMatchByChequeNumber(bank_entry[4], bank_entry[7], bank_entry[2])    
                 cred_amt = ''
@@ -1055,8 +1061,8 @@ class  TableOperations:
         infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(financial_year,self.company)
         previous_infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(previous_financial_year,self.company)
         if not infiChequeStatement:
-            return False, -1
-            # TODO WORKAROUND FOR BUSY
+            # return False, -1
+            # WORKAROUND FOR BUSY
             pass
         if self.bank == 'hdfc':
             hdfcBankChequeStatement = HDFCBankChequeStatement()
