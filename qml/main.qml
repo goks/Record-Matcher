@@ -224,11 +224,11 @@ Window {
                     }
                 }
                 TopBarButton {
-                    id: delete_button
+                    id: tallyexport_button
                     scaleFactorWidth: window.scaleFactorWidth
                     scaleFactorHeight: window.scaleFactorHeight
                     // width: 104
-                    text: qsTr("Delete")
+                    text: qsTr("Tally Export")
                     anchors.left: chequereport_button.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
@@ -236,7 +236,14 @@ Window {
                     anchors.leftMargin: 1
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
-                    onPressed: backend.delete_table()
+                    // onPressed: backend.delete_table()
+                    onPressed: {
+                        tallyexport_button.selected = tallyexport_button.selected?false:true
+                        backend.showTallyExportBox(tallyexport_button.selected)
+                    }
+                    onSelectedChanged: {
+                        backend.setTallyExportBoxActivated(tallyexport_button.selected)
+                    }
                 }
                 TopBarButton {
                     id: help_button
@@ -244,7 +251,7 @@ Window {
                     scaleFactorHeight: window.scaleFactorHeight
                     // width: 88
                     text: qsTr("Help")
-                    anchors.left: delete_button.right
+                    anchors.left: tallyexport_button.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     leftPadding: 0
@@ -264,7 +271,8 @@ Window {
                 scaleFactorWidth: window.scaleFactorWidth
                 scaleFactorHeight: window.scaleFactorHeight
                 btnIconSource: "../images/svg_images/settings_gear.svg"
-                onConvertSchemaClicked: backend.convertSchema()
+                // onConvertSchemaClicked: backend.convertSchema()
+                onDeleteButtonClicked: backend.delete_table()
                 onDownloadFromDbClicked: backend.downloadfromDb()
                 onUploadtoDbClicked:{
                                     passwordPopup.open()
@@ -314,7 +322,7 @@ Window {
                             bankLabel.visible = false
                             bodySubtitleStatementModeContainer.visible = false
                             export_button.selected = false
-                            delete_button.selected = false
+                            tallyexport_button.selected = false
                             help_button.selected = false
                             uploadBtn.visible = true
                             textInput.searchmode = "chqrpt"
@@ -337,7 +345,7 @@ Window {
                             bankBox.height = vscale(97)
                             bodySubtitleStatementModeContainer.visible = true
                             export_button.selected = false
-                            delete_button.selected = false
+                            tallyexport_button.selected = false
                             help_button.selected = false
                             uploadBtn.visible = false
                             textInput.searchmode = "default"
@@ -353,6 +361,54 @@ Window {
                         else if(status===0) stackView.push(chequeReportNotFoundComponent)
                         else stackView.clear()
                     }
+                    function onTallyExportButtonClicked(selected){
+                        if(selected){
+                            console.log("Pushing Tally Export Box")
+                            monthBox.visible = false
+                            bankBox.visible = false
+                            yearBox.visible = false
+                            bankLabel.visible = false
+                            bankBox.height = 0
+                            bodySubtitleStatementModeContainer.visible = false
+                            export_button.selected = false
+                            tallyexport_button.selected = true
+                            help_button.selected = false
+                            uploadBtn.visible = false
+                            textInput.searchmode = "chqrpt"
+                            textInput.fileDialogText = ""
+                            bodySubtitleContainer.visible = false
+                            bodySubtitleContainer.height = 0
+                            bodyHeaderBox.height=0
+                            stackView.push(tallyExportBoxComponent)
+                            // else {
+                            //     stackView.clear()
+                            //     toast.show("No company or year selected", "warning")
+                            // }
+                        }
+                        else{
+                            console.log("popping Tally Export Box ")
+                            monthBox.visible = true
+                            yearBox.visible = true
+                            bankBox.visible = true
+                            bankLabel.visible = true
+                            bankBox.height = vscale(97)
+                            bodySubtitleStatementModeContainer.visible = true
+                            export_button.selected = false
+                            tallyexport_button.selected = false
+                            help_button.selected = false
+                            uploadBtn.visible = false
+                            textInput.searchmode = "default"
+                            textInput.fileDialogText = ""
+                            bodySubtitleContainer.visible = true
+                            bodySubtitleContainer.height = vscale(38)
+                            bodyHeaderBox.height=vscale(126)
+                            console.log(stackView.pop())
+
+                        }
+                    }
+                    function onShowTallyExportPage(){
+                        stackView.push(tallyExportBox)
+                    }
                     function onShowTablePage(){
                         // console.log("Showing table")
                         monthBox.visible = true
@@ -361,7 +417,7 @@ Window {
                         bodySubtitleStatementModeContainer.visible = true
                         chequereport_button.selected = false
                         export_button.selected = false
-                        delete_button.selected = false
+                        tallyexport_button.selected = false
                         help_button.selected = false
                         textInput.searchmode = "default"
                         uploadBtn.visible = false
@@ -378,7 +434,7 @@ Window {
                         bodySubtitleStatementModeContainer.visible = false
                         chequereport_button.selected = false
                         export_button.selected = false
-                        delete_button.selected = false
+                        tallyexport_button.selected = false
                         help_button.selected = false
                         uploadBtn.visible = true
                         textInput.searchmode = "stmt"
@@ -392,7 +448,7 @@ Window {
                         bodySubtitleStatementModeContainer.visible = true
                         chequereport_button.selected = false
                         export_button.selected = false
-                        delete_button.selected = false
+                        tallyexport_button.selected = false
                         help_button.selected = false
                         textInput.searchmode = "default"
                         uploadBtn.visible = false
@@ -633,7 +689,7 @@ Window {
 
                 Rectangle {
                     id: companyBox
-                    height: vscale(97)
+                    height: vscale(120)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -742,13 +798,13 @@ Window {
                 }
                 Rectangle {
                     id: yearBox
-                    height: vscale(180)
+                    height: vscale(190)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: bankBox.bottom
                     // anchors.topMargin: vscale(15)
-                    anchors.topMargin: vscale(20)
+                    anchors.topMargin: vscale(26)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
                     
@@ -774,19 +830,19 @@ Window {
 
                     LeftPanelCustomList {
                         id: yearList
-                        height: vscale(170)
+                        // height: vscale(170)
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: yearText.bottom
                         anchors.bottom: parent.bottom
-                        anchors.bottomMargin: vscale(17)
+                        anchors.bottomMargin: vscale(24)
                         anchors.topMargin: vscale(8)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
                         currentIndex:2
                         scaleFactorWidth: window.scaleFactorWidth
                         scaleFactorHeight: window.scaleFactorHeight
-                        z:0
+                        z:2
                         onSelectedChanged: {
                             backend.yearChanged(selected)
                         }
@@ -1205,6 +1261,15 @@ Window {
                         }
                     }
                     Component {
+                        id: tallyExportBoxComponent
+                        TallyExportBoxPage {
+                            anchors.top: parent.top
+                            anchors.topMargin: vscale(59)
+                            scaleFactorWidth: window.scaleFactorWidth
+                            scaleFactorHeight: window.scaleFactorHeight
+                        }
+                    }
+                    Component {
                         id: selectOptionsComponent
                         OptionsNotSelectedPage {
                             anchors.top: parent.top
@@ -1285,6 +1350,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:0.5}
+    D{i:0;formeditorZoom:0.5}D{i:36}
 }
 ##^##*/

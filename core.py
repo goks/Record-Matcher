@@ -786,22 +786,26 @@ class  TableOperations:
         callbackFuncforProgress("Processing Left Menu values", "Finished",1.0)
 
         callbackFuncforProgress("Processing cheque reports", "Downloading values from Firebase",0.0)
-        incomingChequeReport = self.firebaseControls.get_chequeReport()
-        total_val = len(incomingChequeReport)
-        count=0
-        for key in incomingChequeReport:
-            count+=1
-            callbackFuncforProgress("Processing cheque reports", "Writing "+key,round(count*8/total_val)/10)
-            chequeReport = self.chequeReportCollection.get_table_from_collection_by_reference(key)
-            if not chequeReport:
-                print("New chequeReport: " , key)
-            else:
-                print("Replacing existing chequeReport: " , key)
-            chequeReport = InfiChequeStatement()
-            chequeReport.set_entry_list(incomingChequeReport[key]['entry_list'])
-            self.chequeReportCollection.add_cheque_report_to_collection(chequeReport, key)
-        callbackFuncforProgress("Processing cheque reports", "Finalizing",0.9)
-        self.chequeReportCollection.save_cheque_report_collection()
+        # incomingChequeReport = self.firebaseControls.get_chequeReport()
+        # total_val = len(incomingChequeReport)
+        # count=0
+        # if chequeReport:
+        #     for key in incomingChequeReport:
+        #         count+=1
+        #         callbackFuncforProgress("Processing cheque reports", "Writing "+key,round(count*8/total_val)/10)
+        #         chequeReport = self.chequeReportCollection.get_table_from_collection_by_reference(key)
+        #         if not chequeReport:
+        #             print("New chequeReport: " , key)
+        #         else:
+        #             print("Replacing existing chequeReport: " , key)
+        #         chequeReport = InfiChequeStatement()
+        #         chequeReport.set_entry_list(incomingChequeReport[key]['entry_list'])
+        #         self.chequeReportCollection.add_cheque_report_to_collection(chequeReport, key)
+        #     callbackFuncforProgress("Processing cheque reports", "Finalizing",0.9)
+        #     self.chequeReportCollection.save_cheque_report_collection()
+        # else:
+        #     # MOD FOR BUSY
+        #     pass        
         print("Downloading tableSnapshot values to db")
         callbackFuncforProgress("Processing table snapshots", "Downloading values from Firebase",0.0)
         incomingTableSnapshotData = self.firebaseControls.get_tableSnapshot()
@@ -1007,46 +1011,47 @@ class  TableOperations:
                     final_table.append(table_row)    
         return final_table      
 
-    def convert_old_schema_to_new_schema(self):
-        oldTableSnapshotCollection = TableSnapshotCollection()
-        if not oldTableSnapshotCollection.load_old_table():
-            print('No old table snapshot found')
-            return False
-        collection = oldTableSnapshotCollection.get_table_list()
-        # for snapshot in collection:
-        for key,snapshot in collection.items():    
-            master_table = snapshot.get_master_table()
-            root_dict = []
-            if not snapshot.get_company():
-                company = key.split('_')[0]
-                snapshot.set_company(company)
-            selected_rows_new = []    
-            selected_rows_old = snapshot.get_master_selected_rows()
-            for each in selected_rows_old:
-                if isinstance(each, list):
-                    selected_rows_new.append(each[0])
-            if selected_rows_new!=[]:            
-                snapshot.set_master_selected_rows(selected_rows_new)
-            for row in master_table:
-                row_dict={}
-                row_dict['Bank Date'] = row[0]
-                row_dict['Bank Narration'] = row[1]
-                row_dict['Chq No'] = row[2]
-                row_dict['Party Name'] = row[3]
-                row_dict['Infi Date'] = row[4]
-                row_dict['Credit'] = row[5]
-                row_dict['Debit'] = row[6]
-                row_dict['Closing Balance'] = row[7]
-                row_dict['meta'] = row[8]
-                root_dict.append(row_dict)  
-            snapshot.set_master_table(root_dict) 
-            self.tableSnapshotCollection.add_table_to_colection(snapshot)
-        print('Renaming old file')
-        oldTableSnapshotCollection.rename_old_save_path()
-        print('Reloading table snapshot collection')
-        if self.tableSnapshotCollection.load_table():
-            print('TablesnapshotCollection reload success!!')
-        return True
+    # DEPRACATED 
+    # def convert_old_schema_to_new_schema(self):
+    #     oldTableSnapshotCollection = TableSnapshotCollection()
+    #     if not oldTableSnapshotCollection.load_old_table():
+    #         print('No old table snapshot found')
+    #         return False
+    #     collection = oldTableSnapshotCollection.get_table_list()
+    #     # for snapshot in collection:
+    #     for key,snapshot in collection.items():    
+    #         master_table = snapshot.get_master_table()
+    #         root_dict = []
+    #         if not snapshot.get_company():
+    #             company = key.split('_')[0]
+    #             snapshot.set_company(company)
+    #         selected_rows_new = []    
+    #         selected_rows_old = snapshot.get_master_selected_rows()
+    #         for each in selected_rows_old:
+    #             if isinstance(each, list):
+    #                 selected_rows_new.append(each[0])
+    #         if selected_rows_new!=[]:            
+    #             snapshot.set_master_selected_rows(selected_rows_new)
+    #         for row in master_table:
+    #             row_dict={}
+    #             row_dict['Bank Date'] = row[0]
+    #             row_dict['Bank Narration'] = row[1]
+    #             row_dict['Chq No'] = row[2]
+    #             row_dict['Party Name'] = row[3]
+    #             row_dict['Infi Date'] = row[4]
+    #             row_dict['Credit'] = row[5]
+    #             row_dict['Debit'] = row[6]
+    #             row_dict['Closing Balance'] = row[7]
+    #             row_dict['meta'] = row[8]
+    #             root_dict.append(row_dict)  
+    #         snapshot.set_master_table(root_dict) 
+    #         self.tableSnapshotCollection.add_table_to_colection(snapshot)
+    #     print('Renaming old file')
+    #     oldTableSnapshotCollection.rename_old_save_path()
+    #     print('Reloading table snapshot collection')
+    #     if self.tableSnapshotCollection.load_table():
+    #         print('TablesnapshotCollection reload success!!')
+    #     return True
         
     def add_snapshot_to_table(self, statement_path):
         

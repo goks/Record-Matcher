@@ -44,7 +44,8 @@ class MainWindow(QObject):
         self.current_year = ''
         self.current_company = ''
         self.chequeReportActivated  = False
-        self.searchModeOffFirsttime = False  
+        self.searchModeOffFirsttime = False
+        self.tallyExportBoxActivated = False  
         return   
     def populate_left_menu(self, first_time=False):
         json_path = os.path.join(CURRENT_DIR, "data.json")
@@ -64,6 +65,7 @@ class MainWindow(QObject):
         return
 
     chequeReportsButtonClicked = Signal(bool,int,str, arguments=['selected','status','time'])
+    tallyExportButtonClicked = Signal(bool, arguments=['selected'])
     showTablePage = Signal()
     showUploadBankStatementPage = Signal()
     showChooseOptionsPage = Signal()
@@ -71,6 +73,7 @@ class MainWindow(QObject):
     dayBookExportHandlingError = Signal(int,str, arguments=['type', 'data'])
     checkReportUploadSuccess = Signal()
     showChequeReportPage = Signal(int,str, arguments=['status','time'])
+    showTallyExportPage = Signal()
     bankStatementUploadSuccess = Signal()
     statementExportSuccess = Signal()
     snapshotDeleteSuccess = Signal()
@@ -246,14 +249,20 @@ class MainWindow(QObject):
         self._tableData = self.tableOperations.search(self.tableSnapshot.get_master_table(), searchQuery, searchMode)
         self.table_data_changed.emit()
         return 
-    @Slot()
-    def convertSchema(self):
-        print('Converting Old to New Schema') 
-        self.tableOperations.convert_old_schema_to_new_schema()  
+    # @Slot()
+    # def convertSchema(self):
+    #     print('Converting Old to New Schema') 
+    #     self.tableOperations.convert_old_schema_to_new_schema()  
     @Slot(bool)
     def showChequeReportsSelection(self, selected):
         status, data = self.populateChequeReports()
         self.chequeReportsButtonClicked.emit(selected, status, data )
+    @Slot(bool)
+    def showTallyExportBox(self, selected):
+        # status, data = self.populateChequeReports()
+        # self.chequeReportsButtonClicked.emit(selected, status, data )  
+        self.tallyExportButtonClicked.emit(selected)
+        pass
     @Slot()
     def beginWindowExitRoutine(self):
         self.save_snapshot()
@@ -290,6 +299,9 @@ class MainWindow(QObject):
             status, data = self.populateChequeReports()
             self.showChequeReportPage.emit(status, data )
             return
+        elif self.tallyExportBoxActivated:
+            self.showTallyExportBox.emit()
+            return
         self.populate_table()
     @Slot(str, str)
     def bankChanged(self, bankname, screenName):
@@ -304,6 +316,9 @@ class MainWindow(QObject):
         if self.chequeReportActivated:
             status, data = self.populateChequeReports()
             self.showChequeReportPage.emit(status, data )
+            return
+        elif self.tallyExportBoxActivated:
+            self.showTallyExportBox.emit()
             return
         self.populate_table()
     @Slot(str, str)
@@ -326,6 +341,11 @@ class MainWindow(QObject):
         self.chequeReportActivated = status
         self.update_monthYearData()
         print("STATUS: ",status)
+    @Slot(bool)
+    def setTallyExportBoxActivated(self,status):
+        self.tallyExportBoxActivated = status
+        # self.update_monthYearData()
+        print("STATUS: ",status)    
     @Slot()
     def call_populate_table(self):
         self.populate_table()    
