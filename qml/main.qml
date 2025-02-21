@@ -689,7 +689,7 @@ Window {
 
                 Rectangle {
                     id: companyBox
-                    height: vscale(120)
+                    height: vscale(110)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -1267,6 +1267,12 @@ Window {
                             anchors.topMargin: vscale(59)
                             scaleFactorWidth: window.scaleFactorWidth
                             scaleFactorHeight: window.scaleFactorHeight
+                           
+                            onCreateMasterXMLBtnClicked: {
+                            // backend.createIntermediateDaybook(fullScreenLoading2.daybookFileURL, fullScreenLoading2.fromDate, fullScreenLoading2.toDate, fullScreenLoading2.company)
+                            }
+                            onDownloadMasterXMLBtnClicked: {
+                            }
                         }
                     }
                     Component {

@@ -7,8 +7,9 @@ Rectangle {
     width:1177
 //    height: 425
 
+    signal createMasterXMLBtnClicked
+    signal downloadMasterXMLBtnClicked
     property color textColor: "#324254"
-
     property real scaleFactorHeight: 1
     property real scaleFactorWidth: 1
     function hscale(size) {
@@ -24,7 +25,7 @@ Rectangle {
     Rectangle {
         id: master_import_box
         width: hscale(1300)
-        height: vscale(319)
+        height: vscale(360)
         radius: 8
         border.color: "#c4c4c4"
         Text {
@@ -69,18 +70,41 @@ Rectangle {
                                     //                            height: 38
                                     anchors.left: parent.left
                                     anchors.top: bodyText1.bottom
-                                    anchors.leftMargin: 17
+                                    anchors.leftMargin: hscale(34)
                                     //                            anchors.bottom: parent.bottom
                                     //                            anchors.bottomMargin: 0
                                     anchors.topMargin: vscale(23)
                                     searchbyMode: "off"
                                     startDateCalendar: backend.startDateCalendar
                                     endDateCalendar: backend.endDateCalendar
-                                    scaleFactorWidth: window.scaleFactorWidth
-                                    scaleFactorHeight: window.scaleFactorHeight
+                                    scaleFactorWidth: main_box.scaleFactorWidth
+                                    scaleFactorHeight: main_box.scaleFactorHeight
                                     onSearchBarTextChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
-                                    onSearchbyModeChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
+                                    // onSearchbyModeChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
                                 }
+        CustomSubTitleButton {
+            id:getMasterXMLBut
+            width: hscale(140)
+            height: vscale(30)
+            anchors.top: textInput.bottom
+            anchors.topMargin: vscale(15)
+            anchors.left: textInput.right
+            anchors.leftMargin: hscale(20)
+            fontSize: tscale(8)
+            // visible: true
+            text: "Get Master XML"
+            onClicked: main_box.createMasterXMLBtnClicked()
+        }          
+        DownloadButton {
+            id:masterXMLDlBut
+            width: hscale(30)
+            height: vscale(30)
+            anchors.top: textInput.bottom
+            anchors.topMargin: vscale(15)
+            anchors.left: getMasterXMLBut.right
+            anchors.leftMargin: hscale(20)
+            onClicked: main_box.downloadMasterXMLBtnClicked()
+        }                            
 
     }
 

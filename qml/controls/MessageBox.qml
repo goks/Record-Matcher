@@ -4,9 +4,10 @@ import QtGraphicalEffects 1.15
 
 Rectangle {
     id: rectangle
-    width: hscale(800)
-    height: singleText?vscale(200):vscale(425)
-    // property color textColor: "#003366"
+    // width: hscale(800)
+    width: 800
+    // height: singleText?vscale(200):vscale(425)
+    height: singleText?200:425
     property color textColor: "#324254"
     radius: 8
     border.color: "#c4c4c4"
@@ -33,60 +34,75 @@ Rectangle {
     Text {
         visible: singleText?false:true
         id: text1
-        height: vscale(67)
+//        height: vscale(67)
+        height: 67
         text: rectangle.text1
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
         //        font.pixelSize: 34
         verticalAlignment: Text.AlignVCenter
-        anchors.topMargin: vscale(76)
-        anchors.rightMargin: hscale(50)
-        anchors.leftMargin: hscale(50)
+//        anchors.topMargin: vscale(76)
+//        anchors.rightMargin: hscale(50)
+//        anchors.leftMargin: hscale(50)
+        anchors.topMargin: 76
+        anchors.rightMargin: 50
+        anchors.leftMargin: 50
         color: textColor
         font.family: "PT Sans Caption"
-        font.pointSize: tscale(22)
+//        font.pointSize: tscale(22)
+        font.pointSize: 22
     }
 
     Text {
         visible: singleText?false:true
         id: text2
-        y: vscale(181)
-        height: vscale(51)
+//        y: vscale(181)
+//        height: vscale(51)
+        y: 181
+        height: 51
         text: rectangle.text2
         anchors.left: parent.left
         anchors.right: parent.right
         verticalAlignment: Text.AlignVCenter
         font.underline: true
-        anchors.rightMargin: hscale(50)
-        anchors.leftMargin: hscale(50)
+        // anchors.rightMargin: hscale(50)
+        // anchors.leftMargin: hscale(50)
+        anchors.rightMargin: 50
+        anchors.leftMargin: 50
         color: textColor
         font.family: "PT Sans Caption"
-        //        font.pointSize: 20
-        font.pointSize: tscale(18)
+        // font.pointSize: tscale(18)
+        font.pointSize: 18
     }
 
     Text {
         visible: singleText?false:true
         id: text3
-        height: vscale(96)
+        // height: vscale(96)
+        height: 96
         text: rectangle.text3
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: text2.bottom
         wrapMode: Text.WordWrap
-        anchors.topMargin: vscale(-2)
-        anchors.rightMargin: hscale(50)
-        anchors.leftMargin: hscale(50)
+        // anchors.topMargin: vscale(-2)
+        // anchors.rightMargin: hscale(50)
+        // anchors.leftMargin: hscale(50)
+        anchors.topMargin: -2
+        anchors.rightMargin: 50
+        anchors.leftMargin: 50
         color: textColor
         font.family: "PT Sans Caption"
-        font.pointSize: tscale(12)
-
+        // font.pointSize: tscale(12)
+        font.pointSize: 12
     }
+
     Text {
         visible: singleText?true:false
         id: text4
-        height: vscale(65)
+//        height: vscale(65)
+        height: 65
         text: rectangle.text4
         anchors.left: parent.left
         anchors.right: parent.right
@@ -97,8 +113,15 @@ Rectangle {
         horizontalAlignment: Text.AlignHCenter
         color: textColor
         font.family: "PT Sans Caption"
-        font.pointSize: tscale(22)
+//        font.pointSize: tscale(22)
+        font.pointSize: 22
     }
 }
 
 
+
+/*##^##
+Designer {
+    D{i:0;formeditorZoom:2}
+}
+##^##*/

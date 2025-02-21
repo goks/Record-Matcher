@@ -83,12 +83,14 @@ Rectangle {
             id:browseBut
             // width: 174
             width: hscale(74)
-            height: vscale(25)
+            height: vscale(parent.height)-vscale(6)
+            // anchors.topMargin: vscale(4)
+            // anchors.bottomMargin: vscale(4)
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             anchors.rightMargin: hscale(18)
             visible: containerBox.searchmode!="default"?true:false
-            font.pixelSize: tscale(10)
+            fontSize: tscale(8)
             // visible: true
             text: "Browse"
             onClicked: fileDialog.open()

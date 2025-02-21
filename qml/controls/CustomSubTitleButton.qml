@@ -32,7 +32,7 @@ Button {
         id: buttonLabel
         color: selected?textColorHighLight:textColor
         text: customBtn.text
-        //            text: qsTr("By Date12342168")
+//                    text: qsTr("By Date12342168")
         anchors.fill: parent
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
@@ -57,6 +57,6 @@ Button {
 
 /*##^##
 Designer {
-    D{i:0;formeditorZoom:3}
+    D{i:0;formeditorZoom:2}
 }
 ##^##*/

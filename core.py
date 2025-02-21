@@ -128,6 +128,39 @@ def prepare_save_data(master_table, master_selected_rows, save_path, master_exce
     data_to_save.append(master_excel_export_path)    
     return data_to_save
 
+import json
+
+class JsonDataLoader:
+    """Loads years, banks, and companies from a JSON file and provides access to them."""  
+    def __init__(self, json_path='./data.json'):
+        self.json_path = json_path
+        self.years = []
+        self.banks = []
+        self.companies = []
+        self.months = []
+        self.load_json_data()
+    def load_json_data(self):
+        """Load data from JSON and store it in class variables."""
+        try:
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+            self.years = [item["value"] for item in data.get("Years", [])]
+            self.banks = [item["value"] for item in data.get("Banks", [])]
+            self.companies = [item["value"] for item in data.get("Companies", [])]
+            self.months = [item["value"] for item in data.get("Months", [])]
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error loading JSON file: {e}")
+    def get_years(self):
+        return self.years
+    def get_banks(self):
+        return self.banks
+    def get_companies(self):
+        return self.companies
+    def get_months(self):
+        return self.months
+
+
 class InfiChequeStatement:
     # trans_col = 0
     # transDate_col = 1
@@ -502,11 +535,14 @@ class TableSnapshot:
 
 class ChequeReportCollection:
     save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\ChequeReportCollection.fil"
-    years = ['2019','2020','2021','2022','2023', '2024']
-    banks = ['hdfc', 'icici']
-    companies = ['gokul','universal','gawel1','gawel2','focus']
-    cheque_report_dict = {}
-    def __init__(self):
+    def __init__(self, json_path='data.json'):
+        # Use JsonDataLoader to fetch common data
+        self.data_loader = JsonDataLoader(json_path)
+        self.years = self.data_loader.get_years()
+        self.banks = self.data_loader.get_banks()
+        self.companies = self.data_loader.get_companies()
+        
+        self.cheque_report_dict = {}
         return
     def get_years(self):
         return self.years   
@@ -606,12 +642,15 @@ class TableSnapshotCollection:
     save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\tableSnapshotCollection.filv2"
     save_path_old = os.getenv('APPDATA')+'\\'+APP_NAME+"\\tableSnapshotCollection.fil"
     table_list = {}
-    months = ['april','may','june','july','august','september','october','november','december','january', 'february', 'march']
-    years = ['2019','2020','2021','2022','2023', '2024']
-    banks = ['hdfc', 'icici']
-    companies = ['gokul','universal','gawel1','gawel2','focus']
-    def __init__(self):
-        return
+    def __init__(self, json_path='./data.json'):
+        # Use JsonDataLoader to fetch common data
+        self.data_loader = JsonDataLoader(json_path)
+        self.years = self.data_loader.get_years()
+        self.banks = self.data_loader.get_banks()
+        self.companies = self.data_loader.get_companies()
+        self.months = self.data_loader.get_months()
+        
+        self.cheque_report_dict = {}
     def get_months(self):
         return self.months
     def get_years(self):
