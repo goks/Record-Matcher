@@ -1,4 +1,4 @@
-from re import X, template
+import re
 from time import strftime
 import xlrd
 import xlwt
@@ -14,6 +14,41 @@ import dateutil.parser
 import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+
+# Import utilities for better file management
+try:
+    from utils import (
+        cleanup_temp_files, cleanup_all_temp_files, 
+        ensure_temp_dir_exists, get_temp_file_path,
+        save_to_json, load_from_json
+    )
+except ImportError:
+    # Fallback if utils.py not available
+    def cleanup_temp_files(*args, **kwargs):
+        return 0, 0
+    def cleanup_all_temp_files(*args, **kwargs):
+        return 0
+    def ensure_temp_dir_exists(temp_dir='./temp/'):
+        os.makedirs(temp_dir, exist_ok=True)
+        return True
+    def get_temp_file_path(filename, temp_dir='./temp/'):
+        ensure_temp_dir_exists(temp_dir)
+        return os.path.join(temp_dir, filename)
+    def save_to_json(data, filepath, indent=2):
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=indent, default=str)
+            return True
+        except:
+            return False
+    def load_from_json(filepath, default=None):
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return default
 
 # Fix for opening xlsx
 xlrd.xlsx.ensure_elementtree_imported(False, None)
@@ -131,16 +166,49 @@ def prepare_save_data(master_table, master_selected_rows, save_path, master_exce
 import json
 
 class JsonDataLoader:
-    """Loads years, banks, and companies from a JSON file and provides access to them."""  
+    """Loads years, banks, and companies from a JSON file and provides access to them.
+    Implements singleton pattern with caching to avoid multiple file reads.
+    """  
+    _instance = None
+    _cache = None
+    _cache_timestamp = None
+    
+    def __new__(cls, json_path='./data.json'):
+        """Singleton pattern to ensure only one instance exists."""
+        if cls._instance is None:
+            cls._instance = super(JsonDataLoader, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self, json_path='./data.json'):
+        if self._initialized:
+            return
         self.json_path = json_path
         self.years = []
         self.banks = []
         self.companies = []
         self.months = []
         self.load_json_data()
-    def load_json_data(self):
-        """Load data from JSON and store it in class variables."""
+        self._initialized = True
+        
+    def load_json_data(self, force_reload=False):
+        """Load data from JSON and store it in class variables.
+        Uses caching to avoid repeated file reads unless force_reload is True.
+        """
+        # Check if cache is valid (file hasn't changed)
+        try:
+            current_mtime = os.path.getmtime(self.json_path)
+            if not force_reload and self._cache is not None and self._cache_timestamp == current_mtime:
+                # Use cached data
+                self.years = self._cache['years']
+                self.banks = self._cache['banks']
+                self.companies = self._cache['companies']
+                self.months = self._cache['months']
+                return
+        except OSError:
+            pass  # File doesn't exist or can't be accessed
+            
+        # Load from file
         try:
             with open(self.json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -149,8 +217,18 @@ class JsonDataLoader:
             self.banks = [item["value"] for item in data.get("Banks", [])]
             self.companies = [item["value"] for item in data.get("Companies", [])]
             self.months = [item["value"] for item in data.get("Months", [])]
+            
+            # Update cache
+            self._cache = {
+                'years': self.years,
+                'banks': self.banks,
+                'companies': self.companies,
+                'months': self.months
+            }
+            self._cache_timestamp = os.path.getmtime(self.json_path)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Error loading JSON file: {e}")
+            
     def get_years(self):
         return self.years
     def get_banks(self):
@@ -159,6 +237,13 @@ class JsonDataLoader:
         return self.companies
     def get_months(self):
         return self.months
+    
+    @classmethod
+    def clear_cache(cls):
+        """Clear the singleton instance and cache."""
+        cls._instance = None
+        cls._cache = None
+        cls._cache_timestamp = None
 
 
 class InfiChequeStatement:
@@ -317,7 +402,18 @@ class HDFCBankChequeStatement:
             self.find_start_row()
             return True
         else:
-            return False    
+            return False
+    
+    def release_resources(self):
+        """Release Excel workbook resources to prevent memory leaks."""
+        if self.workbook:
+            try:
+                self.workbook.release_resources()
+            except AttributeError:
+                pass  # xlrd doesn't always have release_resources in older versions
+            self.workbook = None
+        self.worksheet = None
+        return True    
 
     def find_start_row(self):
         i=0
@@ -356,6 +452,8 @@ class HDFCBankChequeStatement:
             self.entry_list.append(entry)
             # print("entry", entry)
             i+=1
+        # Release resources after grabbing data
+        self.release_resources()
 
     def getEntryList(self):
         return self.entry_list
@@ -375,7 +473,18 @@ class ICICIBankChequeStatement:
             self.find_start_row()
             return True
         else:
-            return False    
+            return False
+    
+    def release_resources(self):
+        """Release Excel workbook resources to prevent memory leaks."""
+        if self.workbook:
+            try:
+                self.workbook.release_resources()
+            except AttributeError:
+                pass  # xlrd doesn't always have release_resources in older versions
+            self.workbook = None
+        self.worksheet = None
+        return True    
     def getPath(self):
         return self.path
     def find_start_row(self):
@@ -439,6 +548,8 @@ class ICICIBankChequeStatement:
                 self.entry_list.append(entry)
             # print("entry", entry)
             i+=1
+        # Release resources after grabbing data
+        self.release_resources()
 
     def getEntryList(self):
         return self.entry_list
@@ -775,54 +886,98 @@ class  TableOperations:
         return
 
     def upload_data_to_firebase_db(self, callbackFuncforProgress):
+        """Upload data to Firebase using async batch operations.
+        
+        Args:
+            callbackFuncforProgress: Callback function(text1, text2, progress)
+        """
         print("Uploading left-menu values to db")
         callbackFuncforProgress("Processing Left Menu values", "Retrieving values to upload",0.0)
+        
+        # Upload left menu data asynchronously
         with open(self.leftMenuJsonPath) as f:
             data = json.load(f)
-        self.firebaseControls.set_leftMenu_data(data) 
+        leftmenu_future = self.firebaseControls.set_leftMenu_data_async(data)
+        
         print("Uploading tableSnapshot values to db")
-        callbackFuncforProgress("Processing Left Menu values", "Finished uploading",1.0)
+        callbackFuncforProgress("Processing Left Menu values", "Uploading...",0.5)
+        
+        # Wait for left menu upload to complete
+        try:
+            leftmenu_future.result(timeout=30)  # 30 second timeout
+            callbackFuncforProgress("Processing Left Menu values", "Finished uploading",1.0)
+        except Exception as e:
+            print(f"Error uploading left menu: {e}")
+            callbackFuncforProgress("Processing Left Menu values", "Error occurred",1.0)
 
+        # Prepare cheque reports for batch upload
         callbackFuncforProgress("Processing cheque reports", "Retrieving snapshots to upload",0.0)
-        # print(self.chequeReportCollection.get_cheque_report_dict())
         collection_dict = self.chequeReportCollection.get_cheque_report_dict()
-        total_val = len(collection_dict)
-        count=0
-        print(collection_dict)
-        for key in collection_dict:
-            count+=1
-            print("Uploading chequeReport: ", key)
-            callbackFuncforProgress("Processing cheque reports", "Uploading "+key,round(count*8/total_val)/10)
-            child = key
-            obj = collection_dict[key]
-            if(obj):
-                self.firebaseControls.set_chequeReport(child, obj.get_json())   
+        print(f"Found {len(collection_dict)} cheque reports to upload")
+        
+        # Create batch upload dict
+        cheque_upload_dict = {}
+        for key, obj in collection_dict.items():
+            if obj:
+                cheque_upload_dict[key] = obj.get_json()
+        
+        # Upload cheque reports in batch using async operations
+        if cheque_upload_dict:
+            def cheque_progress(current, total, key):
+                progress = round(current * 8 / total) / 10
+                callbackFuncforProgress("Processing cheque reports", f"Uploading {key}", progress)
+                print(f"Uploaded chequeReport: {key} ({current}/{total})")
+            
+            self.firebaseControls.batch_set_chequeReports(cheque_upload_dict, cheque_progress)
+        
         callbackFuncforProgress("Processing cheque reports", "Finished",1.0)     
 
+        # Prepare table snapshots for batch upload
         callbackFuncforProgress("Processing table snapshots", "Retrieving values to upload",0.0)
         table_list = self.tableSnapshotCollection.get_table_list()
-        total_val = len(table_list)
-        count=0
-        for key in table_list:
-            count+=1
-            callbackFuncforProgress("Processing table snapshots", "Uploading "+key,round(count*8/total_val)/10)
-            print("Uploading tablesnapshot: ", key)
-            child = key
-            obj = table_list[key]
-            if(obj):
-                self.firebaseControls.set_tableSnapshot(child, obj.get_json())
+        print(f"Found {len(table_list)} table snapshots to upload")
+        
+        # Create batch upload dict
+        snapshot_upload_dict = {}
+        for key, obj in table_list.items():
+            if obj:
+                snapshot_upload_dict[key] = obj.get_json()
+        
+        # Upload table snapshots in batch using async operations
+        if snapshot_upload_dict:
+            def snapshot_progress(current, total, key):
+                progress = round(current * 8 / total) / 10
+                callbackFuncforProgress("Processing table snapshots", f"Uploading {key}", progress)
+                print(f"Uploaded tablesnapshot: {key} ({current}/{total})")
+            
+            self.firebaseControls.batch_set_tableSnapshots(snapshot_upload_dict, snapshot_progress)
+        
         callbackFuncforProgress("Processing table snapshots", "Finished",1.0)
         return
     
     def get_data_from_firebase_db(self, callbackFuncforProgress):
+        """Download data from Firebase using async operations.
+        
+        Args:
+            callbackFuncforProgress: Callback function(text1, text2, progress)
+        """
         print("Getting left-menu values from db")
         callbackFuncforProgress("Processing Left Menu values", "Downloading values from Firebase",0.0)
-        data = self.firebaseControls.get_leftMenu_data()
-        data = json.dumps(data, indent=4)
-        callbackFuncforProgress("Processing Left Menu values", "Writing values to local file",0.5)
-        with open(self.leftMenuJsonPath, "w") as outfile:
-            outfile.write(data)
-        callbackFuncforProgress("Processing Left Menu values", "Finished",1.0)
+        
+        # Start async download of left menu data
+        leftmenu_future = self.firebaseControls.get_leftMenu_data_async()
+        
+        # Wait for download to complete
+        try:
+            data = leftmenu_future.result(timeout=30)  # 30 second timeout
+            data = json.dumps(data, indent=4)
+            callbackFuncforProgress("Processing Left Menu values", "Writing values to local file",0.5)
+            with open(self.leftMenuJsonPath, "w") as outfile:
+                outfile.write(data)
+            callbackFuncforProgress("Processing Left Menu values", "Finished",1.0)
+        except Exception as e:
+            print(f"Error downloading left menu: {e}")
+            callbackFuncforProgress("Processing Left Menu values", "Error occurred",1.0)
 
         callbackFuncforProgress("Processing cheque reports", "Downloading values from Firebase",0.0)
         # incomingChequeReport = self.firebaseControls.get_chequeReport()
@@ -845,24 +1000,44 @@ class  TableOperations:
         # else:
         #     # MOD FOR BUSY
         #     pass        
-        print("Downloading tableSnapshot values to db")
+        print("Downloading tableSnapshot values from db")
         callbackFuncforProgress("Processing table snapshots", "Downloading values from Firebase",0.0)
-        incomingTableSnapshotData = self.firebaseControls.get_tableSnapshot()
-        total_val = len(incomingTableSnapshotData)
-        count=0
-        for key in incomingTableSnapshotData:
-            count+=1
-            callbackFuncforProgress("Processing table snapshots", "Writing "+key,round(count*8/total_val)/10)
-            tableSnapshot = self.tableSnapshotCollection.get_table_from_collection_by_reference(key)
-            if not tableSnapshot:
-                print("new tableSnapshot for ", key)
-                tableSnapshot = TableSnapshot(incomingTableSnapshotData[key])
-                self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
+        
+        # Start async download of table snapshots
+        snapshot_future = self.firebaseControls.get_tableSnapshot_async()
+        
+        # Wait for download to complete
+        try:
+            incomingTableSnapshotData = snapshot_future.result(timeout=60)  # 60 second timeout
+            
+            if incomingTableSnapshotData:
+                total_val = len(incomingTableSnapshotData)
+                count = 0
+                
+                for key in incomingTableSnapshotData:
+                    count += 1
+                    progress = round(count * 8 / total_val) / 10
+                    callbackFuncforProgress("Processing table snapshots", f"Writing {key}", progress)
+                    
+                    tableSnapshot = self.tableSnapshotCollection.get_table_from_collection_by_reference(key)
+                    if not tableSnapshot:
+                        print(f"New tableSnapshot for {key}")
+                        tableSnapshot = TableSnapshot(incomingTableSnapshotData[key])
+                        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
+                    else:
+                        print(f"Existing tableSnapshot found for {key}, replacing master table data")    
+                        tableSnapshot.set_master_table(incomingTableSnapshotData[key]['master_table'])
+                
+                callbackFuncforProgress("Processing table snapshots", "Finalizing", 0.9)
+                self.tableSnapshotCollection.save_table()
             else:
-                print("Existing tableSnapshot found for ", key, "Replacing master table data")    
-                tableSnapshot.set_master_table(incomingTableSnapshotData[key]['master_table'])    
-        callbackFuncforProgress("Processing table snapshots", "Finalizing",0.9)
-        self.tableSnapshotCollection.save_table()
+                print("No table snapshots found in Firebase")
+            
+            callbackFuncforProgress("Processing table snapshots", "Finished", 1.0)
+        except Exception as e:
+            print(f"Error downloading table snapshots: {e}")
+            callbackFuncforProgress("Processing table snapshots", "Error occurred", 1.0)
+        
         return        
 
     def get_table_from_collection(self, month, year, bank, company):
@@ -1295,7 +1470,17 @@ class  TableOperations:
         self.intermediateDaybook.prepare_daybook(consolidatedReceiptVouchers.get_receipt_with_cheques_df(), consolidatedPaymentVouchers.get_payment_entries_df(), consolidatedReceiptVouchers.get_receipt_without_cheques_df() )
         return True, 1, ''
 class FirebaseControls:
-    def __init__(self):
+    """Firebase operations with async support using thread pool executor.
+    
+    All Firebase operations are executed in a thread pool to prevent blocking
+    the main thread. Supports both sync and async operation modes.
+    """
+    def __init__(self, max_workers=5):
+        """Initialize Firebase connection with thread pool.
+        
+        Args:
+            max_workers: Maximum number of concurrent Firebase operations
+        """
         # correction for auto-py-to-exe
         try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
@@ -1310,22 +1495,159 @@ class FirebaseControls:
         self.tableSnapshot_ref = db.reference("/tableSnapshot/") 
         self.leftMenu_ref = db.reference('/leftMenu/') 
         self.chequeReport_ref = db.reference('/chequeReport')
+        
+        # Thread pool for async operations
+        self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="Firebase")
+        self._lock = threading.Lock()
+    
+    def shutdown(self):
+        """Shutdown the thread pool executor gracefully."""
+        self.executor.shutdown(wait=True)
+    
+    # Synchronous methods (original behavior)
     def set_tableSnapshot(self, child, data):
+        """Synchronously set table snapshot data."""
         return self.tableSnapshot_ref.child(child).set(data)
+    
     def remove_tableSnapshot(self, child):
+        """Synchronously remove table snapshot."""
         return self.tableSnapshot_ref.child(child).set({}) 
+    
     def get_tableSnapshot(self):
+        """Synchronously get all table snapshots."""
         return self.tableSnapshot_ref.get() 
+    
     def set_chequeReport(self, child, data):
+        """Synchronously set cheque report data."""
         return self.chequeReport_ref.child(child).set(data)
+    
     def remove_chequeReport(self, child):
+        """Synchronously remove cheque report."""
         return self.chequeReport_ref.child(child).set({}) 
+    
     def get_chequeReport(self):
+        """Synchronously get all cheque reports."""
         return self.chequeReport_ref.get()     
+    
     def set_leftMenu_data(self, data):
+        """Synchronously set left menu data."""
         return self.leftMenu_ref.set(data)
+    
     def get_leftMenu_data(self):
+        """Synchronously get left menu data."""
         return self.leftMenu_ref.get()
+    
+    # Async methods (non-blocking)
+    def set_tableSnapshot_async(self, child, data):
+        """Asynchronously set table snapshot data.
+        
+        Returns:
+            Future object that can be used to check status or get result
+        """
+        return self.executor.submit(self.set_tableSnapshot, child, data)
+    
+    def get_tableSnapshot_async(self):
+        """Asynchronously get all table snapshots.
+        
+        Returns:
+            Future object that will contain the snapshot data
+        """
+        return self.executor.submit(self.get_tableSnapshot)
+    
+    def set_chequeReport_async(self, child, data):
+        """Asynchronously set cheque report data.
+        
+        Returns:
+            Future object that can be used to check status or get result
+        """
+        return self.executor.submit(self.set_chequeReport, child, data)
+    
+    def get_chequeReport_async(self):
+        """Asynchronously get all cheque reports.
+        
+        Returns:
+            Future object that will contain the report data
+        """
+        return self.executor.submit(self.get_chequeReport)
+    
+    def set_leftMenu_data_async(self, data):
+        """Asynchronously set left menu data.
+        
+        Returns:
+            Future object that can be used to check status or get result
+        """
+        return self.executor.submit(self.set_leftMenu_data, data)
+    
+    def get_leftMenu_data_async(self):
+        """Asynchronously get left menu data.
+        
+        Returns:
+            Future object that will contain the menu data
+        """
+        return self.executor.submit(self.get_leftMenu_data)
+    
+    # Batch operations for better performance
+    def batch_set_tableSnapshots(self, items_dict, progress_callback=None):
+        """Set multiple table snapshots concurrently.
+        
+        Args:
+            items_dict: Dictionary of {child_key: data} to upload
+            progress_callback: Optional callback(current, total, key) for progress
+            
+        Returns:
+            List of results from all operations
+        """
+        futures = {}
+        total = len(items_dict)
+        
+        for key, data in items_dict.items():
+            future = self.set_tableSnapshot_async(key, data)
+            futures[future] = key
+        
+        results = []
+        for idx, future in enumerate(as_completed(futures), 1):
+            key = futures[future]
+            try:
+                result = future.result()
+                results.append((key, True, result))
+                if progress_callback:
+                    progress_callback(idx, total, key)
+            except Exception as e:
+                results.append((key, False, str(e)))
+                print(f"Error uploading {key}: {e}")
+        
+        return results
+    
+    def batch_set_chequeReports(self, items_dict, progress_callback=None):
+        """Set multiple cheque reports concurrently.
+        
+        Args:
+            items_dict: Dictionary of {child_key: data} to upload
+            progress_callback: Optional callback(current, total, key) for progress
+            
+        Returns:
+            List of results from all operations
+        """
+        futures = {}
+        total = len(items_dict)
+        
+        for key, data in items_dict.items():
+            future = self.set_chequeReport_async(key, data)
+            futures[future] = key
+        
+        results = []
+        for idx, future in enumerate(as_completed(futures), 1):
+            key = futures[future]
+            try:
+                result = future.result()
+                results.append((key, True, result))
+                if progress_callback:
+                    progress_callback(idx, total, key)
+            except Exception as e:
+                results.append((key, False, str(e)))
+                print(f"Error uploading {key}: {e}")
+        
+        return results
 
 # class InfiDaybookModifier:
 class IntermediateDaybook:
@@ -1340,6 +1662,10 @@ class IntermediateDaybook:
         self.toDate = toDate
         self.fromDate = fromDate
         self.company = company
+        # Ensure temp directory exists and clean old files
+        ensure_temp_dir_exists('./temp/')
+        # Clean up temp files older than 7 days on initialization
+        cleanup_temp_files('./temp/', max_age_days=7)
         return 
     def validateAndSetValues(self):
         if validate_path(self.path):
@@ -1440,7 +1766,7 @@ class IntermediateDaybook:
         row_2_df["Credit Amount"] = consolidated_df["Amount"]
         row_2_df['Narration'] = consolidated_df['Narration']
         output_df = pd.concat([row_1_df, row_2_df]).sort_index(kind='merge')
-        output_df.to_excel('./temp/payment_voucher_only_daybook.xlsx')
+        output_df.to_excel(get_temp_file_path('payment_voucher_only_daybook.xlsx'))
         return output_df   
     def prepare_receipt_voucher_without_cheques_daybook_entries(self, consolidated_df):
         if consolidated_df.empty:
@@ -1460,7 +1786,7 @@ class IntermediateDaybook:
         row_2_df["Credit Amount"] = consolidated_df["Amount"]
         row_2_df['Narration'] = consolidated_df['Narration']
         output_df = pd.concat([row_1_df, row_2_df]).sort_index(kind='merge')
-        output_df.to_excel('./temp/receipt_voucher_without_cheques_daybook.xlsx')
+        output_df.to_excel(get_temp_file_path('receipt_voucher_without_cheques_daybook.xlsx'))
         return output_df  
     def prepare_receipt_voucher_with_cheques_daybook_entries(self, consolidated_df):
         if consolidated_df.empty:
@@ -1482,7 +1808,7 @@ class IntermediateDaybook:
         row_2_df["Credit Amount"] = consolidated_df["Amount"]
         row_2_df['Narration'] = consolidated_df['Narration']
         output_df = pd.concat([row_1_df, row_2_df]).sort_index(kind='merge')
-        output_df.to_excel('./temp/receipt_voucher_with_cheques_daybook.xlsx')
+        output_df.to_excel(get_temp_file_path('receipt_voucher_with_cheques_daybook.xlsx'))
         return output_df   
     def prepare_daybook(self, consolidatedChequeReceiptVouchers, consolidatedBankPaymentVouchers, consolidatedWithoutChequeReceiptVouchers):
         final_daybook = pd.DataFrame()    

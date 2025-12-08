@@ -1,0 +1,688 @@
+{
+  "total_files": 8,
+  "total_issues": 110,
+  "statistics": {
+    "long_lines": 41,
+    "print_statements": 189,
+    "excel_operations": 26,
+    "thread_creations": 7,
+    "missing_docstrings": 269,
+    "has_docstrings": 60
+  },
+  "issues": {
+    "security": [
+      {
+        "file": "core.py",
+        "line": 7,
+        "issue": "Using pickle (security risk): pickle",
+        "severity": "HIGH"
+      },
+      {
+        "file": "utils.py",
+        "line": 158,
+        "issue": "Using pickle (security risk): pickle",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 676,
+        "issue": "Pickle usage (arbitrary code execution risk)",
+        "severity": "CRITICAL"
+      },
+      {
+        "file": "core.py",
+        "line": 773,
+        "issue": "Pickle usage (arbitrary code execution risk)",
+        "severity": "CRITICAL"
+      },
+      {
+        "file": "core.py",
+        "line": 785,
+        "issue": "Pickle usage (arbitrary code execution risk)",
+        "severity": "CRITICAL"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 198,
+        "issue": "Using os.system (command injection risk)",
+        "severity": "CRITICAL"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 199,
+        "issue": "Using eval() (code injection risk)",
+        "severity": "CRITICAL"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 200,
+        "issue": "Using exec() (code injection risk)",
+        "severity": "CRITICAL"
+      },
+      {
+        "file": "utils.py",
+        "line": 160,
+        "issue": "Pickle usage (arbitrary code execution risk)",
+        "severity": "CRITICAL"
+      }
+    ],
+    "error_handling": [
+      {
+        "file": "core.py",
+        "line": 148,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 153,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 206,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 351,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 497,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 521,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 1483,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 1665,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 1728,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 42,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 48,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 410,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 481,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "core.py",
+        "line": 992,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 38,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 338,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "daybook_generator_final.py",
+        "line": 55,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "main.py",
+        "line": 152,
+        "issue": "Bare except clause (catches all exceptions)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "main.py",
+        "line": 152,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 122,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 153,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 186,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 217,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 248,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 276,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 299,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 332,
+        "issue": "Silent exception handling (except: pass)",
+        "severity": "HIGH"
+      }
+    ],
+    "hardcoded_values": [
+      {
+        "file": "core.py",
+        "line": 52,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 53,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 59,
+        "issue": "Bank account number hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 60,
+        "issue": "Bank account number hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 646,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 751,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 752,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1342,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1414,
+        "issue": "Firebase credentials path hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1519,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1530,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1556,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1576,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1598,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1609,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1635,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1654,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1658,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1721,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 149,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 155,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 178,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 256,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 262,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 285,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 387,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 393,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 423,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 506,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 512,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 536,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 615,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 621,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 644,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 711,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 717,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 741,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator_final.py",
+        "line": 29,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator_final.py",
+        "line": 30,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator_final.py",
+        "line": 32,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator_final.py",
+        "line": 35,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator_final.py",
+        "line": 38,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "daybook_generator_final.py",
+        "line": 39,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 134,
+        "issue": "Firebase credentials path hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 135,
+        "issue": "Hardcoded Windows path",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 136,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "test.py",
+        "line": 8,
+        "issue": "Firebase credentials path hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "test_suite.py",
+        "line": 33,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "test_suite.py",
+        "line": 35,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "test_suite.py",
+        "line": 44,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "test_suite.py",
+        "line": 45,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "test_suite.py",
+        "line": 65,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "test_suite.py",
+        "line": 191,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "test_suite.py",
+        "line": 234,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "utils.py",
+        "line": 15,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "utils.py",
+        "line": 22,
+        "issue": "File extensions hardcoded",
+        "severity": "MEDIUM"
+      }
+    ],
+    "code_style": [
+      {
+        "file": "core.py",
+        "line": 820,
+        "issue": "Use f-strings instead of string concatenation",
+        "severity": "LOW"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 190,
+        "issue": "Use f-strings instead of string concatenation",
+        "severity": "LOW"
+      },
+      {
+        "file": "daybook_generator.py",
+        "line": 318,
+        "issue": "Use f-strings instead of string concatenation",
+        "severity": "LOW"
+      },
+      {
+        "file": "daybook_generator_final.py",
+        "line": 98,
+        "issue": "Use f-strings instead of string concatenation",
+        "severity": "LOW"
+      }
+    ],
+    "resource_management": [
+      {
+        "file": "daybook_generator_final.py",
+        "line": 41,
+        "issue": "File opened without context manager (with statement)",
+        "severity": "MEDIUM"
+      }
+    ],
+    "threading": [
+      {
+        "file": "main.py",
+        "line": 130,
+        "issue": "Daemon thread usage (can cause data corruption)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "main.py",
+        "line": 155,
+        "issue": "Daemon thread usage (can cause data corruption)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "main.py",
+        "line": 189,
+        "issue": "Daemon thread usage (can cause data corruption)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "main.py",
+        "line": 272,
+        "issue": "Daemon thread usage (can cause data corruption)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "main.py",
+        "line": 281,
+        "issue": "Daemon thread usage (can cause data corruption)",
+        "severity": "HIGH"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 264,
+        "issue": "Daemon thread usage (can cause data corruption)",
+        "severity": "HIGH"
+      }
+    ],
+    "pandas": [
+      {
+        "file": "core.py",
+        "line": 1382,
+        "issue": "Using deprecated DataFrame.append() - use pd.concat()",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1514,
+        "issue": "Using deprecated DataFrame.append() - use pd.concat()",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1631,
+        "issue": "Using deprecated DataFrame.append() - use pd.concat()",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "core.py",
+        "line": 1703,
+        "issue": "Using deprecated DataFrame.append() - use pd.concat()",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 315,
+        "issue": "Using deprecated DataFrame.append() - use pd.concat()",
+        "severity": "MEDIUM"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 324,
+        "issue": "Using .iterrows() - consider vectorized operations",
+        "severity": "LOW"
+      },
+      {
+        "file": "quality_check.py",
+        "line": 328,
+        "issue": "Using .iterrows() - consider vectorized operations",
+        "severity": "LOW"
+      }
+    ]
+  }
+}
