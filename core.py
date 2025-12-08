@@ -206,6 +206,24 @@ def validateSavefile(filePath: str) -> Union[bool, str]:
     return Validator.validateSavefile(filePath)
 
 def format_chqNo(chqNo: str) -> str:
+    """Pad cheque number with leading zeros to standard length.
+    
+    Converts cheque numbers to a standardized 16-digit format by adding
+    leading zeros. This ensures consistent comparison between cheque numbers
+    from different sources.
+    
+    Args:
+        chqNo: Cheque number string (can be any length)
+    
+    Returns:
+        Padded cheque number string (16 digits total)
+    
+    Example:
+        >>> format_chqNo('123')
+        '0000000000000123'
+        >>> format_chqNo('9876543210')
+        '0000009876543210'
+    """
     if(len(chqNo)>0):
         zerolist = ""
         for i in range(0,CHEQUE_NUMBER_PADDING_LENGTH-len(chqNo)):
@@ -213,7 +231,23 @@ def format_chqNo(chqNo: str) -> str:
         zerolist+=chqNo
         newChqNo = zerolist
         return newChqNo
-def searchby_transdate(table, date):
+def searchby_transdate(table: List, date: str) -> List:
+    """Search table for entries matching a specific transaction date.
+    
+    Performs fuzzy date matching by comparing day, month, and year components.
+    Handles different date formats and year representations (2-digit vs 4-digit).
+    
+    Args:
+        table: List of table entries (each entry is a list with date at index 0)
+        date: Date string in DD/MM/YY or DD/MM/YYYY format
+    
+    Returns:
+        List of matching entries that have the same date
+    
+    Example:
+        >>> searchby_transdate(table_data, '15/01/24')
+        [['15/01/2024', 'Narration', '123456', ...], ...]
+    """
     new_table = []
     for each in table:
         # print(each[0],date)
@@ -225,13 +259,46 @@ def searchby_transdate(table, date):
                 if stmtdate[2][-2:] == querydate[2][-2:]:
                     new_table.append(each)
     return new_table   
-def searchby_chqno(table, chqNo):
+def searchby_chqno(table: List, chqNo: str) -> List:
+    """Search table for entries with matching cheque number.
+    
+    Compares cheque numbers after standardizing them to padded format.
+    This ensures '123' matches '0000000000000123'.
+    
+    Args:
+        table: List of table entries (cheque number at index 2)
+        chqNo: Cheque number to search for
+    
+    Returns:
+        List of entries with matching cheque numbers
+    
+    Example:
+        >>> searchby_chqno(table_data, '123456')
+        [['15/01/2024', 'Payment', '0000000000123456', ...], ...]
+    """
     new_table = []
     for each in table:
         if(format_chqNo( each[2])== format_chqNo( chqNo)):
             new_table.append(each)
     return new_table   
-def searchby_amount(table, amount):   
+def searchby_amount(table: List, amount: Union[str, float]) -> List:
+    """Search table for entries with matching debit or credit amount.
+    
+    Searches both debit (index 5) and credit (index 6) columns for the
+    specified amount. Handles string to float conversion and ignores
+    entries with invalid numeric values.
+    
+    Args:
+        table: List of table entries
+        amount: Amount to search for (string or float)
+    
+    Returns:
+        List of entries where debit or credit matches the amount
+    
+    Example:
+        >>> searchby_amount(table_data, '5000.00')
+        [['15/01/2024', ..., '5000.00', '0'], ...]
+    """
     new_table = []
     for each in table:
         try:
@@ -337,19 +404,50 @@ class JsonDataLoader:
 
 
 class InfiChequeStatement:
-    # trans_col = 0
-    # transDate_col = 1
-    # chqDate_col = 2 #dd-mm-yyyy
-    # bankName_col = 3
-    # ledgerName_col = 4
-    # chqNo_col = 5
-    # amount_col = 6
-    # narration_col = 7
-    # issueDate_col = 8
-    # passDate_col = 9
-    # voucher_col = 10
+    """Represents and processes Infi (InfiBooks) cheque statement data.
+    
+    This class handles reading, parsing, and managing cheque statement data from
+    Excel files exported from InfiBooks accounting software. It provides methods for:
+    - Loading Excel files and extracting transaction data
+    - Matching cheque numbers and amounts with bank statements
+    - Comparing dates between different date formats
+    - Managing the statement's lifecycle and metadata
+    
+    The class expects Excel files in a specific format with columns:
+    - Column 0: Transaction type (e.g., "Receipt Voucher")
+    - Column 1: Transaction date
+    - Columns 2-10: Transaction details (trans no, book, code, ledger, cheque no, etc.)
+    
+    Attributes:
+        path (str): Path to the Excel file
+        workbook: xlrd workbook object
+        worksheet: Active worksheet from the workbook
+        entry_list (List): List of parsed transaction entries
+        year (str): Financial year of the statement
+        company (str): Company name for this statement
+        last_edited_time (str): Timestamp of last modification
+    
+    Example:
+        >>> stmt = InfiChequeStatement()
+        >>> if stmt.setPath('/path/to/cheques.xlsx'):
+        ...     stmt.grab_data()
+        ...     entries = stmt.entry_list
+    """
+    
+    # Column indices for reference (used in data extraction)
+    # trans_col = 0          # Transaction type
+    # transDate_col = 1      # Transaction date
+    # chqDate_col = 2        # Cheque date (dd-mm-yyyy)
+    # bankName_col = 3       # Bank name
+    # ledgerName_col = 4     # Ledger account name
+    # chqNo_col = 5          # Cheque number
+    # amount_col = 6         # Transaction amount
+    # narration_col = 7      # Transaction narration/description
+    # issueDate_col = 8      # Cheque issue date
+    # passDate_col = 9       # Cheque pass/clear date
+    # voucher_col = 10       # Voucher reference
 
-    def setPath(self, path):
+    def setPath(self, path: str) -> bool:
         if validate_path(path):
             self.path = path
             self.workbook = xlrd.open_workbook(self.path)
@@ -449,35 +547,98 @@ class InfiChequeStatement:
         return True    
                        
 
-    def findMatchByChequeNumber(self,bank_chequeNumber, bank_debit, bank_date):
+    def findMatchByChequeNumber(self, bank_chequeNumber: str, bank_debit: str, bank_date: str) -> List:
+        """Find matching entries by cheque number, amount, and date.
+        
+        This is the core matching algorithm that reconciles bank statement entries
+        with Infi cheque statement entries. Matches are made based on three criteria:
+        1. Cheque number (padded to standard length for comparison)
+        2. Debit amount (exact match required)
+        3. Transaction date (Infi date must not be after bank date)
+        
+        The algorithm:
+        - Standardizes cheque numbers by padding with leading zeros to 16 digits
+        - Compares each Infi entry against the bank statement entry
+        - Only returns entries that match all three criteria
+        
+        Args:
+            bank_chequeNumber: Cheque number from bank statement
+            bank_debit: Debit amount from bank statement
+            bank_date: Transaction date from bank statement (various formats supported)
+        
+        Returns:
+            List of matching entries from Infi statement. Each entry contains:
+            [transDate, transNo, book, code, ledgerName, chqNo, chqDate, 
+             transtypeVoucher, narration, debit, credit]
+        
+        Example:
+            >>> matches = stmt.findMatchByChequeNumber('123456', '5000.00', '15/01/2024')
+            >>> len(matches)  # Number of matching transactions
+            1
+        """
         match_list = []
 
-        def makeChequeNumberStandard(input_cheque_number):
+        def makeChequeNumberStandard(input_cheque_number: str) -> str:
+            """Pad cheque number with leading zeros to standard 16-digit length.
+            
+            Example: '123' becomes '0000000000000123'
+            """
             zerolist = ""
-            for i in range(0,CHEQUE_NUMBER_PADDING_LENGTH-len(input_cheque_number)):
-                zerolist+=('0')
-            zerolist+=input_cheque_number
+            for i in range(0, CHEQUE_NUMBER_PADDING_LENGTH - len(input_cheque_number)):
+                zerolist += ('0')
+            zerolist += input_cheque_number
             return zerolist
 
+        # Iterate through all Infi cheque entries to find matches
         for each in self.entry_list:
-            infiChqNo = each[4]
-            infiDebitamt = each[5]
-            infiTransDate = each[0]
-            # print(infiTransDate, bank_date) 
-            # if infiChqNo=="531189":
-            #     print(each, infiTransDate, bank_date)
-            if(len(infiChqNo)>=1):
+            # Extract fields from Infi entry
+            infiChqNo = each[4]        # Column 4: Cheque number
+            infiDebitamt = each[5]     # Column 5: Debit amount
+            infiTransDate = each[0]    # Column 0: Transaction date
+            
+            # Only process entries with valid cheque numbers
+            if(len(infiChqNo) >= 1):
+                # Standardize both cheque numbers for comparison
                 newInfiChqNo = makeChequeNumberStandard(infiChqNo)
                 bank_chequeNumber = makeChequeNumberStandard(bank_chequeNumber)
-                # print("newInfiChqNo: ",newInfiChqNo,', bank_chequeNumber: ',bank_chequeNumber, each[5] )
-                if newInfiChqNo==bank_chequeNumber and bank_debit==infiDebitamt and self.compare_date(infiTransDate,bank_date ):
+                
+                # Check all three matching criteria:
+                # 1. Cheque numbers match (after padding)
+                # 2. Amounts match exactly
+                # 3. Infi transaction date is not after bank date
+                if (newInfiChqNo == bank_chequeNumber and 
+                    bank_debit == infiDebitamt and 
+                    self.compare_date(infiTransDate, bank_date)):
                     match_list.append(each)
-                # else:
-                    # print("Skip")    
+                    
         return match_list
     def getEntryList(self):
         return self.entry_list
 class HDFCBankChequeStatement:
+    """Processes HDFC Bank cheque statement data from Excel files.
+    
+    This class handles parsing and extracting transaction data from HDFC Bank
+    statement Excel files. HDFC statements have a specific format where:
+    - The data starts after a header row containing "Date"
+    - May have a separator row with asterisks
+    - Contains columns: Date, Narration, Cheque Number, Value Date, Debit, Credit, Balance
+    
+    The class automatically finds the starting row by looking for the "Date" header
+    and handles the HDFC-specific formatting quirks.
+    
+    Attributes:
+        start_row (int): Row number where transaction data begins
+        path (str): Path to the Excel statement file
+        workbook: xlrd workbook object
+        worksheet: Active worksheet containing the statement
+        entry_list (List): Parsed transaction entries
+    
+    Example:
+        >>> hdfc_stmt = HDFCBankChequeStatement()
+        >>> if hdfc_stmt.setPath('/path/to/hdfc_statement.xlsx'):
+        ...     hdfc_stmt.grab_data()
+        ...     transactions = hdfc_stmt.get_entry_list()
+    """
     start_row = None
     path = None
     workbook = None

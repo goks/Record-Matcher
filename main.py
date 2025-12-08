@@ -64,6 +64,38 @@ VALIDATION_ERRORS = {
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 class MainWindow(QObject):
+    """Main application window and controller for Record Matcher.
+    
+    This class serves as the central controller for the bank statement reconciliation
+    application. It manages:
+    - User interface state and data bindings (QML integration)
+    - File upload/export operations (cheque reports and bank statements)
+    - Table data population and search functionality
+    - Firebase database synchronization
+    - Thread pool management for background operations
+    - Application lifecycle and cleanup
+    
+    The class uses PySide2's Signal/Slot mechanism to communicate with the QML UI
+    and employs threading for long-running operations to maintain UI responsiveness.
+    
+    Thread Safety:
+        Uses three locks for protecting shared state:
+        - _state_lock: Protects selection state (month, year, bank, company)
+        - _snapshot_lock: Protects table snapshot data
+        - _data_lock: Protects UI display data
+    
+    Attributes:
+        hdfcBankChequeStatement: HDFC bank statement processor
+        iciciBankChequeStatement: ICICI bank statement processor
+        tableOperations: Core table operations handler
+        tableSnapshot: Current table snapshot being worked on
+        current_month/year/bank/company: Current user selections
+        chequeReportActivated: Whether in cheque report mode
+        _thread_pool: ThreadPoolExecutor for background operations
+    
+    Signals:
+        Various Qt signals for UI communication (see individual signal definitions)
+    """
     def __init__(self):
         QObject.__init__(self)
         self.hdfcBankChequeStatement = C.HDFCBankChequeStatement()
@@ -372,7 +404,24 @@ class MainWindow(QObject):
             self.dayBookExportHandlingError.emit(99, str(e))
 
     @Slot(list)
-    def createTallyXMLVoucher(self, propertyArray):
+    def createTallyXMLVoucher(self, propertyArray: List[Any]) -> None:
+        """Generate Tally-compatible XML voucher file from daybook data.
+        
+        Creates an XML file that can be directly imported into Tally accounting software.
+        The XML follows Tally's voucher import format specification.
+        
+        Args:
+            propertyArray: Array containing [fileURL, fromDate, toDate, company]
+                - fileURL: Output XML file path
+                - fromDate: Start date for voucher generation
+                - toDate: End date for voucher generation
+                - company: Company name for vouchers
+        
+        The XML includes:
+        - Voucher headers (type, date, number)
+        - Ledger entries (account names, amounts)
+        - Narration and reference details
+        """
         logger.info(f"Creating Tally XML voucher with {len(propertyArray)} properties")
         logger.debug(f"Properties: {propertyArray}")
         try:
