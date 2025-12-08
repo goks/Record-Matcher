@@ -1115,64 +1115,961 @@ class TableSnapshotCollection:
             return self.table_list[ref]
         except KeyError:
             return None
-class  TableOperations:
+class StorageManager:
+    """Handle all file I/O and pickle persistence operations.
+    
+    This service class is responsible for managing table snapshots and cheque reports
+    stored in pickle files. It provides a clean abstraction over the TableSnapshotCollection
+    and ChequeReportCollection classes.
+    
+    Responsibilities:
+        - Load and save table snapshots (pickle storage)
+        - Load and save cheque reports (pickle storage)
+        - Retrieve snapshots by month/year/bank/company
+        - Delete snapshots and reports
+        - Provide access to collections
+    
+    Thread Safety:
+        This class is not thread-safe. External synchronization required if used
+        from multiple threads.
+    """
+    
     def __init__(self):
-        # self.hdfcBankChequeStatement = HDFCBankChequeStatement()
-        # self.iciciBankChequeStatement = ICICIBankChequeStatement()
+        """Initialize storage manager and load existing collections from disk."""
         self.tableSnapshotCollection = TableSnapshotCollection()
         self.chequeReportCollection = ChequeReportCollection()
+        
         if self.chequeReportCollection.load_cheque_report_collection():
-            print('ChequeReportCollection load success!!')
+            print('StorageManager: ChequeReportCollection loaded successfully')
+        
         if self.tableSnapshotCollection.load_table():
-            print('TablesnapshotCollection load success!!')
-        self.TableSnapshot= None   
-        self.firebaseControls = FirebaseControls()
+            print('StorageManager: TableSnapshotCollection loaded successfully')
+    
+    def get_table_snapshot(self, month: str, year: str, bank: str, company: str) -> Optional['TableSnapshot']:
+        """Retrieve a table snapshot from the collection.
+        
+        Args:
+            month: Month name (e.g., 'january')
+            year: Year as string (e.g., '2024')
+            bank: Bank name (e.g., 'hdfc', 'icici')
+            company: Company name (e.g., 'gokul')
+        
+        Returns:
+            TableSnapshot object if found, None otherwise
+        """
+        return self.tableSnapshotCollection.get_table_from_collection(month, year, bank, company)
+    
+    def save_table_snapshot(self, tableSnapshot: 'TableSnapshot') -> bool:
+        """Save a table snapshot to the collection.
+        
+        Args:
+            tableSnapshot: TableSnapshot object to save
+        
+        Returns:
+            True if save successful, False otherwise
+        """
+        return self.tableSnapshotCollection.add_table_to_colection(tableSnapshot, save=True)
+    
+    def delete_table_snapshot(self, month: str, year: str, bank: str, company: str) -> bool:
+        """Delete a table snapshot from the collection.
+        
+        Args:
+            month: Month name
+            year: Year as string
+            bank: Bank name
+            company: Company name
+        
+        Returns:
+            True if delete successful, False otherwise
+        """
+        return self.tableSnapshotCollection.delete_table_from_collection(month, year, bank, company)
+    
+    def get_cheque_report(self, year: str, company: str) -> Optional['InfiChequeStatement']:
+        """Retrieve a cheque report from the collection.
+        
+        Args:
+            year: Financial year (e.g., '2024')
+            company: Company name (e.g., 'gokul')
+        
+        Returns:
+            InfiChequeStatement object if found, None otherwise
+        """
+        return self.chequeReportCollection.get_cheque_report_from_collection(year, company)
+    
+    def save_cheque_report(self, chequeReportPath: str, year: str, company: str) -> bool:
+        """Load and save a cheque report from an Excel file.
+        
+        Args:
+            chequeReportPath: Path to the cheque report Excel file
+            year: Financial year
+            company: Company name
+        
+        Returns:
+            True if save successful, False otherwise
+        """
+        infiChequeStatement = InfiChequeStatement()
+        if not infiChequeStatement.setPath(chequeReportPath):
+            return False
+        infiChequeStatement.grab_data()  
+        infiChequeStatement.set_year(year)
+        infiChequeStatement.set_company(company)
+        self.chequeReportCollection.add_cheque_report_to_collection(infiChequeStatement)  
+        return True
+    
+    def delete_cheque_report(self, year: str, company: str) -> bool:
+        """Delete a cheque report from the collection.
+        
+        Args:
+            year: Financial year
+            company: Company name
+        
+        Returns:
+            True if delete successful, False otherwise
+        """
+        return self.chequeReportCollection.delete_cheque_report_from_collection(year, company)
+    
+    def get_all_table_snapshots(self) -> Dict[str, 'TableSnapshot']:
+        """Get all table snapshots in the collection.
+        
+        Returns:
+            Dictionary mapping reference keys to TableSnapshot objects
+        """
+        return self.tableSnapshotCollection.get_table_list()
+    
+    def get_all_cheque_reports(self) -> Dict[str, 'InfiChequeStatement']:
+        """Get all cheque reports in the collection.
+        
+        Returns:
+            Dictionary mapping reference keys to InfiChequeStatement objects
+        """
+        return self.chequeReportCollection.get_cheque_report_dict()
+
+
+class ExcelProcessor:
+    """Handle Excel import/export operations.
+    
+    This service class is responsible for reading from and writing to Excel files.
+    It handles exporting table data to Excel with multiple sheets for different views
+    (all data, selected, unselected, matched, unmatched).
+    
+    Responsibilities:
+        - Export table data to Excel files
+        - Create multiple sheets (selected, unselected, matched, unmatched)
+        - Apply formatting and styling
+        - Handle file operations (save, open)
+    
+    Thread Safety:
+        This class is thread-safe for independent operations.
+        Not safe if same file is written by multiple threads simultaneously.
+    """
+    
+    TABLE_HEADER = ['Bank Date', 'Bank Narration', 'Chq No', 'Party Name', 
+                    'Infi Date', 'Credit', 'Debit', 'Closing Balance']
+    
+    def get_header(self) -> List[str]:
+        """Get the standard table header.
+        
+        Returns:
+            List of column names for the table
+        """
+        return self.TABLE_HEADER
+    
+    def export_to_excel(self, folder_url: str, snapshot: 'TableSnapshot') -> Tuple[bool, int]:
+        """Export table snapshot to Excel file with multiple sheets.
+        
+        Creates an Excel file with 5 sheets:
+        1. Sheet_1: All data (selected rows highlighted in green)
+        2. Selected: Only selected rows
+        3. Unselected: Only unselected rows
+        4. Matched CHQReceipts(HDFC): Only matched cheque deposits
+        5. Unmatched CHQReceipts(HDFC): Only unmatched cheque deposits
+        
+        Args:
+            folder_url: Output path (can be folder or .xls file path)
+            snapshot: TableSnapshot object containing data to export
+        
+        Returns:
+            Tuple of (success: bool, error_code: int)
+            Error codes:
+                0: Success
+                -2: FileNotFoundError (invalid path)
+                -5: PermissionError (file is open or no write permission)
+                99: Other exception
+        """
+        # Initialize counters for each sheet
+        k = 0   # Main sheet
+        k2 = 0  # Selected sheet
+        k3 = 0  # Unselected sheet
+        k4 = 0  # Matched sheet
+        k5 = 0  # Unmatched sheet
+        
+        # Create workbook and sheets
+        export_workbook = xlwt.Workbook()
+        export_worksheet = export_workbook.add_sheet('Sheet_1')
+        selected_worksheet = export_workbook.add_sheet('Selected')
+        unselected_worksheet = export_workbook.add_sheet('Unselected')
+        matched_worksheet = export_workbook.add_sheet('Matched CHQReceipts(HDFC)')
+        unmatched_worksheet = export_workbook.add_sheet('Unmatched CHQReceipts(HDFC)')
+        
+        # Define styling
+        row_color_select = xlwt.easyxf('pattern: pattern solid, fore_colour light_green')
+        
+        # Write headers to all sheets
+        row = export_worksheet.row(k)
+        row_s2 = selected_worksheet.row(k2)
+        row_s3 = unselected_worksheet.row(k3)
+        row_s4 = matched_worksheet.row(k4)
+        row_s5 = unmatched_worksheet.row(k5)
+        
+        for j, header_item in enumerate(self.get_header()):
+            row.write(j, str(header_item))
+            row_s2.write(j, str(header_item))
+            row_s3.write(j, str(header_item))
+            row_s4.write(j, str(header_item))
+            row_s5.write(j, str(header_item))
+        
+        k += 1
+        
+        # Write data rows
+        for each in snapshot.get_master_table():
+            row = export_worksheet.row(k)
+            a = k - 1  # Row index (0-based)
+            
+            # Determine which additional sheets this row belongs to
+            is_selected = a in snapshot.get_master_selected_rows()
+            is_matched_chq_deposit = (each['Party Name'] != '' and 
+                                     each["Bank Narration"] != '' and 
+                                     each["Bank Narration"][0:7] == "CHQ DEP")
+            is_unmatched_chq_deposit = (each["Bank Narration"][0:7] == "CHQ DEP" and 
+                                       not is_matched_chq_deposit)
+            
+            # Prepare rows for conditional sheets
+            if is_selected:
+                k2 += 1
+                row_s2 = selected_worksheet.row(k2)
+            else:
+                k3 += 1
+                row_s3 = unselected_worksheet.row(k3)
+            
+            if is_matched_chq_deposit:
+                k4 += 1
+                row_s4 = matched_worksheet.row(k4)
+            elif is_unmatched_chq_deposit:
+                k5 += 1
+                row_s5 = unmatched_worksheet.row(k5)
+            
+            # Write cells for this row
+            for j, header_item in enumerate(self.get_header()):
+                cell = each[header_item]
+                
+                # Main sheet (with highlighting)
+                if is_selected:
+                    row.write(j, cell, row_color_select)
+                    row_s2.write(j, cell, row_color_select)
+                else:
+                    row.write(j, cell)
+                    row_s3.write(j, cell)
+                
+                # Matched/unmatched sheets
+                if is_matched_chq_deposit:
+                    row_s4.write(j, cell)
+                elif is_unmatched_chq_deposit:
+                    row_s5.write(j, cell)
+            
+            k += 1
+        
+        # Determine save path
+        if folder_url != '' and (folder_url.split('.')[-1].lower() != 'xls'):
+            save_file = folder_url + '/123.xls'
+        else:
+            save_file = folder_url
+        
+        # Save file
         try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-            base_path = sys._MEIPASS
+            export_workbook.save(save_file)
+            os.startfile(save_file)  # Open the file
+            return True, 0
+        except FileNotFoundError:
+            return False, -2
+        except PermissionError:
+            return False, -5
+        except Exception as e:
+            print(f"Error exporting to Excel: {e}")
+            return False, 99
+
+
+class SearchService:
+    """Handle search and filter operations on table data.
+    
+    This service class provides search functionality for table data using various
+    criteria such as cheque number, date, and amount. It supports multiple search
+    modes and handles data formatting for display.
+    
+    Responsibilities:
+        - Search by cheque number (partial match)
+        - Search by date (exact match with flexible format)
+        - Search by amount (debit or credit)
+        - Format search results for display
+    
+    Thread Safety:
+        This class is thread-safe as it doesn't maintain mutable state.
+        All methods operate on data passed as parameters.
+    """
+    
+    def __init__(self):
+        """Initialize search service."""
+        pass
+    
+    def format_table_data(self, _tableData: List[Dict]) -> List[Dict]:
+        """Format table data for display (apply locale formatting to numbers).
+        
+        Args:
+            _tableData: Raw table data (list of dictionaries)
+        
+        Returns:
+            Formatted table data with locale-formatted numbers
+        """
+        tableData = deepcopy(_tableData)
+        for each in tableData:
+            if each['Credit'] != '':
+                each['Credit'] = locale.format_string("%.2f", float(each['Credit']), grouping=True)
+            if each['Debit'] != '':
+                each['Debit'] = locale.format_string("%.2f", float(each['Debit']), grouping=True)
+            if each['Closing Balance'] != '':
+                each['Closing Balance'] = locale.format_string("%.2f", float(each['Closing Balance']), grouping=True)
+        return tableData
+    
+    def search(self, masterTableData: List[Dict], searchQuery: str, searchMode: str) -> List[Dict]:
+        """Search table data using specified mode and query.
+        
+        Args:
+            masterTableData: Table data to search (list of row dictionaries)
+            searchQuery: Search term entered by user
+            searchMode: Search mode ('bychqno', 'bydate', 'bychqamt')
+        
+        Returns:
+            Filtered and formatted table data matching the search criteria
+        """
+        # Empty query returns all data
+        if searchQuery == "":
+            return self.format_table_data(masterTableData)
+        
+        final_table = []
+        
+        if searchMode == "bychqno":
+            final_table = self._search_by_cheque_number(masterTableData, searchQuery)
+        elif searchMode == "bydate":
+            final_table = self._search_by_date(masterTableData, searchQuery)
+        elif searchMode == "bychqamt":
+            final_table = self._search_by_amount(masterTableData, searchQuery)
+        else:
+            final_table = masterTableData
+        
+        return self.format_table_data(final_table)
+    
+    def _search_by_cheque_number(self, masterTableData: List[Dict], searchQuery: str) -> List[Dict]:
+        """Search by cheque number (partial, case-insensitive match).
+        
+        Args:
+            masterTableData: Table data to search
+            searchQuery: Cheque number to search for
+        
+        Returns:
+            List of rows where cheque number contains the query
+        """
+        final_table = []
+        for each in masterTableData:
+            if searchQuery in each['Chq No'].lower():
+                final_table.append(each)
+        return final_table
+    
+    def _search_by_date(self, masterTableData: List[Dict], searchQuery: str) -> List[Dict]:
+        """Search by date (exact match with fuzzy year).
+        
+        Matches dates where day and month match exactly, and last 2 digits of year match.
+        Supports dd/mm/yyyy and dd/mm/yy formats.
+        
+        Args:
+            masterTableData: Table data to search
+            searchQuery: Date string in dd/mm/yyyy or dd/mm/yy format
+        
+        Returns:
+            List of rows matching the date
+        """
+        final_table = []
+        querydate = searchQuery.split('/')
+        
+        for each in masterTableData:
+            try:
+                # Parse bank date
+                date = dateutil.parser.parse(each['Bank Date'], dayfirst=True).strftime("%d/%m/%Y")
+                stmtdate = date.split('/')
+                
+                # Match day, month, and last 2 digits of year
+                if (stmtdate[0] == querydate[0] and
+                    stmtdate[1] == querydate[1] and
+                    stmtdate[2][-2:] == querydate[2][-2:]):
+                    final_table.append(each)
+            except Exception:
+                continue  # Skip rows with invalid dates
+        
+        return final_table
+    
+    def _search_by_amount(self, masterTableData: List[Dict], searchQuery: str) -> List[Dict]:
+        """Search by amount (partial match in credit or debit columns).
+        
+        Args:
+            masterTableData: Table data to search
+            searchQuery: Amount to search for (partial match)
+        
+        Returns:
+            List of rows where credit or debit contains the search query
+        """
+        final_table = []
+        for each in masterTableData:
+            if searchQuery in str(each["Credit"]) or searchQuery in str(each["Debit"]):
+                final_table.append(each)
+        return final_table
+
+
+class ValidationService:
+    """Handle data validation and business rule validation.
+    
+    This service class validates file paths, dates, and business rule constraints
+    for various operations like daybook generation and file exports.
+    
+    Responsibilities:
+        - Validate file paths and accessibility
+        - Validate date ranges and formats
+        - Validate daybook generation inputs
+        - Use existing Validator class for data validation
+    
+    Thread Safety:
+        This class is thread-safe as it's stateless.
+    """
+    
+    def __init__(self):
+        """Initialize validation service."""
+        self.intermediateDaybook = None
+    
+    def validate_daybook_inputs(self, path: str, fromDate: str, toDate: str, company: str) -> Tuple[bool, int]:
+        """Validate inputs for daybook generation.
+        
+        Args:
+            path: Path to intermediate daybook Excel file
+            fromDate: Start date in dd/mm/yyyy format
+            toDate: End date in dd/mm/yyyy format
+            company: Company name
+        
+        Returns:
+            Tuple of (success: bool, error_code: int)
+            Error codes:
+                1: Success
+                -1: Invalid file path
+                -2: Invalid fromDate format
+                -3: Invalid toDate format
+                -4: fromDate >= toDate (invalid range)
+                -5: Date range > 12 months
+                -8: Error reading Excel file
+        """
+        # Remove file:// prefix if present
+        if path.startswith('file:///'):
+            path = path[8:]
+        
+        self.intermediateDaybook = IntermediateDaybook(path, fromDate, toDate, company)
+        return self.intermediateDaybook.validateAndSetValues()
+    
+    def get_intermediate_daybook(self) -> Optional['IntermediateDaybook']:
+        """Get the validated intermediate daybook instance.
+        
+        Returns:
+            IntermediateDaybook instance if validation succeeded, None otherwise
+        """
+        return self.intermediateDaybook
+
+
+class DataProcessor:
+    """Process bank statements and match with cheque reports.
+    
+    This service class handles the core business logic of matching bank statement
+    entries with cheque report entries. It prepares table data by combining bank
+    statement information with matching cheque details.
+    
+    Responsibilities:
+        - Match bank statements with cheque reports
+        - Process HDFC and ICICI bank statements
+        - Calculate balances and date ranges
+        - Format table data for display
+        - Create table snapshots from statements
+    
+    Thread Safety:
+        This class is thread-safe for independent operations.
+    """
+    
+    def __init__(self):
+        """Initialize data processor."""
+        pass
+    
+    def format_table_data(self, _tableData: List[Dict]) -> List[Dict]:
+        """Format table data for display (apply locale formatting to numbers).
+        
+        Args:
+            _tableData: Raw table data
+        
+        Returns:
+            Formatted table data with locale-formatted numbers
+        """
+        tableData = deepcopy(_tableData)
+        for each in tableData:
+            if each['Credit'] != '':
+                each['Credit'] = locale.format_string("%.2f", float(each['Credit']), grouping=True)
+            if each['Debit'] != '':
+                each['Debit'] = locale.format_string("%.2f", float(each['Debit']), grouping=True)
+            if each['Closing Balance'] != '':
+                each['Closing Balance'] = locale.format_string("%.2f", float(each['Closing Balance']), grouping=True)
+        return tableData
+    
+    def calculate_balances_and_dates(self, master_table: List[Dict]) -> Tuple[str, str, str, str]:
+        """Calculate credit/debit balances and determine date range.
+        
+        Args:
+            master_table: Table data
+        
+        Returns:
+            Tuple of (credit_balance, debit_balance, start_date, end_date)
+            All formatted as strings
+        """
+        credit_bal = 0.0
+        debit_bal = 0.0
+        start_date, end_date = "", ""
+        
+        for each in master_table:
+            try:
+                bank_date = dateutil.parser.parse(each['Bank Date'], dayfirst=True)
+            except:
+                if each['meta'] == 'double':
+                    each['Bank Narration'] = "Double Match"
+                    continue
+                else:
+                    print(f"Error at entry: {each}")
+                    raise
+            
+            if start_date == "" or start_date > bank_date:
+                start_date = bank_date
+            if end_date == "" or end_date < bank_date:
+                end_date = bank_date
+            
+            if each['Credit'] != '':
+                credit_bal += float(each['Credit'])
+            if each['Debit'] != '':
+                debit_bal += float(each['Debit'])
+        
+        credit_bal_str = locale.format_string("%.2f", credit_bal, grouping=True)
+        debit_bal_str = locale.format_string("%.2f", debit_bal, grouping=True)
+        start_date_str = start_date.strftime("%Y/%m/%d")
+        end_date_str = end_date.strftime("%Y/%m/%d")
+        
+        return credit_bal_str, debit_bal_str, start_date_str, end_date_str
+    
+    def prepare_table_data(self, statementObj: Any, infiChequeStatement: Optional['InfiChequeStatement'], 
+                          previous_infiChequeStatement: Optional['InfiChequeStatement'], 
+                          bank: str) -> List[Dict]:
+        """Match bank statement entries with cheque report entries.
+        
+        This is the core business logic that matches bank transactions with
+        issued cheques using cheque number, amount, and date matching.
+        
+        Args:
+            statementObj: Bank statement object (HDFC or ICICI)
+            infiChequeStatement: Current year cheque report
+            previous_infiChequeStatement: Previous year cheque report (for cross-year matching)
+            bank: Bank name ('hdfc' or 'icici')
+        
+        Returns:
+            List of table rows (dictionaries) with matched data
+        """
+        if bank == 'hdfc':
+            return self._prepare_hdfc_table_data(statementObj, infiChequeStatement, previous_infiChequeStatement)
+        elif bank == 'icici':
+            return self._prepare_icici_table_data(statementObj, infiChequeStatement, previous_infiChequeStatement)
+        else:
+            raise ValueError(f"Unsupported bank: {bank}")
+    
+    def _prepare_hdfc_table_data(self, statementObj: 'HDFCBankChequeStatement', 
+                                  infiChequeStatement: Optional['InfiChequeStatement'],
+                                  previous_infiChequeStatement: Optional['InfiChequeStatement']) -> List[Dict]:
+        """Prepare table data for HDFC bank statements.
+        
+        Bank Statement Format (HDFC):
+        [0] Date, [1] Narration, [2] Chq./Ref.No., [3] Value Dt, 
+        [4] Withdrawal Amt., [5] Deposit Amt., [6] Closing Balance
+        """
+        bank_statement = statementObj.getEntryList()
+        final_table = []
+        
+        for bank_entry in bank_statement:
+            # Find matches in current year cheque report
+            if not infiChequeStatement:
+                match_list = []
+            else:
+                match_list = infiChequeStatement.findMatchByChequeNumber(
+                    bank_entry[2], bank_entry[5], bank_entry[0]
+                )
+            
+            # Try previous year if no match found
+            if len(match_list) == 0 and previous_infiChequeStatement:
+                match_list = previous_infiChequeStatement.findMatchByChequeNumber(
+                    bank_entry[2], bank_entry[5], bank_entry[0]
+                )
+            
+            # Process matches
+            if len(match_list) > 0:
+                for i in range(len(match_list)):
+                    infi_entry = match_list[i]
+                    
+                    if i == 0:
+                        # First match - include full bank entry
+                        table_row = {
+                            'Bank Date': bank_entry[0],
+                            'Bank Narration': bank_entry[1],
+                            'Chq No': bank_entry[2],
+                            'Party Name': infi_entry[3],
+                            'Infi Date': infi_entry[0],
+                            'Debit': bank_entry[4],
+                            'Credit': bank_entry[5],
+                            'Closing Balance': bank_entry[6],
+                            'meta': "" if len(match_list) == 1 else "double"
+                        }
+                    else:
+                        # Additional matches - show as separate rows
+                        print("Double match found.")
+                        table_row = {
+                            'Bank Date': "",
+                            'Bank Narration': "",
+                            'Chq No': bank_entry[2],
+                            'Party Name': infi_entry[3],
+                            'Infi Date': infi_entry[0],
+                            'Debit': "",
+                            'Credit': bank_entry[5],
+                            'Closing Balance': "",
+                            'meta': "double"
+                        }
+                    final_table.append(table_row)
+            else:
+                # No match found
+                table_row = {
+                    'Bank Date': bank_entry[0],
+                    'Bank Narration': bank_entry[1],
+                    'Chq No': bank_entry[2],
+                    'Party Name': "",
+                    'Infi Date': "",
+                    'Debit': bank_entry[4],
+                    'Credit': bank_entry[5],
+                    'Closing Balance': bank_entry[6],
+                    'meta': ""
+                }
+                final_table.append(table_row)
+        
+        return final_table
+    
+    def _prepare_icici_table_data(self, statementObj: 'ICICIBankChequeStatement',
+                                   infiChequeStatement: Optional['InfiChequeStatement'],
+                                   previous_infiChequeStatement: Optional['InfiChequeStatement']) -> List[Dict]:
+        """Prepare table data for ICICI bank statements."""
+        bank_statement = statementObj.getEntryList()
+        final_table = []
+        
+        for bank_entry in bank_statement:
+            # Find matches
+            if bank_entry[4] is not None and bank_entry[4] != '':
+                if not infiChequeStatement:
+                    match_list = []
+                else:
+                    match_list = infiChequeStatement.findMatchByChequeNumber(
+                        bank_entry[4], bank_entry[7], bank_entry[2]
+                    )
+                
+                if len(match_list) == 0 and previous_infiChequeStatement:
+                    match_list = previous_infiChequeStatement.findMatchByChequeNumber(
+                        bank_entry[4], bank_entry[7], bank_entry[2]
+                    )
+            else:
+                match_list = []
+            
+            # Determine credit/debit
+            cred_amt = '' if bank_entry[6] != 'CR' else bank_entry[7]
+            deb_amt = '' if bank_entry[6] != 'DR' else bank_entry[7]
+            
+            # Process matches
+            if len(match_list) > 0:
+                for i in range(len(match_list)):
+                    infi_entry = match_list[i]
+                    
+                    if i == 0:
+                        table_row = {
+                            'Bank Date': bank_entry[2],
+                            'Bank Narration': bank_entry[5],
+                            'Chq No': bank_entry[4],
+                            'Party Name': infi_entry[3],
+                            'Infi Date': infi_entry[0],
+                            'Credit': cred_amt,
+                            'Debit': deb_amt,
+                            'Closing Balance': bank_entry[8],
+                            'meta': "" if len(match_list) == 1 else "double"
+                        }
+                    else:
+                        print("Double match found.")
+                        table_row = {
+                            'Bank Date': "",
+                            'Bank Narration': "",
+                            'Chq No': bank_entry[4],
+                            'Party Name': infi_entry[3],
+                            'Infi Date': infi_entry[0],
+                            'Credit': cred_amt,
+                            'Debit': deb_amt,
+                            'Closing Balance': "",
+                            'meta': "double"
+                        }
+                    final_table.append(table_row)
+            else:
+                # No match
+                table_row = {
+                    'Bank Date': bank_entry[2],
+                    'Bank Narration': bank_entry[5],
+                    'Chq No': bank_entry[4],
+                    'Party Name': "",
+                    'Infi Date': "",
+                    'Credit': cred_amt,
+                    'Debit': deb_amt,
+                    'Closing Balance': bank_entry[8],
+                    'meta': ""
+                }
+                final_table.append(table_row)
+        
+        return final_table
+    
+    def add_snapshot_to_table(self, statement_path: str, month: str, year: str, 
+                             bank: str, company: str, 
+                             storageManager: 'StorageManager') -> Tuple[bool, int]:
+        """Create a table snapshot from a bank statement file.
+        
+        Args:
+            statement_path: Path to bank statement Excel file
+            month: Month name
+            year: Year string
+            bank: Bank name ('hdfc' or 'icici')
+            company: Company name
+            storageManager: StorageManager instance to access cheque reports
+        
+        Returns:
+            Tuple of (success: bool, status_code: int)
+            Status codes:
+                1: Success
+                -3: Invalid HDFC statement file
+                -4: Invalid ICICI statement file
+        """
+        # Determine financial year
+        if month in ['january', 'february', 'march']:
+            financial_year = str(int(year) - 1)
+        else:
+            financial_year = year
+        
+        previous_financial_year = str(int(financial_year) - 1)
+        print(f"FINANCIAL YEAR = {financial_year}")
+        
+        # Get cheque reports
+        infiChequeStatement = storageManager.get_cheque_report(financial_year, company)
+        previous_infiChequeStatement = storageManager.get_cheque_report(previous_financial_year, company)
+        
+        # Process bank statement
+        try:
+            if bank == 'hdfc':
+                statementObj = HDFCBankChequeStatement()
+                if not statementObj.setPath(statement_path):
+                    return False, -3
+                try:
+                    statementObj.grab_data()
+                except TypeError:
+                    return False, -3
+            else:  # ICICI
+                statementObj = ICICIBankChequeStatement()
+                if not statementObj.setPath(statement_path):
+                    return False, -4
+                try:
+                    statementObj.grab_data()
+                except TypeError:
+                    return False, -4
+            
+            # Prepare matched table data
+            master_table = self.prepare_table_data(
+                statementObj, infiChequeStatement, previous_infiChequeStatement, bank
+            )
+            
+            # Create and save snapshot
+            tableSnapshot = TableSnapshot(company, month, year, bank, master_table, [], None)
+            storageManager.save_table_snapshot(tableSnapshot)
+            
+            return True, 1
+            
+        except Exception as e:
+            print(f"Error creating snapshot: {e}")
+            return False, -99
+
+
+class DaybookService:
+    """Handle daybook generation operations.
+    
+    This service class manages the complex workflow of generating intermediate
+    daybooks from multiple table snapshots spanning a date range.
+    
+    Responsibilities:
+        - Validate daybook generation inputs
+        - Collect required table snapshots for date range
+        - Generate consolidated voucher entries
+        - Prepare intermediate daybook
+    
+    Thread Safety:
+        This class is not thread-safe due to mutable state.
+    """
+    
+    def __init__(self, validationService: 'ValidationService'):
+        """Initialize daybook service.
+        
+        Args:
+            validationService: ValidationService instance for input validation
+        """
+        self.validationService = validationService
+    
+    def generate_daybook(self, storageManager: 'StorageManager') -> Tuple[bool, int, str]:
+        """Generate intermediate daybook from table snapshots.
+        
+        Args:
+            storageManager: StorageManager to access table snapshots
+        
+        Returns:
+            Tuple of (success: bool, code: int, error_message: str)
+            Codes:
+                1: Success
+                -7: Missing snapshot for required month/year/bank
+        """
+        intermediateDaybook = self.validationService.get_intermediate_daybook()
+        if not intermediateDaybook:
+            return False, -99, "Daybook not validated"
+        
+        # Get date range
+        startDate = intermediateDaybook.getFromDate()
+        endDate = intermediateDaybook.getToDate()
+        company = intermediateDaybook.getCompany()
+        
+        # Build list of months in range
+        list_of_months = []
+        tempDate = startDate
+        while True:
+            month_name = tempDate.strftime('%B')
+            month = tempDate.month
+            year = tempDate.year
+            list_of_months.append([month_name, year])
+            if month == endDate.month and year == endDate.year:
+                break
+            tempDate = tempDate + relativedelta(months=+1)
+        
+        print(list_of_months)
+        
+        # Collect snapshots for all required months/banks
+        snapshot_list = []
+        banks = ['icici']
+        if company == 'gokul':
+            banks.append('hdfc')
+        
+        for bank in banks:
+            for [month, year] in list_of_months:
+                snapshot = storageManager.get_table_snapshot(month, str(year), bank, company)
+                if not snapshot:
+                    print(f"No snapshot for {month} {year} {bank} {company}")
+                    return False, -7, f"{month} {year} {bank}"
+                snapshot_list.append(snapshot)
+        
+        # Prepare consolidated vouchers
+        consolidatedReceiptVouchers = ConsolidatedReceiptVouchers(snapshot_list)
+        consolidatedReceiptVouchers.prepare_df(startDate, endDate, mode="matched_cheques")
+        consolidatedReceiptVouchers.prepare_df(startDate, endDate, mode="chequeless_receipts")
+        
+        consolidatedPaymentVouchers = ConsolidatedPaymentVouchers(snapshot_list)
+        consolidatedPaymentVouchers.prepare_df(startDate, endDate)
+        
+        # Generate daybook
+        intermediateDaybook.prepare_daybook(
+            consolidatedReceiptVouchers.get_receipt_with_cheques_df(),
+            consolidatedPaymentVouchers.get_payment_entries_df(),
+            consolidatedReceiptVouchers.get_receipt_without_cheques_df()
+        )
+        
+        return True, 1, ''
+
+
+class FirebaseService:
+    """Handle Firebase synchronization operations.
+    
+    This service class manages uploading and downloading data to/from Firebase,
+    including left menu data, table snapshots, and cheque reports. It uses async
+    operations with progress callbacks.
+    
+    Responsibilities:
+        - Upload data to Firebase (left menu, snapshots, reports)
+        - Download data from Firebase
+        - Batch operations for better performance
+        - Progress reporting via callbacks
+    
+    Thread Safety:
+        Uses FirebaseControls which is thread-safe via connection pooling.
+    """
+    
+    def __init__(self):
+        """Initialize Firebase service with connection pooling."""
+        self.firebaseControls = FirebaseControls()
+        
+        # Get base path for left menu JSON
+        try:
+            base_path = sys._MEIPASS  # type: ignore
         except Exception:
             base_path = os.path.abspath(".")
-        req_path = os.path.join(base_path, 'data.json')
-        self.leftMenuJsonPath = req_path
-        return
-
-    def upload_data_to_firebase_db(self, callbackFuncforProgress):
-        """Upload data to Firebase using async batch operations.
+        self.leftMenuJsonPath = os.path.join(base_path, 'data.json')
+    
+    def upload_all_data(self, callbackFuncforProgress: callable, storageManager: 'StorageManager') -> None:
+        """Upload all data to Firebase (left menu, snapshots, reports).
         
         Args:
             callbackFuncforProgress: Callback function(text1, text2, progress)
+            storageManager: StorageManager to access collections
         """
+        # Upload left menu
         print("Uploading left-menu values to db")
-        callbackFuncforProgress("Processing Left Menu values", "Retrieving values to upload",0.0)
+        callbackFuncforProgress("Processing Left Menu values", "Retrieving values to upload", 0.0)
         
-        # Upload left menu data asynchronously
         with open(self.leftMenuJsonPath) as f:
             data = json.load(f)
         leftmenu_future = self.firebaseControls.set_leftMenu_data_async(data)
         
         print("Uploading tableSnapshot values to db")
-        callbackFuncforProgress("Processing Left Menu values", "Uploading...",0.5)
+        callbackFuncforProgress("Processing Left Menu values", "Uploading...", 0.5)
         
-        # Wait for left menu upload to complete
         try:
-            leftmenu_future.result(timeout=30)  # 30 second timeout
-            callbackFuncforProgress("Processing Left Menu values", "Finished uploading",1.0)
+            leftmenu_future.result(timeout=30)
+            callbackFuncforProgress("Processing Left Menu values", "Finished uploading", 1.0)
         except Exception as e:
             print(f"Error uploading left menu: {e}")
-            callbackFuncforProgress("Processing Left Menu values", "Error occurred",1.0)
-
-        # Prepare cheque reports for batch upload
-        callbackFuncforProgress("Processing cheque reports", "Retrieving snapshots to upload",0.0)
-        collection_dict = self.chequeReportCollection.get_cheque_report_dict()
+            callbackFuncforProgress("Processing Left Menu values", "Error occurred", 1.0)
+        
+        # Upload cheque reports
+        callbackFuncforProgress("Processing cheque reports", "Retrieving snapshots to upload", 0.0)
+        collection_dict = storageManager.get_all_cheque_reports()
         print(f"Found {len(collection_dict)} cheque reports to upload")
         
-        # Create batch upload dict
         cheque_upload_dict = {}
         for key, obj in collection_dict.items():
             if obj:
                 cheque_upload_dict[key] = obj.get_json()
         
-        # Upload cheque reports in batch using async operations
         if cheque_upload_dict:
             def cheque_progress(current, total, key):
                 progress = round(current * 8 / total) / 10
@@ -1181,20 +2078,18 @@ class  TableOperations:
             
             self.firebaseControls.batch_set_chequeReports(cheque_upload_dict, cheque_progress)
         
-        callbackFuncforProgress("Processing cheque reports", "Finished",1.0)     
-
-        # Prepare table snapshots for batch upload
-        callbackFuncforProgress("Processing table snapshots", "Retrieving values to upload",0.0)
-        table_list = self.tableSnapshotCollection.get_table_list()
+        callbackFuncforProgress("Processing cheque reports", "Finished", 1.0)
+        
+        # Upload table snapshots
+        callbackFuncforProgress("Processing table snapshots", "Retrieving values to upload", 0.0)
+        table_list = storageManager.get_all_table_snapshots()
         print(f"Found {len(table_list)} table snapshots to upload")
         
-        # Create batch upload dict
         snapshot_upload_dict = {}
         for key, obj in table_list.items():
             if obj:
                 snapshot_upload_dict[key] = obj.get_json()
         
-        # Upload table snapshots in batch using async operations
         if snapshot_upload_dict:
             def snapshot_progress(current, total, key):
                 progress = round(current * 8 / total) / 10
@@ -1203,63 +2098,42 @@ class  TableOperations:
             
             self.firebaseControls.batch_set_tableSnapshots(snapshot_upload_dict, snapshot_progress)
         
-        callbackFuncforProgress("Processing table snapshots", "Finished",1.0)
-        return
+        callbackFuncforProgress("Processing table snapshots", "Finished", 1.0)
     
-    def get_data_from_firebase_db(self, callbackFuncforProgress):
-        """Download data from Firebase using async operations.
+    def download_all_data(self, callbackFuncforProgress: callable, storageManager: 'StorageManager') -> None:
+        """Download all data from Firebase.
         
         Args:
             callbackFuncforProgress: Callback function(text1, text2, progress)
+            storageManager: StorageManager to save downloaded data
         """
+        # Download left menu
         print("Getting left-menu values from db")
-        callbackFuncforProgress("Processing Left Menu values", "Downloading values from Firebase",0.0)
+        callbackFuncforProgress("Processing Left Menu values", "Downloading values from Firebase", 0.0)
         
-        # Start async download of left menu data
         leftmenu_future = self.firebaseControls.get_leftMenu_data_async()
         
-        # Wait for download to complete
         try:
-            data = leftmenu_future.result(timeout=30)  # 30 second timeout
+            data = leftmenu_future.result(timeout=30)
             data = json.dumps(data, indent=4)
-            callbackFuncforProgress("Processing Left Menu values", "Writing values to local file",0.5)
+            callbackFuncforProgress("Processing Left Menu values", "Writing values to local file", 0.5)
             with open(self.leftMenuJsonPath, "w") as outfile:
                 outfile.write(data)
-            callbackFuncforProgress("Processing Left Menu values", "Finished",1.0)
+            callbackFuncforProgress("Processing Left Menu values", "Finished", 1.0)
         except Exception as e:
             print(f"Error downloading left menu: {e}")
-            callbackFuncforProgress("Processing Left Menu values", "Error occurred",1.0)
-
-        callbackFuncforProgress("Processing cheque reports", "Downloading values from Firebase",0.0)
-        # incomingChequeReport = self.firebaseControls.get_chequeReport()
-        # total_val = len(incomingChequeReport)
-        # count=0
-        # if chequeReport:
-        #     for key in incomingChequeReport:
-        #         count+=1
-        #         callbackFuncforProgress("Processing cheque reports", "Writing "+key,round(count*8/total_val)/10)
-        #         chequeReport = self.chequeReportCollection.get_table_from_collection_by_reference(key)
-        #         if not chequeReport:
-        #             print("New chequeReport: " , key)
-        #         else:
-        #             print("Replacing existing chequeReport: " , key)
-        #         chequeReport = InfiChequeStatement()
-        #         chequeReport.set_entry_list(incomingChequeReport[key]['entry_list'])
-        #         self.chequeReportCollection.add_cheque_report_to_collection(chequeReport, key)
-        #     callbackFuncforProgress("Processing cheque reports", "Finalizing",0.9)
-        #     self.chequeReportCollection.save_cheque_report_collection()
-        # else:
-        #     # MOD FOR BUSY
-        #     pass        
-        print("Downloading tableSnapshot values from db")
-        callbackFuncforProgress("Processing table snapshots", "Downloading values from Firebase",0.0)
+            callbackFuncforProgress("Processing Left Menu values", "Error occurred", 1.0)
         
-        # Start async download of table snapshots
+        callbackFuncforProgress("Processing cheque reports", "Downloading values from Firebase", 0.0)
+        
+        # Download table snapshots
+        print("Downloading tableSnapshot values from db")
+        callbackFuncforProgress("Processing table snapshots", "Downloading values from Firebase", 0.0)
+        
         snapshot_future = self.firebaseControls.get_tableSnapshot_async()
         
-        # Wait for download to complete
         try:
-            incomingTableSnapshotData = snapshot_future.result(timeout=60)  # 60 second timeout
+            incomingTableSnapshotData = snapshot_future.result(timeout=60)
             
             if incomingTableSnapshotData:
                 total_val = len(incomingTableSnapshotData)
@@ -1270,17 +2144,22 @@ class  TableOperations:
                     progress = round(count * 8 / total_val) / 10
                     callbackFuncforProgress("Processing table snapshots", f"Writing {key}", progress)
                     
-                    tableSnapshot = self.tableSnapshotCollection.get_table_from_collection_by_reference(key)
+                    tableSnapshot = storageManager.get_table_snapshot(
+                        incomingTableSnapshotData[key]['month'],
+                        incomingTableSnapshotData[key]['year'],
+                        incomingTableSnapshotData[key]['bank'],
+                        incomingTableSnapshotData[key]['company']
+                    )
+                    
                     if not tableSnapshot:
                         print(f"New tableSnapshot for {key}")
                         tableSnapshot = TableSnapshot(incomingTableSnapshotData[key])
-                        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
+                        storageManager.save_table_snapshot(tableSnapshot)
                     else:
-                        print(f"Existing tableSnapshot found for {key}, replacing master table data")    
+                        print(f"Existing tableSnapshot found for {key}, replacing master table data")
                         tableSnapshot.set_master_table(incomingTableSnapshotData[key]['master_table'])
                 
                 callbackFuncforProgress("Processing table snapshots", "Finalizing", 0.9)
-                self.tableSnapshotCollection.save_table()
             else:
                 print("No table snapshots found in Firebase")
             
@@ -1288,438 +2167,275 @@ class  TableOperations:
         except Exception as e:
             print(f"Error downloading table snapshots: {e}")
             callbackFuncforProgress("Processing table snapshots", "Error occurred", 1.0)
-        
-        return        
 
+
+class  TableOperations:
+    """Coordinator class for table operations using service-oriented architecture.
+    
+    This class has been refactored to follow the Single Responsibility Principle.
+    It delegates responsibilities to focused service classes:
+    - StorageManager: Pickle persistence
+    - ExcelProcessor: Excel import/export
+    - SearchService: Search operations
+    - ValidationService: Input validation
+    - FirebaseService: Firebase sync
+    - DataProcessor: Business logic (matching)
+    - DaybookService: Daybook generation
+    
+    This class maintains backward compatibility with existing code while improving
+    maintainability, testability, and code organization.
+    """
+    
+    def __init__(self):
+        """Initialize table operations coordinator and all service classes."""
+        # Initialize service classes
+        self.storageManager = StorageManager()
+        self.excelProcessor = ExcelProcessor()
+        self.searchService = SearchService()
+        self.validationService = ValidationService()
+        self.firebaseService = FirebaseService()
+        self.dataProcessor = DataProcessor()
+        self.daybookService = DaybookService(self.validationService)
+        
+        # Maintain backward compatibility with old attributes
+        self.tableSnapshotCollection = self.storageManager.tableSnapshotCollection
+        self.chequeReportCollection = self.storageManager.chequeReportCollection
+        self.firebaseControls = self.firebaseService.firebaseControls
+        self.leftMenuJsonPath = self.firebaseService.leftMenuJsonPath
+        self.TableSnapshot = None
+        
+        # Instance variables for backward compatibility (set by various methods)
+        self.month = None
+        self.year = None
+        self.bank = None
+        self.company = None
+        
+        print("TableOperations initialized with service-oriented architecture")
+
+    # ===== Firebase Operations (delegate to FirebaseService) =====
+    
+    def upload_data_to_firebase_db(self, callbackFuncforProgress):
+        """Upload data to Firebase using async batch operations.
+        
+        Args:
+            callbackFuncforProgress: Callback function(text1, text2, progress)
+        """
+        return self.firebaseService.upload_all_data(callbackFuncforProgress, self.storageManager)
+    
+    def get_data_from_firebase_db(self, callbackFuncforProgress):
+        """Download data from Firebase using async operations.
+        
+        Args:
+            callbackFuncforProgress: Callback function(text1, text2, progress)
+        """
+        return self.firebaseService.download_all_data(callbackFuncforProgress, self.storageManager)
+
+    # ===== Storage Operations (delegate to StorageManager) =====
+    
     def get_table_from_collection(self, month, year, bank, company):
+        """Get table snapshot from collection with calculated balances and date range.
+        
+        Args:
+            month: Month name
+            year: Year as string
+            bank: Bank name
+            company: Company name
+        
+        Returns:
+            Tuple of (snapshot, formatted_data, credit_bal, debit_bal, start_date, end_date)
+        """
+        # Store parameters for backward compatibility (used by other methods)
         self.month = month
         self.year = year
         self.bank = bank
         self.company = company
-        snapshot = self.tableSnapshotCollection.get_table_from_collection(month,year,bank,company) 
+        
+        snapshot = self.storageManager.get_table_snapshot(month, year, bank, company)
         if not snapshot:
-            return snapshot,'', '', '', '', ''
-        credit_bal = 0.0
-        debit_bal = 0.0       
+            return snapshot, '', '', '', '', ''
+        
+        # Get master table and calculate balances
         master_table = snapshot.get_master_table()
-        start_date, end_date = "", ""
-        for each in master_table:
-            try:
-                bank_date = dateutil.parser.parse(each['Bank Date'], dayfirst=True)
-            except:
-                if(each['meta'] == 'double'):
-                    each['Bank Narration'] = "Double Match"
-                    continue
-                else:
-                    print("Error at entry ",each)
-                    raise
-            if start_date == "" or start_date>bank_date:
-                start_date = bank_date 
-            if end_date == "" or end_date<bank_date:
-                end_date = bank_date  
-            if(each['Credit'] != ''):
-                credit_bal+=float(each['Credit'])
-            if(each['Debit'] != ''):
-                debit_bal+=float(each['Debit'])
-        credit_bal = locale.format_string("%.2f", credit_bal, grouping=True)  
-        debit_bal =  locale.format_string("%.2f", debit_bal, grouping=True)  
-        # print(start_date, end_date)
-        start_date = start_date.strftime("%Y/%m/%d")
-        end_date = end_date.strftime("%Y/%m/%d")
-        return snapshot, self.format_table_data(master_table), credit_bal, debit_bal, start_date, end_date
-
+        credit_bal, debit_bal, start_date, end_date = self.dataProcessor.calculate_balances_and_dates(master_table)
+        
+        # Format table data for display
+        formatted_data = self.dataProcessor.format_table_data(master_table)
+        
+        return snapshot, formatted_data, credit_bal, debit_bal, start_date, end_date
+    
     def format_table_data(self, _tableData):
-        tableData = deepcopy(_tableData)
-        for each in tableData:
-            if(each['Credit'] != ''):
-                each['Credit'] = locale.format_string("%.2f", float(each['Credit']), grouping=True)
-            if(each['Debit'] != ''):
-                each['Debit'] = locale.format_string("%.2f", float(each['Debit']), grouping=True)
-            if each['Closing Balance']!='':    
-                each['Closing Balance'] = locale.format_string("%.2f", float(each['Closing Balance']), grouping=True)    
-        return tableData    
-
+        """Format table data for display (delegate to DataProcessor).
+        
+        Args:
+            _tableData: Raw table data
+        
+        Returns:
+            Formatted table data
+        """
+        return self.dataProcessor.format_table_data(_tableData)
+    
     def delete_table_from_collection(self, month, year, bank, company):
-        return self.tableSnapshotCollection.delete_table_from_collection(month,year,bank,company)        
+        """Delete table snapshot from collection.
+        
+        Args:
+            month: Month name
+            year: Year as string
+            bank: Bank name
+            company: Company name
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        return self.storageManager.delete_table_snapshot(month, year, bank, company)
+    
     def delete_chequeReport_from_collection(self, year, company):
-        return self.chequeReportCollection.delete_cheque_report_from_collection(year,company)          
-
+        """Delete cheque report from collection.
+        
+        Args:
+            year: Financial year
+            company: Company name
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        return self.storageManager.delete_cheque_report(year, company)
+    
     def get_chequeReport_from_collection(self, year, company):
+        """Get cheque report from collection.
+        
+        Args:
+            year: Financial year
+            company: Company name
+        
+        Returns:
+            InfiChequeStatement object if found, None otherwise
+        """
+        # Store parameters for backward compatibility
         self.year = year
         self.company = company
-        return self.chequeReportCollection.get_cheque_report_from_collection(year, company)     
-
-    def prepare_table_data(self, statementObj, infiChequeStatement, previous_infiChequeStatement):
-        # Bank
-        # Date	Narration	Chq./Ref.No.	Value Dt	Withdrawal Amt.	Deposit Amt.	Closing Balance
-        # 0     1           2               3           4               5               6
-        # Infi
-        # Trans. Date	Chq. Date	Bank Name	Account Head	Chq. No	Amount	Narration	Issued Date	Passed Date	Voucher
-        # 0             1           2           3               4       5       6           7           8           9 
-        if(self.bank=='hdfc'):
-            bank_statement = statementObj.getEntryList()
-            final_table = []
-            for bank_entry in bank_statement:
-                # if(not isinstance(bank_entry[2], int)):
-                #     continue
-                if not infiChequeStatement:
-                    match_list = []
-                else:
-                    match_list = infiChequeStatement.findMatchByChequeNumber(bank_entry[2], bank_entry[5], bank_entry[0])
-                # if len(match_list)>1:
-                #     print("match_list: ",match_list)
-                if len(match_list)==0 and previous_infiChequeStatement:
-                    match_list = previous_infiChequeStatement.findMatchByChequeNumber(bank_entry[2], bank_entry[5], bank_entry[0])
-                if len(match_list)>0:
-                    for i in range(len(match_list)):
-                        infi_entry = match_list[i]
-                        if i==0:
-                            table_row={}
-                            table_row['Bank Date'] = bank_entry[0]
-                            table_row['Bank Narration'] = bank_entry[1]
-                            table_row['Chq No'] = bank_entry[2]
-                            table_row['Party Name'] = infi_entry[3]
-                            table_row['Infi Date'] = infi_entry[0]
-                            table_row['Debit'] = bank_entry[4]
-                            table_row['Credit'] = bank_entry[5]
-                            table_row['Closing Balance'] = bank_entry[6]
-                            if len(match_list)==1:
-                                table_row['meta'] =""
-                            else:
-                                table_row['meta'] ="double"
-                        else:
-                            print("Double match found.")
-                            table_row={}
-                            table_row['Bank Date'] = ""
-                            table_row['Bank Narration'] = ""
-                            table_row['Chq No'] = bank_entry[2]
-                            table_row['Party Name'] = infi_entry[3]
-                            table_row['Infi Date'] = infi_entry[0]
-                            table_row['Debit'] = ""
-                            table_row['Credit'] = bank_entry[5]
-                            table_row['Closing Balance'] = ""
-                            table_row['meta'] = "double"
-                        final_table.append(table_row)            
-
-                else:
-                    table_row={}
-                    table_row['Bank Date'] = bank_entry[0]
-                    table_row['Bank Narration'] = bank_entry[1]
-                    table_row['Chq No'] = bank_entry[2]
-                    table_row['Party Name'] = ""
-                    table_row['Infi Date'] = ""
-                    table_row['Debit'] = bank_entry[4]
-                    table_row['Credit'] = bank_entry[5]
-                    table_row['Closing Balance'] = bank_entry[6]
-                    table_row['meta'] = ""                    
-                    final_table.append(table_row)      
-
-        elif(self.bank=='icici'):
-            bank_statement = statementObj.getEntryList()
-            final_table = []
-            for bank_entry in bank_statement:
-                if(bank_entry[4]!=None or bank_entry[4] != ''):
-                    if not infiChequeStatement:
-                        match_list = []
-                    else:
-                        match_list = infiChequeStatement.findMatchByChequeNumber(bank_entry[4], bank_entry[7], bank_entry[2])
-                if len(match_list)==0 and previous_infiChequeStatement:
-                    match_list = previous_infiChequeStatement.findMatchByChequeNumber(bank_entry[4], bank_entry[7], bank_entry[2])    
-                cred_amt = ''
-                deb_amt = ''
-                if bank_entry[6] == 'CR':
-                    cred_amt = bank_entry[7]
-                elif bank_entry[6] == 'DR':
-                    deb_amt = bank_entry[7]  
-                if len(match_list)>0:
-                    for i in range(len(match_list)):
-                        infi_entry = match_list[i]
-                        if i==0:
-                            table_row={}
-                            table_row['Bank Date'] = bank_entry[2]
-                            table_row['Bank Narration'] = bank_entry[5]
-                            table_row['Chq No'] = bank_entry[4]
-                            table_row['Party Name'] = infi_entry[3]
-                            table_row['Infi Date'] = infi_entry[0]
-                            table_row['Credit'] = cred_amt
-                            table_row['Debit'] = deb_amt
-                            table_row['Closing Balance'] = bank_entry[8]
-                            if len(match_list)==1:
-                                table_row['meta'] = ""    
-                            else:
-                                table_row['meta'] = "double"    
-                        else:
-                            print("Double match found.")
-                            table_row={}
-                            table_row['Bank Date'] = ""
-                            table_row['Bank Narration'] = ""
-                            table_row['Chq No'] = bank_entry[4]
-                            table_row['Party Name'] = infi_entry[3]
-                            table_row['Infi Date'] = infi_entry[0]
-                            table_row['Credit'] = cred_amt
-                            table_row['Debit'] = deb_amt
-                            table_row['Closing Balance'] = ""
-                            table_row['meta'] = "double"
-                        final_table.append(table_row)            
-
-                else:
-                    table_row={}
-                    table_row['Bank Date'] = bank_entry[2]
-                    table_row['Bank Narration'] = bank_entry[5]
-                    table_row['Chq No'] = bank_entry[4]
-                    table_row['Party Name'] = "" 
-                    table_row['Infi Date'] = ""
-                    table_row['Credit'] = cred_amt
-                    table_row['Debit'] = deb_amt
-                    table_row['Closing Balance'] = bank_entry[8]
-                    table_row['meta'] = ""    
-                    final_table.append(table_row)    
-        return final_table      
-
-    # DEPRACATED 
-    # def convert_old_schema_to_new_schema(self):
-    #     oldTableSnapshotCollection = TableSnapshotCollection()
-    #     if not oldTableSnapshotCollection.load_old_table():
-    #         print('No old table snapshot found')
-    #         return False
-    #     collection = oldTableSnapshotCollection.get_table_list()
-    #     # for snapshot in collection:
-    #     for key,snapshot in collection.items():    
-    #         master_table = snapshot.get_master_table()
-    #         root_dict = []
-    #         if not snapshot.get_company():
-    #             company = key.split('_')[0]
-    #             snapshot.set_company(company)
-    #         selected_rows_new = []    
-    #         selected_rows_old = snapshot.get_master_selected_rows()
-    #         for each in selected_rows_old:
-    #             if isinstance(each, list):
-    #                 selected_rows_new.append(each[0])
-    #         if selected_rows_new!=[]:            
-    #             snapshot.set_master_selected_rows(selected_rows_new)
-    #         for row in master_table:
-    #             row_dict={}
-    #             row_dict['Bank Date'] = row[0]
-    #             row_dict['Bank Narration'] = row[1]
-    #             row_dict['Chq No'] = row[2]
-    #             row_dict['Party Name'] = row[3]
-    #             row_dict['Infi Date'] = row[4]
-    #             row_dict['Credit'] = row[5]
-    #             row_dict['Debit'] = row[6]
-    #             row_dict['Closing Balance'] = row[7]
-    #             row_dict['meta'] = row[8]
-    #             root_dict.append(row_dict)  
-    #         snapshot.set_master_table(root_dict) 
-    #         self.tableSnapshotCollection.add_table_to_colection(snapshot)
-    #     print('Renaming old file')
-    #     oldTableSnapshotCollection.rename_old_save_path()
-    #     print('Reloading table snapshot collection')
-    #     if self.tableSnapshotCollection.load_table():
-    #         print('TablesnapshotCollection reload success!!')
-    #     return True
-        
-    def add_snapshot_to_table(self, statement_path):
-        
-        if self.month in ['january', 'february', 'march']:
-            financial_year = str(int(self.year)-1)
-        else:
-            financial_year = self.year    
-        
-        # financial_year = self.year            
-        previous_financial_year = str(int(financial_year)-1)   
-        print("FINANCIAL YEAR =", financial_year)
-        infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(financial_year,self.company)
-        previous_infiChequeStatement=self.chequeReportCollection.get_cheque_report_from_collection(previous_financial_year,self.company)
-        if not infiChequeStatement:
-            # return False, -1
-            # WORKAROUND FOR BUSY
-            pass
-        if self.bank == 'hdfc':
-            hdfcBankChequeStatement = HDFCBankChequeStatement()
-            if not hdfcBankChequeStatement.setPath(statement_path):
-                return False, -3
-            try:
-                hdfcBankChequeStatement.grab_data()    
-            except TypeError:
-                return False, -3                    
-            master_table = self.prepare_table_data(hdfcBankChequeStatement, infiChequeStatement, previous_infiChequeStatement)    
-        else:
-            iciciBankChequeStatement = ICICIBankChequeStatement()
-            if not iciciBankChequeStatement.setPath(statement_path):
-                return False, -4
-            try:
-                iciciBankChequeStatement.grab_data()    
-            except TypeError:
-                return False, -4    
-            master_table = self.prepare_table_data(iciciBankChequeStatement, infiChequeStatement, previous_infiChequeStatement)    
-        tableSnapshot = TableSnapshot(self.company, self.month, self.year, self.bank, master_table,[],None)
-        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
-        return True, 1
-
+        return self.storageManager.get_cheque_report(year, company)
+    
     def save_snapshot_to_table(self, tableSnapshot):
-        self.tableSnapshotCollection.add_table_to_colection(tableSnapshot)
-
+        """Save table snapshot to collection.
+        
+        Args:
+            tableSnapshot: TableSnapshot object to save
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        return self.storageManager.save_table_snapshot(tableSnapshot)
+    
     def save_chequeReport_to_collection(self, chequeReportpath):
-        infiChequeStatement = InfiChequeStatement()
-        if not infiChequeStatement.setPath(chequeReportpath):
-            return False
-        infiChequeStatement.grab_data()  
-        infiChequeStatement.set_year(self.year)
-        infiChequeStatement.set_company(self.company)
-        self.chequeReportCollection.add_cheque_report_to_collection(infiChequeStatement)  
-        return True
+        """Save cheque report from Excel file to collection.
+        
+        Note: This method stores year and company in instance variables
+        for backward compatibility. New code should pass these as parameters.
+        
+        Args:
+            chequeReportpath: Path to cheque report Excel file
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        return self.storageManager.save_cheque_report(chequeReportpath, self.year, self.company)
 
-    def search(self, masterTableData, searchQuery, searchMode):
-        # print(masterTableData)
-        final_table = list()
-        if searchQuery == "":
-            return self.format_table_data(masterTableData)
-        if searchMode == "bychqno":
-            for each in masterTableData:
-                # if(format_chqNo( each['Chq No'])== format_chqNo( searchQuery)):   
-                if searchQuery in each['Chq No'].lower(): 
-                    final_table.append(each)
-        elif searchMode == "bydate":
-            for each in masterTableData:
-                date = dateutil.parser.parse(each['Bank Date'], dayfirst=True).strftime("%d/%m/%Y")
-                stmtdate = date.split('/')
-                querydate = searchQuery.split('/')
-                if stmtdate[0] == querydate[0]:
-                    if stmtdate[1] == querydate[1]:
-                        if stmtdate[2][-2:] == querydate[2][-2:]:
-                            final_table.append(each)
-        elif searchMode == "bychqamt":
-            for each in masterTableData:
-                if searchQuery in str(each["Credit"]) or searchQuery in str(each["Debit"]):
-                    final_table.append(each)
-        else: final_table = masterTableData
-        return self.format_table_data(final_table)
+    # ===== Data Processing (delegate to DataProcessor) =====
+    
+    def prepare_table_data(self, statementObj, infiChequeStatement, previous_infiChequeStatement):
+        """Match bank statement entries with cheque report entries.
+        
+        Note: Uses instance variable self.bank for backward compatibility.
+        
+        Args:
+            statementObj: Bank statement object (HDFC or ICICI)
+            infiChequeStatement: Current year cheque report
+            previous_infiChequeStatement: Previous year cheque report
+        
+        Returns:
+            List of table rows with matched data
+        """
+        return self.dataProcessor.prepare_table_data(
+            statementObj, infiChequeStatement, previous_infiChequeStatement, self.bank
+        )
+    
+    def add_snapshot_to_table(self, statement_path):
+        """Create table snapshot from bank statement file.
+        
+        Note: Uses instance variables (month, year, bank, company) for backward compatibility.
+        
+        Args:
+            statement_path: Path to bank statement Excel file
+        
+        Returns:
+            Tuple of (success: bool, status_code: int)
+        """
+        return self.dataProcessor.add_snapshot_to_table(
+            statement_path, self.month, self.year, self.bank, self.company, self.storageManager
+        )
 
-    def get_header(self):
-        return ['Bank Date', 'Bank Narration', 'Chq No','Party Name' ,'Infi Date','Credit', 'Debit', 'Closing Balance' ]
-
+    # ===== Excel Operations (delegate to ExcelProcessor) =====
+    
     def export_to_excel(self, folder_url, snapshot):
-        k=0
-        k2=0
-        k3=0
-        k4=0
-        k5=0
-        export_workbook = xlwt.Workbook()
-        export_worksheet = export_workbook.add_sheet('Sheet_1')
-        selected_worksheet = export_workbook.add_sheet('Selected')
-        unselected_worksheet = export_workbook.add_sheet('Unselected')
-        matched_worksheet = export_workbook.add_sheet('Matched CHQReceipts(HDFC)')
-        unmatched_worksheet = export_workbook.add_sheet('Unmatched CHQReceipts(HDFC)')
-        row_color_select = xlwt.easyxf('pattern: pattern solid, fore_colour light_green')
-        row = export_worksheet.row(k)
-        row_s2 = selected_worksheet.row(k2)
-        row_s3 = unselected_worksheet.row(k3)
-        row_s4 = matched_worksheet.row(k4)
-        row_s5 = unmatched_worksheet.row(k5)        
-        j=0
-        for each in self.get_header():
-            row.write(j,str(each))
-            row_s2.write(j,str(each))
-            row_s3.write(j,str(each))
-            row_s4.write(j,str(each))
-            row_s5.write(j,str(each))
-            j+=1
-        k+=1
-        for each in snapshot.get_master_table():
-            row = export_worksheet.row(k)
-            j=0
-            a = k-1
-            if a in snapshot.get_master_selected_rows():
-                k2+=1
-                row_s2 = selected_worksheet.row(k2)
-            else:
-                k3+=1
-                row_s3 = unselected_worksheet.row(k3)
-            if(each['Party Name'] != '' and each["Bank Narration"] != '' and each["Bank Narration"][0:7]=="CHQ DEP"):
-                k4+=1
-                row_s4 = matched_worksheet.row(k4) 
-            elif(each["Bank Narration"][0:7]=="CHQ DEP"):
-                k5+=1
-                row_s5 = unmatched_worksheet.row(k5)      
-            for header_item in self.get_header(): 
-                cell = each[header_item]
-                if a in snapshot.get_master_selected_rows():
-                    row.write(j,cell,row_color_select)
-                    row_s2.write(j,cell,row_color_select)
-                else:    
-                    row.write(j,cell)
-                    row_s3.write(j,cell)
-                if(each['Party Name'] != '' and each["Bank Narration"] != '' and each["Bank Narration"][0:7]=="CHQ DEP"):
-                    row_s4.write(j,cell)
-                elif(each["Bank Narration"][0:7]=="CHQ DEP"):  
-                    row_s5.write(j,cell) 
-                j+=1
-            k+=1    
-        if folder_url!='' and (folder_url.split('.')[-1].lower()!='xls'):
-            save_file = folder_url + '/123.xls'
-        else:
-            save_file =  folder_url
-        try:
-            export_workbook.save(save_file)  
-            master_excel_export_path = save_file
-            os.startfile(save_file)
-            return True, 0   
-        except FileNotFoundError:
-            return False, -2     
-        except PermissionError:
-            return False, -5          
-        except Exception as e:
-            return False, 99
+        """Export table snapshot to Excel file with multiple sheets.
+        
+        Args:
+            folder_url: Output path (folder or .xls file path)
+            snapshot: TableSnapshot object to export
+        
+        Returns:
+            Tuple of (success: bool, error_code: int)
+        """
+        return self.excelProcessor.export_to_excel(folder_url, snapshot)
+    
+    def get_header(self):
+        """Get standard table header.
+        
+        Returns:
+            List of column names
+        """
+        return self.excelProcessor.get_header()
 
+    # ===== Search Operations (delegate to SearchService) =====
+    
+    def search(self, masterTableData, searchQuery, searchMode):
+        """Search table data using specified mode.
+        
+        Args:
+            masterTableData: Table data to search
+            searchQuery: Search term
+            searchMode: Search mode ('bychqno', 'bydate', 'bychqamt')
+        
+        Returns:
+            Filtered and formatted table data
+        """
+        return self.searchService.search(masterTableData, searchQuery, searchMode)
+
+    # ===== Daybook Operations (delegate to ValidationService and DaybookService) =====
+    
     def validateIntermediateDaybook(self, path, fromDate, toDate, company):
-        path = path[8:]
-        self.intermediateDaybook = IntermediateDaybook(path, fromDate, toDate, company)
-        return self.intermediateDaybook.validateAndSetValues()
-
+        """Validate inputs for daybook generation.
+        
+        Args:
+            path: Path to intermediate daybook Excel file
+            fromDate: Start date in dd/mm/yyyy format
+            toDate: End date in dd/mm/yyyy format
+            company: Company name
+        
+        Returns:
+            Tuple of (success: bool, error_code: int)
+        """
+        return self.validationService.validate_daybook_inputs(path, fromDate, toDate, company)
+    
     def generateIntermediateDaybook(self):
-        # Step 1: Grab Date => Abstracted
-        startDate = self.intermediateDaybook.getFromDate()
-        endDate = self.intermediateDaybook.getToDate()
-        company = self.intermediateDaybook.getCompany()
-        list_of_months = []
-        i=1
-        tempDate = startDate
-        while True:
-            month_name = tempDate.strftime('%B')
-            month = tempDate.month 
-            year = tempDate.year
-            list_of_months.append([month_name,year])
-            if month == endDate.month and year == endDate.year:
-                break
-            tempDate = tempDate+relativedelta(months=+1)
-        print(list_of_months)
-        snapshot_list = []
-        banks = ['icici']
-        if company=='gokul':
-            banks.append('hdfc')
-        for bank in banks:
-            for [month, year] in list_of_months:
-                snapshot = self.tableSnapshotCollection.get_table_from_collection(month,str(year),bank,company) 
-                if not snapshot:
-                    print("No snapshot for ",month,year,bank,company)
-                    return False, -7 , month +' '+ str(year) + ' ' + bank
-                snapshot_list.append(snapshot)   
-        # print(snapshot_list)            
+        """Generate intermediate daybook from table snapshots.
+        
+        Returns:
+            Tuple of (success: bool, code: int, error_message: str)
+        """
+        return self.daybookService.generate_daybook(self.storageManager)
 
-        # Step 2: Prepare Consolidated Stmt from startDate to EndDate for MATCH RECEIPTS
-        consolidatedReceiptVouchers = ConsolidatedReceiptVouchers(snapshot_list)
-        consolidatedReceiptVouchers.prepare_df(startDate,endDate, mode="matched_cheques")
-        # print(consolidatedReceiptVouchers.get_df().head())
 
-        # Step 3: Prepare Consolidated Stmt from startDate to EndDate for PAYMENT RECEIPTS
-        consolidatedReceiptVouchers.prepare_df(startDate,endDate, mode="chequeless_receipts")
-
-        # Step 4: Prepare Consolidated Stmt from startDate to EndDate for NON-MATCH and Other RECEIPTS
-        consolidatedPaymentVouchers = ConsolidatedPaymentVouchers(snapshot_list)
-        consolidatedPaymentVouchers.prepare_df(startDate,endDate)
-
-        self.intermediateDaybook.prepare_daybook(consolidatedReceiptVouchers.get_receipt_with_cheques_df(), consolidatedPaymentVouchers.get_payment_entries_df(), consolidatedReceiptVouchers.get_receipt_without_cheques_df() )
-        return True, 1, ''
 class FirebaseControls:
     """Firebase operations with connection pooling and async support.
     
