@@ -16,6 +16,8 @@ import numpy as np
 from dateutil.relativedelta import relativedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+import time
+import random
 
 # Import utilities for better file management
 try:
@@ -1470,72 +1472,231 @@ class  TableOperations:
         self.intermediateDaybook.prepare_daybook(consolidatedReceiptVouchers.get_receipt_with_cheques_df(), consolidatedPaymentVouchers.get_payment_entries_df(), consolidatedReceiptVouchers.get_receipt_without_cheques_df() )
         return True, 1, ''
 class FirebaseControls:
-    """Firebase operations with async support using thread pool executor.
+    """Firebase operations with connection pooling and async support.
     
-    All Firebase operations are executed in a thread pool to prevent blocking
-    the main thread. Supports both sync and async operation modes.
+    Implements singleton pattern to ensure Firebase is initialized only once
+    and reused across the application. All Firebase operations are executed 
+    in a thread pool to prevent blocking the main thread.
+    
+    Connection Pooling Features:
+    - Single Firebase app instance (singleton pattern)
+    - Reusable database references
+    - Thread-safe initialization
+    - Shared thread pool executor
     """
+    
+    # Class-level attributes for connection pooling
+    _instance = None
+    _initialized = False
+    _init_lock = threading.Lock()
+    _app = None
+    _tableSnapshot_ref = None
+    _leftMenu_ref = None
+    _chequeReport_ref = None
+    
+    def __new__(cls, max_workers=5):
+        """Implement singleton pattern for connection pooling.
+        
+        Ensures only one FirebaseControls instance exists, preventing
+        repeated Firebase initialization and improving performance.
+        """
+        if cls._instance is None:
+            with cls._init_lock:
+                if cls._instance is None:
+                    cls._instance = super(FirebaseControls, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self, max_workers=5):
-        """Initialize Firebase connection with thread pool.
+        """Initialize Firebase connection with thread pool (only once).
         
         Args:
             max_workers: Maximum number of concurrent Firebase operations
         """
-        # correction for auto-py-to-exe
-        try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-            base_path = sys._MEIPASS
-        except Exception:
-            base_path = os.path.abspath(".")
-        certificate_path = os.path.join(base_path, r"service-account\\recordmatcher-firebase-adminsdk-mfcn7-d0ee2c6bad.json")
-        cred = credentials.Certificate(certificate_path)
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://recordmatcher-default-rtdb.firebaseio.com/'
-        })
-        self.tableSnapshot_ref = db.reference("/tableSnapshot/") 
-        self.leftMenu_ref = db.reference('/leftMenu/') 
-        self.chequeReport_ref = db.reference('/chequeReport')
+        # Only initialize once (connection pooling)
+        if FirebaseControls._initialized:
+            return
         
-        # Thread pool for async operations
-        self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="Firebase")
-        self._lock = threading.Lock()
+        with FirebaseControls._init_lock:
+            if FirebaseControls._initialized:
+                return
+            
+            # correction for auto-py-to-exe
+            try:
+                # PyInstaller creates a temp folder and stores path in _MEIPASS
+                base_path = sys._MEIPASS
+            except Exception:
+                base_path = os.path.abspath(".")
+            
+            certificate_path = os.path.join(base_path, r"service-account\\recordmatcher-firebase-adminsdk-mfcn7-d0ee2c6bad.json")
+            
+            # Initialize Firebase app only if not already initialized
+            try:
+                FirebaseControls._app = firebase_admin.get_app()
+                print("Firebase app already initialized - reusing connection")
+            except ValueError:
+                # App doesn't exist, initialize it
+                cred = credentials.Certificate(certificate_path)
+                FirebaseControls._app = firebase_admin.initialize_app(cred, {
+                    'databaseURL': 'https://recordmatcher-default-rtdb.firebaseio.com/'
+                })
+                print("Firebase app initialized successfully")
+            
+            # Create database references (reusable across all instances)
+            FirebaseControls._tableSnapshot_ref = db.reference("/tableSnapshot/")
+            FirebaseControls._leftMenu_ref = db.reference('/leftMenu/')
+            FirebaseControls._chequeReport_ref = db.reference('/chequeReport')
+            
+            # Thread pool for async operations (shared across instances)
+            self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="Firebase")
+            self._lock = threading.Lock()
+            
+            FirebaseControls._initialized = True
+            print(f"Firebase connection pool initialized with {max_workers} workers")
+    
+    @property
+    def tableSnapshot_ref(self):
+        """Get the shared table snapshot reference."""
+        return FirebaseControls._tableSnapshot_ref
+    
+    @property
+    def leftMenu_ref(self):
+        """Get the shared left menu reference."""
+        return FirebaseControls._leftMenu_ref
+    
+    @property
+    def chequeReport_ref(self):
+        """Get the shared cheque report reference."""
+        return FirebaseControls._chequeReport_ref
+    
+    @classmethod
+    def reset_instance(cls):
+        """Reset singleton instance (for testing purposes only)."""
+        with cls._init_lock:
+            cls._instance = None
+            cls._initialized = False
+            if cls._app:
+                try:
+                    firebase_admin.delete_app(cls._app)
+                except:
+                    pass
+                cls._app = None
+    
+    @staticmethod
+    def _retry_with_exponential_backoff(operation, max_retries=3, base_delay=1.0, max_delay=30.0, operation_name="Firebase operation"):
+        """Retry an operation with exponential backoff for transient failures.
+        
+        Args:
+            operation: Callable to execute
+            max_retries: Maximum number of retry attempts (default: 3)
+            base_delay: Initial delay in seconds (default: 1.0)
+            max_delay: Maximum delay in seconds (default: 30.0)
+            operation_name: Name of operation for logging
+            
+        Returns:
+            Result of the operation
+            
+        Raises:
+            Last exception if all retries fail
+        """
+        last_exception = None
+        
+        for attempt in range(max_retries + 1):
+            try:
+                result = operation()
+                if attempt > 0:
+                    print(f"✓ {operation_name} succeeded on attempt {attempt + 1}")
+                return result
+            except Exception as e:
+                last_exception = e
+                
+                # Don't retry on final attempt
+                if attempt >= max_retries:
+                    print(f"✗ {operation_name} failed after {max_retries + 1} attempts: {e}")
+                    break
+                
+                # Calculate exponential backoff with jitter
+                delay = min(base_delay * (2 ** attempt), max_delay)
+                jitter = random.uniform(0, delay * 0.1)  # Add 10% jitter
+                sleep_time = delay + jitter
+                
+                print(f"⚠ {operation_name} failed (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                print(f"  Retrying in {sleep_time:.2f}s...")
+                time.sleep(sleep_time)
+        
+        raise last_exception
     
     def shutdown(self):
         """Shutdown the thread pool executor gracefully."""
         self.executor.shutdown(wait=True)
     
-    # Synchronous methods (original behavior)
+    # Synchronous methods with retry logic
     def set_tableSnapshot(self, child, data):
-        """Synchronously set table snapshot data."""
-        return self.tableSnapshot_ref.child(child).set(data)
+        """Synchronously set table snapshot data with retry logic.
+        
+        Automatically retries on transient network failures with exponential backoff.
+        """
+        return self._retry_with_exponential_backoff(
+            lambda: self.tableSnapshot_ref.child(child).set(data),
+            operation_name=f"set_tableSnapshot({child})"
+        )
     
     def remove_tableSnapshot(self, child):
         """Synchronously remove table snapshot."""
         return self.tableSnapshot_ref.child(child).set({}) 
     
     def get_tableSnapshot(self):
-        """Synchronously get all table snapshots."""
-        return self.tableSnapshot_ref.get() 
+        """Synchronously get all table snapshots with retry logic.
+        
+        Automatically retries on transient network failures with exponential backoff.
+        """
+        return self._retry_with_exponential_backoff(
+            lambda: self.tableSnapshot_ref.get(),
+            operation_name="get_tableSnapshot()"
+        ) 
     
     def set_chequeReport(self, child, data):
-        """Synchronously set cheque report data."""
-        return self.chequeReport_ref.child(child).set(data)
+        """Synchronously set cheque report data with retry logic.
+        
+        Automatically retries on transient network failures with exponential backoff.
+        """
+        return self._retry_with_exponential_backoff(
+            lambda: self.chequeReport_ref.child(child).set(data),
+            operation_name=f"set_chequeReport({child})"
+        )
     
     def remove_chequeReport(self, child):
         """Synchronously remove cheque report."""
         return self.chequeReport_ref.child(child).set({}) 
     
     def get_chequeReport(self):
-        """Synchronously get all cheque reports."""
-        return self.chequeReport_ref.get()     
+        """Synchronously get all cheque reports with retry logic.
+        
+        Automatically retries on transient network failures with exponential backoff.
+        """
+        return self._retry_with_exponential_backoff(
+            lambda: self.chequeReport_ref.get(),
+            operation_name="get_chequeReport()"
+        )     
     
     def set_leftMenu_data(self, data):
-        """Synchronously set left menu data."""
-        return self.leftMenu_ref.set(data)
+        """Synchronously set left menu data with retry logic.
+        
+        Automatically retries on transient network failures with exponential backoff.
+        """
+        return self._retry_with_exponential_backoff(
+            lambda: self.leftMenu_ref.set(data),
+            operation_name="set_leftMenu_data()"
+        )
     
     def get_leftMenu_data(self):
-        """Synchronously get left menu data."""
-        return self.leftMenu_ref.get()
+        """Synchronously get left menu data with retry logic.
+        
+        Automatically retries on transient network failures with exponential backoff.
+        """
+        return self._retry_with_exponential_backoff(
+            lambda: self.leftMenu_ref.get(),
+            operation_name="get_leftMenu_data()"
+        )
     
     # Async methods (non-blocking)
     def set_tableSnapshot_async(self, child, data):
