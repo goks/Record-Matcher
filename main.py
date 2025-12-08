@@ -5,6 +5,9 @@ import sys
 import json
 import threading
 import dateutil.parser
+import atexit
+from concurrent.futures import ThreadPoolExecutor
+import weakref
 
 from PySide2.QtGui import QGuiApplication, QIcon
 from PySide2.QtQml import QQmlApplicationEngine
@@ -45,8 +48,38 @@ class MainWindow(QObject):
         self.current_company = ''
         self.chequeReportActivated  = False
         self.searchModeOffFirsttime = False
-        self.tallyExportBoxActivated = False  
+        self.tallyExportBoxActivated = False
+        
+        # Thread lifecycle management
+        self._thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="MainWindow")
+        self._active_futures = weakref.WeakSet()
+        self._shutdown_lock = threading.Lock()
+        self._is_shutting_down = False
+        
+        # Thread synchronization locks for shared state
+        self._state_lock = threading.Lock()  # Protects current_month, current_year, current_bank, current_company
+        self._snapshot_lock = threading.Lock()  # Protects tableSnapshot and masterDisplayTableData
+        self._data_lock = threading.Lock()  # Protects _tableData, _creditBal, _debitBal
+        
+        # Register cleanup on exit
+        atexit.register(self._cleanup_threads)
         return   
+    def _thread_exception_wrapper(self, func, operation_name):
+        """Wrapper to handle exceptions in threaded operations."""
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                import traceback
+                error_msg = f"{type(e).__name__}: {str(e)}"
+                stack_trace = traceback.format_exc()
+                print(f"[THREAD ERROR] {operation_name} failed:")
+                print(stack_trace)
+                # Emit signal to notify UI of error
+                self.threadExceptionOccurred.emit(operation_name, error_msg)
+                raise  # Re-raise to ensure thread pool tracks the failure
+        return wrapper
+    
     def populate_left_menu(self, first_time=False):
         json_path = os.path.join(CURRENT_DIR, "data.json")
         with open(json_path) as f:
@@ -64,6 +97,9 @@ class MainWindow(QObject):
             self.adminPassword_changed.emit()
         return
 
+    # Signal for thread exceptions
+    threadExceptionOccurred = Signal(str, str, arguments=['operation', 'error'])
+    
     chequeReportsButtonClicked = Signal(bool,int,str, arguments=['selected','status','time'])
     tallyExportButtonClicked = Signal(bool, arguments=['selected'])
     showTablePage = Signal()
@@ -88,10 +124,17 @@ class MainWindow(QObject):
     hideMainScreenLoadingIndicator = Signal()
     
     def save_snapshot(self):
-        if(self.tableSnapshot):  
-            print("saving selected rows",self.selectedRows)
-            self.tableSnapshot.set_master_selected_rows(self._selectedRows)    
-            self.tableOperations.save_snapshot_to_table(self.tableSnapshot)   
+        """Save current snapshot with lock protection."""
+        with self._snapshot_lock:
+            snapshot = self.tableSnapshot
+            selected_rows = self._selectedRows.copy() if self._selectedRows else []
+        
+        if snapshot:
+            print(f"[SAVE] Saving snapshot with {len(selected_rows)} selected rows")
+            snapshot.set_master_selected_rows(selected_rows)
+            self.tableOperations.save_snapshot_to_table(snapshot)
+        else:
+            print("[SAVE] No snapshot to save")   
 
     @Slot()
     def delete_table(self):
@@ -118,48 +161,67 @@ class MainWindow(QObject):
             self.chequeReportDeleteFail.emit()    
     @Slot(str)
     def uploadFile(self, fileUrl):
-        if '' in [self.current_company, self.current_year]:
-            self.validationError.emit(1)
-            return   
-        if not self.chequeReportActivated and '' in [self.current_bank, self.current_month]:
-            self.validationError.emit(3)
-            return        
+        with self._state_lock:
+            if '' in [self.current_company, self.current_year]:
+                self.validationError.emit(1)
+                return   
+            if not self.chequeReportActivated and '' in [self.current_bank, self.current_month]:
+                self.validationError.emit(3)
+                return
         fileUrl = fileUrl.split('///')[1]
-        # print('fileUrl', fileUrl, os.path.isfile(fileUrl) )
-        # self.threadedUploadFile(fileUrl)
-        x = threading.Thread(target=self.threadedUploadFile, args=(fileUrl,), daemon=True)
-        x.start()
+        # Submit to thread pool with exception handling
+        if not self._is_shutting_down:
+            wrapped_func = self._thread_exception_wrapper(self.threadedUploadFile, "File Upload")
+            future = self._thread_pool.submit(wrapped_func, fileUrl)
+            self._active_futures.add(future)
         return
-    def threadedUploadFile(self, fileUrl):    
-        if self.chequeReportActivated:
+    def threadedUploadFile(self, fileUrl):
+        """Thread worker for file upload with lock protection."""
+        with self._state_lock:
+            cheque_activated = self.chequeReportActivated
+        
+        if cheque_activated:
             if not self.tableOperations.save_chequeReport_to_collection(fileUrl):
                 self.validationError.emit(2) 
-            else: self.checkReportUploadSuccess.emit()               
-            return                
-        success, status_code = self.tableOperations.add_snapshot_to_table(fileUrl)    
+            else: 
+                self.checkReportUploadSuccess.emit()               
+            return
+        
+        # Add snapshot to table (may modify shared state)
+        success, status_code = self.tableOperations.add_snapshot_to_table(fileUrl)
         if not success:
-            print("ERROR", status_code)
+            print(f"[ERROR] File upload failed with status code: {status_code}")
             self.validationError.emit(status_code)
-        else: self.bankStatementUploadSuccess.emit()
+        else:
+            self.bankStatementUploadSuccess.emit()
         return
     @Slot(str)
     def exportFile(self, fileURL):
-        if not self.tableSnapshot:
-            self.validationError.emit(4)
-            return    
+        with self._snapshot_lock:
+            if not self.tableSnapshot:
+                self.validationError.emit(4)
+                return
+            # Create a reference to current snapshot
+            snapshot = self.tableSnapshot
+        
         try:     
             fileURL = fileURL.split('///')[1]
         except:
             pass
-        # print('fileURL: ', fileURL, os.path.isdir(fileURL), os.path.isfile(fileURL) )
-        x = threading.Thread(target=self.threadedExportFile, args=(fileURL,), daemon=True)
-        x.start()
+        # Submit to thread pool with exception handling
+        if not self._is_shutting_down:
+            wrapped_func = self._thread_exception_wrapper(self.threadedExportFile, "File Export")
+            future = self._thread_pool.submit(wrapped_func, fileURL, snapshot)
+            self._active_futures.add(future)
         return    
-    def threadedExportFile(self, fileURL):    
-        status, status_code = self.tableOperations.export_to_excel(fileURL, self.tableSnapshot)    
+    def threadedExportFile(self, fileURL, snapshot):
+        """Thread worker for file export with lock protection."""
+        status, status_code = self.tableOperations.export_to_excel(fileURL, snapshot)
         if not status:
+            print(f"[ERROR] File export failed with status code: {status_code}")
             self.validationError.emit(status_code)
-        else: self.statementExportSuccess.emit()
+        else:
+            self.statementExportSuccess.emit()
         return  
 
     @Slot(str, str, str, str)
@@ -180,40 +242,74 @@ class MainWindow(QObject):
 
     def populate_table(self):
         self.showMainScreenLoadingIndicator.emit()
-        print(self.current_bank, self.current_company, self.current_month, self.current_year)
-        if '' in [self.current_bank, self.current_company, self.current_month, self.current_year]:
-            self.showChooseOptionsPage.emit()
-            self.hideMainScreenLoadingIndicator.emit()
-            return -1
-        self.searchModeOffFirsttime=False
-        x = threading.Thread(target=self.threadedPopulate_table, args=( ), daemon=True)
-        x.start()
-        return 1   
-    def threadedPopulate_table(self):      
+        with self._state_lock:
+            current_state = (self.current_bank, self.current_company, self.current_month, self.current_year)
+            print("Current state:", current_state)
+            if '' in current_state:
+                self.showChooseOptionsPage.emit()
+                self.hideMainScreenLoadingIndicator.emit()
+                return -1
+            self.searchModeOffFirsttime = False
+        
+        # Submit to thread pool with exception handling
+        if not self._is_shutting_down:
+            wrapped_func = self._thread_exception_wrapper(self.threadedPopulate_table, "Table Population")
+            future = self._thread_pool.submit(wrapped_func)
+            self._active_futures.add(future)
+        return 1
+    
+    def threadedPopulate_table(self):
+        """Thread worker for table population with lock protection."""
         self.save_snapshot()
-        print('POPULATING TABLE')
-        self.tableSnapshot, self.masterDisplayTableData, credit_bal, debit_bal, start_date,end_date = self.tableOperations.get_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company)    
-        if not self.tableSnapshot:
+        print('[THREAD] Populating table...')
+        
+        # Get current state safely
+        with self._state_lock:
+            month = self.current_month
+            year = self.current_year
+            bank = self.current_bank
+            company = self.current_company
+        
+        # Load data from collection (may take time, no lock needed)
+        tableSnapshot, masterDisplayTableData, credit_bal, debit_bal, start_date, end_date = \
+            self.tableOperations.get_table_from_collection(month, year, bank, company)
+        
+        if not tableSnapshot:
             self.showUploadBankStatementPage.emit()
-            print("No tablesnapshot saved")
+            print("[THREAD] No tablesnapshot saved")
             self.hideMainScreenLoadingIndicator.emit()
             return 0
-        print("Snapshot found")
-        self._tableData = self.masterDisplayTableData
+        
+        print("[THREAD] Snapshot found, updating state...")
+        
+        # Update shared state with lock
+        with self._snapshot_lock:
+            self.tableSnapshot = tableSnapshot
+            self.masterDisplayTableData = masterDisplayTableData
+        
+        with self._data_lock:
+            self._tableData = masterDisplayTableData
+            self._creditBal = credit_bal
+            self._debitBal = debit_bal
+        
+        # Emit signals to update UI
         self.table_data_changed.emit()
-        self._creditBal = credit_bal
         self.creditBal_changed.emit()
-        self._debitBal = debit_bal
-        print(start_date, end_date)
         self.debitBal_changed.emit()
+        
+        print(f"[THREAD] Date range: {start_date} to {end_date}")
         self._startDateCalendar = QDate(int(start_date.split('/')[0]), int(start_date.split('/')[1]), int(start_date.split('/')[2]))
         self.startDateCalendar_changed.emit()
         self._endDateCalendar = QDate(int(end_date.split('/')[0]), int(end_date.split('/')[1]), int(end_date.split('/')[2]))
-        self.endDateCalendar_changed.emit()        
-        self._selectedRows = self.tableSnapshot.get_master_selected_rows()
+        self.endDateCalendar_changed.emit()
+        
+        with self._snapshot_lock:
+            self._selectedRows = tableSnapshot.get_master_selected_rows()
         self.selectedRows_changed.emit()
+        
         self.showTablePage.emit()
         self.hideMainScreenLoadingIndicator.emit()
+        print('[THREAD] Table population complete')
         return 1
 
     def callBackFunction_for_Updating_fullScreenLoading(self, text1, text2, prograssbarVal):
@@ -263,25 +359,72 @@ class MainWindow(QObject):
         # self.chequeReportsButtonClicked.emit(selected, status, data )  
         self.tallyExportButtonClicked.emit(selected)
         pass
+    
+    def _cleanup_threads(self):
+        """Properly shutdown all managed threads."""
+        with self._shutdown_lock:
+            if self._is_shutting_down:
+                return
+            self._is_shutting_down = True
+        
+        print("Shutting down thread pool...")
+        
+        # Wait for active futures to complete (with timeout)
+        active_count = len(self._active_futures)
+        if active_count > 0:
+            print(f"Waiting for {active_count} active tasks to complete...")
+            # Give threads reasonable time to finish
+            import time
+            max_wait = 10.0  # seconds
+            start_time = time.time()
+            
+            while len(self._active_futures) > 0 and (time.time() - start_time) < max_wait:
+                time.sleep(0.1)
+            
+            remaining = len(self._active_futures)
+            if remaining > 0:
+                print(f"Warning: {remaining} tasks did not complete within timeout")
+        
+        # Shutdown thread pool gracefully
+        self._thread_pool.shutdown(wait=True, cancel_futures=False)
+        print("Thread pool shutdown complete")
+    
     @Slot()
     def beginWindowExitRoutine(self):
+        """Enhanced exit routine with proper thread cleanup."""
+        print("Beginning exit routine...")
         self.save_snapshot()
+        self._cleanup_threads()
     @Slot()
     def downloadfromDb(self):
         self.fullScreenLoadingStart.emit()
-        x = threading.Thread(target=self.downloadfromDbThreaded, args=(), daemon=True)
-        x.start()
-    def  downloadfromDbThreaded(self):
+        # Submit to thread pool with exception handling
+        if not self._is_shutting_down:
+            wrapped_func = self._thread_exception_wrapper(self.downloadfromDbThreaded, "Firebase Download")
+            future = self._thread_pool.submit(wrapped_func)
+            self._active_futures.add(future)
+    
+    def downloadfromDbThreaded(self):
+        """Thread worker for Firebase download with exception handling."""
+        print('[THREAD] Starting Firebase download...')
         self.tableOperations.get_data_from_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
+        print('[THREAD] Firebase download complete')
         self.fullScreenLoadingEnd.emit()
         return    
     @Slot()
     def uploadtoDb(self):
         self.fullScreenLoadingStart.emit()
-        x = threading.Thread(target=self.uploadtoDbThreaded, args=(), daemon=True)
-        x.start()
-    def uploadtoDbThreaded(self):    
+        # Submit to thread pool with exception handling
+        if not self._is_shutting_down:
+            wrapped_func = self._thread_exception_wrapper(self.uploadtoDbThreaded, "Firebase Upload")
+            future = self._thread_pool.submit(wrapped_func)
+            self._active_futures.add(future)
+    
+    def uploadtoDbThreaded(self):
+        """Thread worker for Firebase upload with exception handling."""
+        print('[THREAD] Starting Firebase upload...')
         self.tableOperations.upload_data_to_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
+        print('[THREAD] Firebase upload complete')
         self.fullScreenLoadingEnd.emit()
         return
     @Slot()
@@ -292,46 +435,68 @@ class MainWindow(QObject):
 
     @Slot(str, str)
     def companyChanged(self, companyname, screenName):
-        self.current_company = companyname
-        self._companyData = screenName
+        with self._state_lock:
+            self.current_company = companyname
+            self._companyData = screenName
+            cheque_activated = self.chequeReportActivated
+            tally_activated = self.tallyExportBoxActivated
+        
         self.companyData_changed.emit()
-        if self.chequeReportActivated:
+        
+        if cheque_activated:
             status, data = self.populateChequeReports()
-            self.showChequeReportPage.emit(status, data )
+            self.showChequeReportPage.emit(status, data)
             return
-        elif self.tallyExportBoxActivated:
+        elif tally_activated:
             self.showTallyExportBox.emit()
             return
+        
         self.populate_table()
     @Slot(str, str)
     def bankChanged(self, bankname, screenName):
-        self.current_bank = bankname
-        self._bankData = screenName
+        with self._state_lock:
+            self.current_bank = bankname
+            self._bankData = screenName
         self.bankData_changed.emit()
         self.populate_table()
     @Slot(str)
     def yearChanged(self, year):
-        self.current_year = year
+        with self._state_lock:
+            self.current_year = year
+            cheque_activated = self.chequeReportActivated
+            tally_activated = self.tallyExportBoxActivated
+        
         self.update_monthYearData()
-        if self.chequeReportActivated:
+        
+        if cheque_activated:
             status, data = self.populateChequeReports()
-            self.showChequeReportPage.emit(status, data )
+            self.showChequeReportPage.emit(status, data)
             return
-        elif self.tallyExportBoxActivated:
+        elif tally_activated:
             self.showTallyExportBox.emit()
             return
+        
         self.populate_table()
     @Slot(str, str)
     def monthChanged(self, month, screenNane):
-        self.current_month = month 
+        with self._state_lock:
+            self.current_month = month
         self.update_monthYearData()
         self.populate_table()
     def update_monthYearData(self):
-        if self.chequeReportActivated: 
-            if self.current_year:
-                self._monthYearData = self.current_year + ' - ' +str(int(self.current_year)+1)
-            else: self._monthYearData = ''    
-        else: self._monthYearData = self.current_month.capitalize() +' ' + self.current_year
+        with self._state_lock:
+            cheque_activated = self.chequeReportActivated
+            current_year = self.current_year
+            current_month = self.current_month
+        
+        if cheque_activated:
+            if current_year:
+                self._monthYearData = current_year + ' - ' + str(int(current_year)+1)
+            else:
+                self._monthYearData = ''
+        else:
+            self._monthYearData = current_month.capitalize() + ' ' + current_year
+        
         self.monthYearData_changed.emit()
     @Slot(list)
     def selectedRowsChanged(self, updatedRows):
