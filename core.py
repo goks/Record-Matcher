@@ -6,6 +6,7 @@ import os,json,sys
 import datetime, pytz
 import pickle
 import locale
+from typing import Optional, List, Tuple, Dict, Any, Union
 locale.setlocale(locale.LC_NUMERIC, 'hi_IN')
 from copy import deepcopy
 import firebase_admin
@@ -60,67 +61,154 @@ xlrd.xlsx.Element_has_iter = True
 
 APP_NAME = "Record Matcher"
 
+# Cheque number formatting constants
+MAX_CHEQUE_NUMBER_LENGTH = 15
+CHEQUE_NUMBER_PADDING_LENGTH = 16
+
 HDFC_TALLY_LEDGERNAME = "HDFC Bank A/c No.50200008623602"
 ICICI_TALLY_LEDGERNAME_GOK = "ICICI Bank A/c No.099005000974"
 ICICI_TALLY_LEDGERNAME_UNI = "ICICI 1027"
 PAYMENT_INTERMEDIARY_TALLY_LEDGERNAME = "OTHER CREDITORS"
 RECEIPT_INTERMEDIARY_TALLY_LEDGERNAME = "OTHER DEBTORS"
 
-def get_current_time():
+def get_current_time() -> str:
+    """Get current time in Indian timezone formatted as string.
+    
+    Returns:
+        Formatted time string (DD/MM/YYYY HH:MM AM/PM)
+    """
     t = datetime.datetime.now(pytz.timezone('Asia/Kolkata')) 
     # formatted_time = str(t.day)+'/'+str(t.month)+'/'+str(t.year)+' '+str(t.hour)+':'+str(t.minute)+' '
     formatted_time = t=strftime("%d/%m/%Y %I:%M %p") + '.'
     return formatted_time
-def validate_path(path):
-    if not path:
-        return False
-    if not os.path.isfile(path) or not os.path.exists(path) or not (path.split('.')[-1]=='xls' or path.split('.')[-1]=='xlsx'):
-        return False
-    else:
-        return True  
-def validate_save_path(path):
-        if not os.path.isfile(path) or not os.path.exists(path) or not (path.split('.')[-1]=='fil'):
+
+class Validator:
+    """Centralized validation class for all data validation operations."""
+    
+    @staticmethod
+    def validate_path(path: str) -> bool:
+        """Validate Excel file path (.xls or .xlsx).
+        
+        Args:
+            path: File path to validate
+            
+        Returns:
+            True if valid Excel file path, False otherwise
+        """
+        if not path:
             return False
-        else:
-            return True             
-def validate_date(date):
+        if not os.path.isfile(path) or not os.path.exists(path):
+            return False
+        extension = path.split('.')[-1].lower()
+        return extension in ('xls', 'xlsx')
+    
+    @staticmethod
+    def validate_save_path(path: str) -> bool:
+        """Validate save file path (.fil extension).
+        
+        Args:
+            path: File path to validate
+            
+        Returns:
+            True if valid .fil file path, False otherwise
+        """
+        if not os.path.isfile(path) or not os.path.exists(path):
+            return False
+        return path.split('.')[-1] == 'fil'
+    
+    @staticmethod
+    def validate_date(date: str) -> bool:
+        """Validate date string in DD/MM/YY format.
+        
+        Args:
+            date: Date string to validate
+            
+        Returns:
+            True if valid date format, False otherwise
+        """
         try:
             datetime.datetime.strptime(date, '%d/%m/%y')
+            return True
         except ValueError:
-            return False             
-        return True
-def validate_chqno(chqno):
-    try:
-        int(chqno)
-    except ValueError:
-        return False
-    if(len(chqno)>15):
-        return False
-    return True    
-def validate_amount(amount):
-    try:
-        int(amount)
-    except ValueError:
-        try:
-            float(amount)
-        except ValueError:    
             return False
-    if(float(amount)<0):
-        return False
-    return True       
-def validateSavefile(filePath):
-    if not filePath:
-        return False 
-    fileName = filePath.split('/')[-1]
-    if(len(fileName)<1):
-        return False
-    if fileName.split('.')[-1].lower()!='fil':
-        return 'add_ext'
-    return True    
-def format_chqNo(chqNo):
+    
+    @staticmethod
+    def validate_chqno(chqno: str) -> bool:
+        """Validate cheque number (numeric and within max length).
+        
+        Args:
+            chqno: Cheque number to validate
+            
+        Returns:
+            True if valid cheque number, False otherwise
+        """
+        try:
+            int(chqno)
+        except ValueError:
+            return False
+        return len(chqno) <= MAX_CHEQUE_NUMBER_LENGTH
+    
+    @staticmethod
+    def validate_amount(amount: Union[str, int, float]) -> bool:
+        """Validate amount (numeric and non-negative).
+        
+        Args:
+            amount: Amount to validate (string, int, or float)
+            
+        Returns:
+            True if valid non-negative amount, False otherwise
+        """
+        try:
+            int(amount)
+        except ValueError:
+            try:
+                float(amount)
+            except ValueError:
+                return False
+        return float(amount) >= 0
+    
+    @staticmethod
+    def validateSavefile(filePath: str) -> Union[bool, str]:
+        """Validate save file name and extension.
+        
+        Args:
+            filePath: File path to validate
+            
+        Returns:
+            True if valid, False if invalid, 'add_ext' if extension needed
+        """
+        if not filePath:
+            return False
+        fileName = filePath.split('/')[-1]
+        if len(fileName) < 1:
+            return False
+        if fileName.split('.')[-1].lower() != 'fil':
+            return 'add_ext'
+        return True
+
+# Backward compatibility: Keep old function names as aliases
+def validate_path(path: str) -> bool:
+    return Validator.validate_path(path)
+
+def validate_save_path(path: str) -> bool:
+    return Validator.validate_save_path(path)
+
+def validate_date(date: str) -> bool:
+    return Validator.validate_date(date)
+
+def validate_chqno(chqno: str) -> bool:
+    return Validator.validate_chqno(chqno)
+
+def validate_amount(amount: Union[str, int, float]) -> bool:
+    return Validator.validate_amount(amount)
+
+def validateSavefile(filePath: str) -> Union[bool, str]:
+    return Validator.validateSavefile(filePath)
+
+def format_chqNo(chqNo: str) -> str:
     if(len(chqNo)>0):
         zerolist = ""
-        for i in range(0,16-len(chqNo)):
+        for i in range(0,CHEQUE_NUMBER_PADDING_LENGTH-len(chqNo)):
             zerolist+=('0')
         zerolist+=chqNo
         newChqNo = zerolist
@@ -366,7 +454,7 @@ class InfiChequeStatement:
 
         def makeChequeNumberStandard(input_cheque_number):
             zerolist = ""
-            for i in range(0,16-len(input_cheque_number)):
+            for i in range(0,CHEQUE_NUMBER_PADDING_LENGTH-len(input_cheque_number)):
                 zerolist+=('0')
             zerolist+=input_cheque_number
             return zerolist

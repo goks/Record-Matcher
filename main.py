@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import weakref
 import logging
 import traceback
+from typing import Optional, List, Tuple, Dict, Any
 
 from PySide2.QtGui import QGuiApplication, QIcon
 from PySide2.QtQml import QQmlApplicationEngine
@@ -124,7 +125,12 @@ class MainWindow(QObject):
                 raise  # Re-raise to ensure thread pool tracks the failure
         return wrapper
     
-    def populate_left_menu(self, first_time=False):
+    def populate_left_menu(self, first_time: bool = False) -> None:
+        """Populate left menu with company, bank, year, and month data.
+        
+        Args:
+            first_time: Whether this is the first time populating the menu
+        """
         json_path = os.path.join(CURRENT_DIR, "data.json")
         with open(json_path) as f:
             data = json.load(f)
@@ -167,7 +173,12 @@ class MainWindow(QObject):
     showMainScreenLoadingIndicator = Signal()
     hideMainScreenLoadingIndicator = Signal()
     
-    def save_snapshot(self):
+    def save_snapshot(self) -> None:
+        """Save current table snapshot to persistent storage.
+        
+        Raises:
+            SnapshotError: If snapshot save fails
+        """
         """Save current snapshot with lock protection."""
         with self._snapshot_lock:
             snapshot = self.tableSnapshot
@@ -210,7 +221,12 @@ class MainWindow(QObject):
         else: 
             self.chequeReportDeleteFail.emit()    
     @Slot(str)
-    def uploadFile(self, fileUrl):
+    def uploadFile(self, fileUrl: str) -> None:
+        """Upload file (cheque report or bank statement) for processing.
+        
+        Args:
+            fileUrl: File URL from QML (format: file:///path/to/file)
+        """
         with self._state_lock:
             if '' in [self.current_company, self.current_year]:
                 error_msg = VALIDATION_ERRORS.get(1, "Validation failed")
@@ -241,8 +257,12 @@ class MainWindow(QObject):
             logger.warning("Upload rejected: application is shutting down")
         return
     
-    def threadedUploadFile(self, fileUrl):
-        """Thread worker for file upload with lock protection."""
+    def threadedUploadFile(self, fileUrl: str) -> None:
+        """Thread worker for file upload with lock protection.
+        
+        Args:
+            fileUrl: Local file path to upload
+        """
         with self._state_lock:
             cheque_activated = self.chequeReportActivated
         
@@ -279,7 +299,12 @@ class MainWindow(QObject):
             self.validationError.emit(5)
         return
     @Slot(str)
-    def exportFile(self, fileURL):
+    def exportFile(self, fileURL: str) -> None:
+        """Export current table snapshot to Excel file.
+        
+        Args:
+            fileURL: Destination file URL from QML
+        """
         with self._snapshot_lock:
             if not self.tableSnapshot:
                 error_msg = VALIDATION_ERRORS.get(4, "Unknown validation error")
@@ -460,7 +485,12 @@ class MainWindow(QObject):
         self.progressBarValue_changed.emit()
         return
 
-    def populateChequeReports(self):    
+    def populateChequeReports(self) -> Tuple[int, str]:
+        """Get list of available cheque reports.
+        
+        Returns:
+            Tuple of (status_code, json_data_string)
+        """    
         if '' in [self.current_company,self.current_year]:
             logger.warning("Cannot populate cheque reports: company or year not selected")
             return -1, ''
@@ -507,21 +537,15 @@ class MainWindow(QObject):
         self.searchModeOffFirsttime=False
         self._tableData = self.tableOperations.search(self.tableSnapshot.get_master_table(), searchQuery, searchMode)
         self.table_data_changed.emit()
-        return 
-    # @Slot()
-    # def convertSchema(self):
-    #     print('Converting Old to New Schema') 
-    #     self.tableOperations.convert_old_schema_to_new_schema()  
+        return
+    
     @Slot(bool)
     def showChequeReportsSelection(self, selected):
         status, data = self.populateChequeReports()
         self.chequeReportsButtonClicked.emit(selected, status, data )
     @Slot(bool)
     def showTallyExportBox(self, selected):
-        # status, data = self.populateChequeReports()
-        # self.chequeReportsButtonClicked.emit(selected, status, data )  
         self.tallyExportButtonClicked.emit(selected)
-        pass
     
     def _cleanup_threads(self):
         """Properly shutdown all managed threads."""
@@ -684,11 +708,11 @@ class MainWindow(QObject):
         
         if cheque_activated:
             if current_year:
-                self._monthYearData = current_year + ' - ' + str(int(current_year)+1)
+                self._monthYearData = f"{current_year} - {int(current_year)+1}"
             else:
                 self._monthYearData = ''
         else:
-            self._monthYearData = current_month.capitalize() + ' ' + current_year
+            self._monthYearData = f"{current_month.capitalize()} {current_year}"
         
         self.monthYearData_changed.emit()
     @Slot(list)
@@ -702,7 +726,6 @@ class MainWindow(QObject):
     @Slot(bool)
     def setTallyExportBoxActivated(self,status):
         self.tallyExportBoxActivated = status
-        # self.update_monthYearData()
         print("STATUS: ",status)    
     @Slot()
     def call_populate_table(self):

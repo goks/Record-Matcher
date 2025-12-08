@@ -29,11 +29,11 @@
 - **OK Add stack traces**: When errors occur, log full stack traces for debugging
 
 ### Code Style
-- **Update string formatting**: Replace string concatenation (`'text'+var+'text'`) with f-strings for better readability
-- **Remove magic numbers**: Values like `15` (cheque number length), `16` (formatting), etc. should be named constants
-- **Consolidate validation**: Multiple scattered validation functions should be in a `Validator` class
-- **Remove commented code**: Extensive commented-out code (schema conversion, etc.) clutters the codebase
-- **Add type hints**: Functions lack type annotations. Add Python type hints for better IDE support and documentation
+- **OK Update string formatting**: Replace string concatenation (`'text'+var+'text'`) with f-strings for better readability
+- **OK Remove magic numbers**: Values like `15` (cheque number length), `16` (formatting), etc. should be named constants
+- **OK Consolidate validation**: Multiple scattered validation functions should be in a `Validator` class
+- **OK Remove commented code**: Extensive commented-out code (schema conversion, etc.) clutters the codebase
+- **OK Add type hints**: Functions lack type annotations. Add Python type hints for better IDE support and documentation
 
 ### Documentation
 - **Add docstrings**: Most functions lack documentation. Add comprehensive docstrings with parameters, returns, and examples
