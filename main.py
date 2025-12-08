@@ -8,6 +8,8 @@ import dateutil.parser
 import atexit
 from concurrent.futures import ThreadPoolExecutor
 import weakref
+import logging
+import traceback
 
 from PySide2.QtGui import QGuiApplication, QIcon
 from PySide2.QtQml import QQmlApplicationEngine
@@ -17,6 +19,46 @@ import core as C
 from core import TableOperations, TableSnapshot, InfiChequeStatement
 
 from core import TableSnapshotCollection
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('record_matcher.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Custom exception classes for better error handling
+class ValidationError(Exception):
+    """Raised when validation fails."""
+    pass
+
+class FileOperationError(Exception):
+    """Raised when file operations fail."""
+    pass
+
+class SnapshotError(Exception):
+    """Raised when snapshot operations fail."""
+    pass
+
+class DatabaseError(Exception):
+    """Raised when database operations fail."""
+    pass
+
+# Validation error messages
+VALIDATION_ERRORS = {
+    1: "Company and year must be selected",
+    2: "Failed to save cheque report to collection",
+    3: "Bank and month must be selected for bank statement",
+    4: "No table snapshot available for export",
+    5: "Invalid file format or corrupted file",
+    6: "File not found or inaccessible",
+    7: "Export operation failed",
+    8: "Data validation failed"
+}
 
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -68,13 +110,15 @@ class MainWindow(QObject):
         """Wrapper to handle exceptions in threaded operations."""
         def wrapper(*args, **kwargs):
             try:
-                return func(*args, **kwargs)
+                logger.debug(f"Starting threaded operation: {operation_name}")
+                result = func(*args, **kwargs)
+                logger.debug(f"Completed threaded operation: {operation_name}")
+                return result
             except Exception as e:
-                import traceback
                 error_msg = f"{type(e).__name__}: {str(e)}"
                 stack_trace = traceback.format_exc()
-                print(f"[THREAD ERROR] {operation_name} failed:")
-                print(stack_trace)
+                logger.error(f"Thread operation '{operation_name}' failed: {error_msg}")
+                logger.error(f"Stack trace:\n{stack_trace}")
                 # Emit signal to notify UI of error
                 self.threadExceptionOccurred.emit(operation_name, error_msg)
                 raise  # Re-raise to ensure thread pool tracks the failure
@@ -130,11 +174,17 @@ class MainWindow(QObject):
             selected_rows = self._selectedRows.copy() if self._selectedRows else []
         
         if snapshot:
-            print(f"[SAVE] Saving snapshot with {len(selected_rows)} selected rows")
-            snapshot.set_master_selected_rows(selected_rows)
-            self.tableOperations.save_snapshot_to_table(snapshot)
+            logger.info(f"Saving snapshot with {len(selected_rows)} selected rows")
+            try:
+                snapshot.set_master_selected_rows(selected_rows)
+                self.tableOperations.save_snapshot_to_table(snapshot)
+                logger.debug("Snapshot saved successfully")
+            except Exception as e:
+                logger.error(f"Failed to save snapshot: {e}")
+                logger.error(traceback.format_exc())
+                raise SnapshotError(f"Snapshot save failed: {e}") from e
         else:
-            print("[SAVE] No snapshot to save")   
+            logger.debug("No snapshot to save")   
 
     @Slot()
     def delete_table(self):
@@ -163,42 +213,77 @@ class MainWindow(QObject):
     def uploadFile(self, fileUrl):
         with self._state_lock:
             if '' in [self.current_company, self.current_year]:
+                error_msg = VALIDATION_ERRORS.get(1, "Validation failed")
+                logger.warning(f"Upload validation failed: {error_msg}")
                 self.validationError.emit(1)
                 return   
             if not self.chequeReportActivated and '' in [self.current_bank, self.current_month]:
+                error_msg = VALIDATION_ERRORS.get(3, "Validation failed")
+                logger.warning(f"Upload validation failed: {error_msg}")
                 self.validationError.emit(3)
                 return
-        fileUrl = fileUrl.split('///')[1]
+        
+        try:
+            fileUrl = fileUrl.split('///')[1]
+            logger.info(f"File upload initiated: {fileUrl}")
+        except (IndexError, AttributeError) as e:
+            logger.error(f"Invalid file URL format: {fileUrl}")
+            logger.error(traceback.format_exc())
+            self.validationError.emit(6)
+            return
+        
         # Submit to thread pool with exception handling
         if not self._is_shutting_down:
             wrapped_func = self._thread_exception_wrapper(self.threadedUploadFile, "File Upload")
             future = self._thread_pool.submit(wrapped_func, fileUrl)
             self._active_futures.add(future)
+        else:
+            logger.warning("Upload rejected: application is shutting down")
         return
+    
     def threadedUploadFile(self, fileUrl):
         """Thread worker for file upload with lock protection."""
         with self._state_lock:
             cheque_activated = self.chequeReportActivated
         
+        logger.debug(f"Processing file upload: {fileUrl} (cheque_mode={cheque_activated})")
+        
         if cheque_activated:
-            if not self.tableOperations.save_chequeReport_to_collection(fileUrl):
-                self.validationError.emit(2) 
-            else: 
-                self.checkReportUploadSuccess.emit()               
+            try:
+                if not self.tableOperations.save_chequeReport_to_collection(fileUrl):
+                    error_msg = VALIDATION_ERRORS.get(2, "Cheque report save failed")
+                    logger.error(f"Cheque report upload failed: {error_msg}")
+                    self.validationError.emit(2)
+                else:
+                    logger.info("Cheque report uploaded successfully")
+                    self.checkReportUploadSuccess.emit()
+            except Exception as e:
+                logger.error(f"Exception during cheque report upload: {e}")
+                logger.error(traceback.format_exc())
+                self.validationError.emit(2)
             return
         
         # Add snapshot to table (may modify shared state)
-        success, status_code = self.tableOperations.add_snapshot_to_table(fileUrl)
-        if not success:
-            print(f"[ERROR] File upload failed with status code: {status_code}")
-            self.validationError.emit(status_code)
-        else:
-            self.bankStatementUploadSuccess.emit()
+        try:
+            success, status_code = self.tableOperations.add_snapshot_to_table(fileUrl)
+            if not success:
+                error_msg = VALIDATION_ERRORS.get(status_code, f"Upload failed with code {status_code}")
+                logger.error(f"File upload failed: {error_msg} (code: {status_code})")
+                self.validationError.emit(status_code)
+            else:
+                logger.info(f"Bank statement uploaded successfully: {fileUrl}")
+                self.bankStatementUploadSuccess.emit()
+        except Exception as e:
+            logger.error(f"Exception during bank statement upload: {e}")
+            logger.error(traceback.format_exc())
+            self.validationError.emit(5)
         return
     @Slot(str)
     def exportFile(self, fileURL):
         with self._snapshot_lock:
             if not self.tableSnapshot:
+                error_msg = VALIDATION_ERRORS.get(4, "Unknown validation error")
+                logger.error(f"Export failed: {error_msg}")
                 self.validationError.emit(4)
                 return
             # Create a reference to current snapshot
@@ -206,46 +291,79 @@ class MainWindow(QObject):
         
         try:     
             fileURL = fileURL.split('///')[1]
-        except:
-            pass
+            logger.debug(f"Parsed file URL: {fileURL}")
+        except (IndexError, AttributeError) as e:
+            logger.warning(f"Failed to parse file URL, using as-is: {e}")
+            # fileURL remains unchanged
+        
         # Submit to thread pool with exception handling
         if not self._is_shutting_down:
             wrapped_func = self._thread_exception_wrapper(self.threadedExportFile, "File Export")
             future = self._thread_pool.submit(wrapped_func, fileURL, snapshot)
             self._active_futures.add(future)
+            logger.info(f"Export task submitted for file: {fileURL}")
         return    
     def threadedExportFile(self, fileURL, snapshot):
         """Thread worker for file export with lock protection."""
-        status, status_code = self.tableOperations.export_to_excel(fileURL, snapshot)
-        if not status:
-            print(f"[ERROR] File export failed with status code: {status_code}")
-            self.validationError.emit(status_code)
-        else:
-            self.statementExportSuccess.emit()
+        logger.debug(f"Exporting to file: {fileURL}")
+        try:
+            status, status_code = self.tableOperations.export_to_excel(fileURL, snapshot)
+            if not status:
+                error_msg = VALIDATION_ERRORS.get(status_code, f"Export failed with code {status_code}")
+                logger.error(f"File export failed: {error_msg} (code: {status_code})")
+                self.validationError.emit(status_code)
+            else:
+                logger.info(f"File exported successfully: {fileURL}")
+                self.statementExportSuccess.emit()
+        except Exception as e:
+            logger.error(f"Exception during file export: {e}")
+            logger.error(traceback.format_exc())
+            self.validationError.emit(7)
         return  
 
     @Slot(str, str, str, str)
     def createIntermediateDaybook(self, daybookURL, fromDate, toDate, company):
-        print(daybookURL, fromDate, toDate,company, "Validating intermediate daybook ")
-        status, code = self.tableOperations.validateIntermediateDaybook(daybookURL, fromDate, toDate, company)
-        print(status, code)
-        if not status:
-            self.dayBookExportHandlingError.emit(code, '')            
-            return
-        status, code, data = self.tableOperations.generateIntermediateDaybook()    
-        if not status:
-            self.dayBookExportHandlingError.emit(code, data)
+        logger.info(f"Creating intermediate daybook - From: {fromDate}, To: {toDate}, Company: {company}")
+        logger.debug(f"Daybook URL: {daybookURL}")
+        
+        try:
+            status, code = self.tableOperations.validateIntermediateDaybook(daybookURL, fromDate, toDate, company)
+            logger.debug(f"Validation result: status={status}, code={code}")
+            
+            if not status:
+                logger.warning(f"Daybook validation failed with code: {code}")
+                self.dayBookExportHandlingError.emit(code, '')            
+                return
+            
+            status, code, data = self.tableOperations.generateIntermediateDaybook()
+            if not status:
+                logger.error(f"Daybook generation failed - Code: {code}, Data: {data}")
+                self.dayBookExportHandlingError.emit(code, data)
+            else:
+                logger.info("Intermediate daybook created successfully")
+        except Exception as e:
+            logger.error(f"Exception during daybook creation: {e}")
+            logger.error(traceback.format_exc())
+            self.dayBookExportHandlingError.emit(99, str(e))
 
     @Slot(list)
     def createTallyXMLVoucher(self, propertyArray):
-        print("CREATE TALLY XML DAYBOOK", propertyArray)        
+        logger.info(f"Creating Tally XML voucher with {len(propertyArray)} properties")
+        logger.debug(f"Properties: {propertyArray}")
+        try:
+            # Implementation pending
+            logger.warning("Tally XML voucher creation not yet implemented")
+        except Exception as e:
+            logger.error(f"Tally XML creation failed: {e}")
+            logger.error(traceback.format_exc())        
 
     def populate_table(self):
         self.showMainScreenLoadingIndicator.emit()
         with self._state_lock:
             current_state = (self.current_bank, self.current_company, self.current_month, self.current_year)
-            print("Current state:", current_state)
+            logger.debug(f"Populate table requested - State: bank={self.current_bank}, company={self.current_company}, month={self.current_month}, year={self.current_year}")
             if '' in current_state:
+                logger.warning("Cannot populate table: incomplete state selection")
                 self.showChooseOptionsPage.emit()
                 self.hideMainScreenLoadingIndicator.emit()
                 return -1
@@ -256,12 +374,19 @@ class MainWindow(QObject):
             wrapped_func = self._thread_exception_wrapper(self.threadedPopulate_table, "Table Population")
             future = self._thread_pool.submit(wrapped_func)
             self._active_futures.add(future)
+            logger.info("Table population task submitted")
+        else:
+            logger.warning("Table population rejected: application is shutting down")
         return 1
     
     def threadedPopulate_table(self):
         """Thread worker for table population with lock protection."""
-        self.save_snapshot()
-        print('[THREAD] Populating table...')
+        try:
+            self.save_snapshot()
+        except Exception as e:
+            logger.warning(f"Failed to save previous snapshot: {e}")
+        
+        logger.info("Starting table population...")
         
         # Get current state safely
         with self._state_lock:
@@ -271,46 +396,60 @@ class MainWindow(QObject):
             company = self.current_company
         
         # Load data from collection (may take time, no lock needed)
-        tableSnapshot, masterDisplayTableData, credit_bal, debit_bal, start_date, end_date = \
-            self.tableOperations.get_table_from_collection(month, year, bank, company)
-        
-        if not tableSnapshot:
+        try:
+            logger.debug(f"Loading table data: {bank}/{company}/{month}/{year}")
+            tableSnapshot, masterDisplayTableData, credit_bal, debit_bal, start_date, end_date = \
+                self.tableOperations.get_table_from_collection(month, year, bank, company)
+        except Exception as e:
+            logger.error(f"Failed to load table from collection: {e}")
+            logger.error(traceback.format_exc())
             self.showUploadBankStatementPage.emit()
-            print("[THREAD] No tablesnapshot saved")
             self.hideMainScreenLoadingIndicator.emit()
             return 0
         
-        print("[THREAD] Snapshot found, updating state...")
+        if not tableSnapshot:
+            self.showUploadBankStatementPage.emit()
+            logger.info("No table snapshot found in collection")
+            self.hideMainScreenLoadingIndicator.emit()
+            return 0
+        
+        logger.debug("Snapshot loaded, updating application state...")
         
         # Update shared state with lock
-        with self._snapshot_lock:
-            self.tableSnapshot = tableSnapshot
-            self.masterDisplayTableData = masterDisplayTableData
-        
-        with self._data_lock:
-            self._tableData = masterDisplayTableData
-            self._creditBal = credit_bal
-            self._debitBal = debit_bal
-        
-        # Emit signals to update UI
-        self.table_data_changed.emit()
-        self.creditBal_changed.emit()
-        self.debitBal_changed.emit()
-        
-        print(f"[THREAD] Date range: {start_date} to {end_date}")
-        self._startDateCalendar = QDate(int(start_date.split('/')[0]), int(start_date.split('/')[1]), int(start_date.split('/')[2]))
-        self.startDateCalendar_changed.emit()
-        self._endDateCalendar = QDate(int(end_date.split('/')[0]), int(end_date.split('/')[1]), int(end_date.split('/')[2]))
-        self.endDateCalendar_changed.emit()
-        
-        with self._snapshot_lock:
-            self._selectedRows = tableSnapshot.get_master_selected_rows()
-        self.selectedRows_changed.emit()
-        
-        self.showTablePage.emit()
-        self.hideMainScreenLoadingIndicator.emit()
-        print('[THREAD] Table population complete')
-        return 1
+        try:
+            with self._snapshot_lock:
+                self.tableSnapshot = tableSnapshot
+                self.masterDisplayTableData = masterDisplayTableData
+            
+            with self._data_lock:
+                self._tableData = masterDisplayTableData
+                self._creditBal = credit_bal
+                self._debitBal = debit_bal
+            
+            # Emit signals to update UI
+            self.table_data_changed.emit()
+            self.creditBal_changed.emit()
+            self.debitBal_changed.emit()
+            
+            logger.debug(f"Date range: {start_date} to {end_date}")
+            self._startDateCalendar = QDate(int(start_date.split('/')[0]), int(start_date.split('/')[1]), int(start_date.split('/')[2]))
+            self.startDateCalendar_changed.emit()
+            self._endDateCalendar = QDate(int(end_date.split('/')[0]), int(end_date.split('/')[1]), int(end_date.split('/')[2]))
+            self.endDateCalendar_changed.emit()
+            
+            with self._snapshot_lock:
+                self._selectedRows = tableSnapshot.get_master_selected_rows()
+            self.selectedRows_changed.emit()
+            
+            self.showTablePage.emit()
+            self.hideMainScreenLoadingIndicator.emit()
+            logger.info("Table population completed successfully")
+            return 1
+        except Exception as e:
+            logger.error(f"Failed to update UI state: {e}")
+            logger.error(traceback.format_exc())
+            self.hideMainScreenLoadingIndicator.emit()
+            raise
 
     def callBackFunction_for_Updating_fullScreenLoading(self, text1, text2, prograssbarVal):
         self._fullScreenLoadingInfo1 = text1
@@ -323,21 +462,45 @@ class MainWindow(QObject):
 
     def populateChequeReports(self):    
         if '' in [self.current_company,self.current_year]:
+            logger.warning("Cannot populate cheque reports: company or year not selected")
             return -1, ''
-        self.save_snapshot()
-        print('POPULATING ChequeReport')
-        self.infiChequeStatement = self.tableOperations.get_chequeReport_from_collection( self.current_year, self.current_company)    
-        if not self.infiChequeStatement:
-            print("No ChequeReport found")
-            return 0, ''
-        time = self.infiChequeStatement.get_last_edited_time() 
-        print("ChequeReport found", time)    
-        return 1, time
+        
+        try:
+            self.save_snapshot()
+        except Exception as e:
+            logger.warning(f"Failed to save snapshot before loading cheque reports: {e}")
+        
+        logger.info("Loading cheque reports...")
+        try:
+            self.infiChequeStatement = self.tableOperations.get_chequeReport_from_collection(self.current_year, self.current_company)
+            if not self.infiChequeStatement:
+                logger.info("No cheque report found in collection")
+                return 0, ''
+            time = self.infiChequeStatement.get_time_stamp()
+            logger.info(f"Cheque report loaded successfully (timestamp: {time})")
+            return 1, time
+        except Exception as e:
+            logger.error(f"Failed to load cheque reports: {e}")
+            logger.error(traceback.format_exc())
+            return -1, ''
     @Slot(str, str)    
     def search(self, searchQuery, searchMode):
-        print("Searching for ", searchQuery, " mode: ", searchMode)
+        logger.debug(f"Search initiated - Query: '{searchQuery}', Mode: {searchMode}")
         if not self.tableSnapshot:
+            logger.warning("Search aborted: no table snapshot available")
             return
+        
+        try:
+            self._tableData, self._creditBal, self._debitBal = self.tableOperations.search_table(
+                searchQuery, searchMode, self.tableSnapshot, self.masterDisplayTableData
+            )
+            self.table_data_changed.emit()
+            self.creditBal_changed.emit()
+            self.debitBal_changed.emit()
+            logger.debug(f"Search completed - Results: {len(self._tableData)} rows")
+        except Exception as e:
+            logger.error(f"Search failed: {e}")
+            logger.error(traceback.format_exc())
         if searchMode == "off" and self.searchModeOffFirsttime:
             self.populate_table()
             return
@@ -367,12 +530,12 @@ class MainWindow(QObject):
                 return
             self._is_shutting_down = True
         
-        print("Shutting down thread pool...")
+        logger.info("Initiating thread pool shutdown...")
         
         # Wait for active futures to complete (with timeout)
         active_count = len(self._active_futures)
         if active_count > 0:
-            print(f"Waiting for {active_count} active tasks to complete...")
+            logger.info(f"Waiting for {active_count} active tasks to complete...")
             # Give threads reasonable time to finish
             import time
             max_wait = 10.0  # seconds
@@ -383,18 +546,29 @@ class MainWindow(QObject):
             
             remaining = len(self._active_futures)
             if remaining > 0:
-                print(f"Warning: {remaining} tasks did not complete within timeout")
+                logger.warning(f"{remaining} tasks did not complete within {max_wait}s timeout")
         
         # Shutdown thread pool gracefully
-        self._thread_pool.shutdown(wait=True, cancel_futures=False)
-        print("Thread pool shutdown complete")
+        try:
+            self._thread_pool.shutdown(wait=True, cancel_futures=False)
+            logger.info("Thread pool shutdown completed successfully")
+        except Exception as e:
+            logger.error(f"Error during thread pool shutdown: {e}")
+            logger.error(traceback.format_exc())
     
     @Slot()
     def beginWindowExitRoutine(self):
         """Enhanced exit routine with proper thread cleanup."""
-        print("Beginning exit routine...")
-        self.save_snapshot()
+        logger.info("Application exit routine initiated")
+        try:
+            self.save_snapshot()
+        except Exception as e:
+            logger.error(f"Failed to save snapshot during exit: {e}")
+            logger.error(traceback.format_exc())
+        
         self._cleanup_threads()
+        logger.info("Exit routine completed")
+    
     @Slot()
     def downloadfromDb(self):
         self.fullScreenLoadingStart.emit()
@@ -403,14 +577,24 @@ class MainWindow(QObject):
             wrapped_func = self._thread_exception_wrapper(self.downloadfromDbThreaded, "Firebase Download")
             future = self._thread_pool.submit(wrapped_func)
             self._active_futures.add(future)
+            logger.info("Firebase download task submitted")
+        else:
+            logger.warning("Firebase download rejected: application is shutting down")
     
     def downloadfromDbThreaded(self):
         """Thread worker for Firebase download with exception handling."""
-        print('[THREAD] Starting Firebase download...')
-        self.tableOperations.get_data_from_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
-        print('[THREAD] Firebase download complete')
-        self.fullScreenLoadingEnd.emit()
+        logger.info("Starting Firebase download operation...")
+        try:
+            self.tableOperations.get_data_from_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
+            logger.info("Firebase download completed successfully")
+        except Exception as e:
+            logger.error(f"Firebase download failed: {e}")
+            logger.error(traceback.format_exc())
+            raise DatabaseError(f"Firebase download failed: {e}") from e
+        finally:
+            self.fullScreenLoadingEnd.emit()
         return    
+    
     @Slot()
     def uploadtoDb(self):
         self.fullScreenLoadingStart.emit()
@@ -419,13 +603,22 @@ class MainWindow(QObject):
             wrapped_func = self._thread_exception_wrapper(self.uploadtoDbThreaded, "Firebase Upload")
             future = self._thread_pool.submit(wrapped_func)
             self._active_futures.add(future)
+            logger.info("Firebase upload task submitted")
+        else:
+            logger.warning("Firebase upload rejected: application is shutting down")
     
     def uploadtoDbThreaded(self):
         """Thread worker for Firebase upload with exception handling."""
-        print('[THREAD] Starting Firebase upload...')
-        self.tableOperations.upload_data_to_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
-        print('[THREAD] Firebase upload complete')
-        self.fullScreenLoadingEnd.emit()
+        logger.info("Starting Firebase upload operation...")
+        try:
+            self.tableOperations.upload_data_to_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
+            logger.info("Firebase upload completed successfully")
+        except Exception as e:
+            logger.error(f"Firebase upload failed: {e}")
+            logger.error(traceback.format_exc())
+            raise DatabaseError(f"Firebase upload failed: {e}") from e
+        finally:
+            self.fullScreenLoadingEnd.emit()
         return
     @Slot()
     def createTallyXMLFromDaybook(self):

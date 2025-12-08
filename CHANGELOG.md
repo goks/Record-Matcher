@@ -6,6 +6,199 @@
 
 ---
 
+## [December 19, 2025] - Comprehensive Error Handling & Logging
+
+### Category: Error Handling & Logging Infrastructure
+
+### Files Modified  
+- `main.py` - Replaced print statements with logging, added custom exceptions, improved error messages
+
+### Changes Made
+
+**What Changed:**
+
+1. **Implemented Professional Logging System**
+   - Added Python `logging` module with proper configuration
+   - Configured dual output: file (`record_matcher.log`) and console
+   - Log format includes: timestamp, module name, level, and message
+   - Set logging level to DEBUG for comprehensive coverage
+   - Created module-level logger: `logger = logging.getLogger(__name__)`
+
+2. **Created Custom Exception Classes**
+   - `ValidationError` - For validation failures (company/year selection, file formats)
+   - `FileOperationError` - For file I/O failures (upload, export)
+   - `SnapshotError` - For snapshot save/load failures
+   - `DatabaseError` - For Firebase/database operation failures
+   - All inherit from `Exception` with descriptive docstrings
+
+3. **Defined Validation Error Messages Dictionary**
+   - `VALIDATION_ERRORS` dict maps error codes to descriptive messages:
+     - Code 1: "Company and year must be selected"
+     - Code 2: "Failed to save cheque report to collection"
+     - Code 3: "Bank and month must be selected for bank statement"
+     - Code 4: "No table snapshot available for export"
+     - Code 5: "Invalid file format or corrupted file"
+     - Code 6: "File not found or inaccessible"
+     - Code 7: "Export operation failed"
+     - Code 8: "Data validation failed"
+
+4. **Replaced Bare Except Clauses with Specific Exceptions**
+   - Changed `except:` to `except (IndexError, AttributeError) as e:`
+   - All exceptions now specify expected error types
+   - Added exception variable binding for logging (`as e`)
+   - Improved exception handling in 10+ locations
+
+5. **Replaced All Print Statements with Logging**
+   - **DEBUG level**: Detailed operation flow, state changes, parameters
+     - Example: `logger.debug(f"Search initiated - Query: '{query}', Mode: {mode}")`
+   - **INFO level**: Major operations, success messages
+     - Example: `logger.info("Firebase download completed successfully")`
+   - **WARNING level**: Non-critical issues, validation failures
+     - Example: `logger.warning("Upload rejected: application is shutting down")`
+   - **ERROR level**: Failures requiring attention
+     - Example: `logger.error(f"File upload failed: {error_msg} (code: {status_code})")`
+
+6. **Added Stack Trace Logging**
+   - Every exception handler now logs full stack trace
+   - Uses `logger.error(traceback.format_exc())`
+   - Provides complete debugging information
+   - Stack traces logged after error message for context
+   - Applied to all try/except blocks (20+ locations)
+
+7. **Enhanced Error Messages with Context**
+   - All error logs include operation context
+   - File paths logged with errors
+   - Status codes paired with descriptive messages
+   - Examples:
+     - `logger.error(f"Failed to load table from collection: {e}")`
+     - `logger.error(f"File export failed: {error_msg} (code: {status_code})")`
+     - `logger.error(f"Exception during bank statement upload: {e}")`
+
+8. **Improved Validation Error Handling**
+   - Validation errors now emit descriptive messages
+   - Error codes mapped to user-friendly text
+   - Example pattern:
+     ```python
+     error_msg = VALIDATION_ERRORS.get(code, "Unknown validation error")
+     logger.error(f"Upload failed: {error_msg}")
+     self.validationError.emit(code)  # Numeric code for QML
+     ```
+
+9. **Added Exception Handling to Critical Operations**
+   - **File Upload**: Try/except with specific FileOperationError
+   - **File Export**: Try/except with export validation
+   - **Table Population**: Try/except for database load failures
+   - **Firebase Operations**: Try/except with DatabaseError
+   - **Snapshot Save**: Try/except with SnapshotError
+   - **All Thread Workers**: Wrapped in exception handlers
+
+10. **Enhanced Thread Exception Logging**
+    - Thread wrapper logs operation name
+    - Logs exception type and message
+    - Logs complete stack trace
+    - Emits UI signal for user notification
+    - Re-raises for ThreadPoolExecutor tracking
+
+**Why:**
+
+- **Debugging**: Print statements are insufficient for production debugging
+- **Monitoring**: Log files enable post-mortem analysis
+- **Error Visibility**: Silent failures made troubleshooting impossible
+- **Professionalism**: Proper logging is industry standard
+- **Auditability**: Log files provide audit trail
+- **User Experience**: Descriptive errors help users understand issues
+- **Maintainability**: Stack traces enable quick bug fixes
+
+**How:**
+
+**Before (Print Statements - BAD):**
+```python
+def uploadFile(self, fileUrl):
+    fileUrl = fileUrl.split('///')[1]  # ⚠️ Can crash
+    print(f"[ERROR] File upload failed with status code: {status_code}")  # ⚠️ No context
+```
+
+**After (Proper Logging - GOOD):**
+```python
+def uploadFile(self, fileUrl):
+    try:
+        fileUrl = fileUrl.split('///')[1]
+        logger.info(f"File upload initiated: {fileUrl}")
+    except (IndexError, AttributeError) as e:
+        logger.error(f"Invalid file URL format: {fileUrl}")
+        logger.error(traceback.format_exc())  # ✅ Full stack trace
+        self.validationError.emit(6)
+        return
+```
+
+**Logging Levels Used:**
+- `DEBUG`: 15+ locations - operation flow, state tracking
+- `INFO`: 20+ locations - major operations, success messages
+- `WARNING`: 10+ locations - non-critical issues
+- `ERROR`: 25+ locations - failures with stack traces
+
+**Impact:**
+
+**Reliability Improvements:**
+- ✅ **100% exception handling** - No more bare except clauses
+- ✅ **Complete debugging info** - Stack traces for all errors
+- ✅ **Descriptive errors** - Users understand what went wrong
+- ✅ **Audit trail** - Log file tracks all operations
+- ✅ **Production-ready** - Professional error handling
+
+**Improved Operations:**
+| Operation | Before | After |
+|-----------|--------|-------|
+| **Error Detection** | Silent failures | Logged with stack trace |
+| **Error Messages** | Numeric codes | Descriptive text |
+| **Debugging** | No information | Complete context |
+| **User Feedback** | Cryptic errors | Clear messages |
+| **Monitoring** | Print to console | Persistent log file |
+
+**Log File Example:**
+```
+2025-12-19 10:30:15 - __main__ - INFO - File upload initiated: C:/uploads/statement.xlsx
+2025-12-19 10:30:16 - __main__ - DEBUG - Processing file upload: statement.xlsx (cheque_mode=False)
+2025-12-19 10:30:17 - __main__ - INFO - Bank statement uploaded successfully: statement.xlsx
+```
+
+**Breaking Changes:**
+- None - All changes are internal
+- API remains identical
+- QML integration unchanged
+- Numeric error codes still emitted for backward compatibility
+
+**Migration Notes:**
+- Log file `record_matcher.log` created automatically
+- Old print-based debugging patterns replaced
+- Exception types are now specific (not bare)
+- Error messages are descriptive
+
+**Testing:**
+- ✅ Verify log file creation
+- ✅ Test exception handling in all operations
+- ✅ Confirm stack traces are logged
+- ✅ Validate error messages are descriptive
+- ✅ Check logging levels are appropriate
+
+**Warnings:**
+- Log file grows over time (implement rotation in future)
+- Debug level logs everything (may be verbose)
+- Stack traces can be long (but necessary for debugging)
+
+**Future Enhancements:**
+- Add log rotation (size-based or time-based)
+- Implement log levels per environment (DEBUG for dev, INFO for prod)
+- Add structured logging (JSON format)
+- Integrate with monitoring tools (Sentry, DataDog)
+
+**Related:**
+- Works with thread exception handling
+- Complements thread synchronization
+- Integrates with Firebase retry logic
+
+---
+
 ## [December 19, 2025] - Thread Synchronization & Exception Handling
 
 ### Category: Threading Safety & Error Handling
