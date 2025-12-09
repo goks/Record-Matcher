@@ -32,7 +32,9 @@ from services import (
 from repositories import (
     PickleSnapshotRepository,
     PickleChequeReportRepository,
-    JsonConfigRepository
+    JsonConfigRepository,
+    get_snapshot_repository,  # Factory function for SQLite/pickle auto-selection
+    get_cheque_report_repository  # Factory function for SQLite/pickle auto-selection
 )
 from models import (
     ApplicationState,
@@ -145,8 +147,10 @@ class MainWindow(QObject, UIOptimizationMixin):
         self.tableOperations = C.TableOperations()
         
         # Initialize repositories
-        self.snapshot_repository = PickleSnapshotRepository()
-        self.cheque_repository = PickleChequeReportRepository()
+        # Automatically uses SQLite if available, falls back to pickle
+        # This provides better performance and data integrity with zero code changes
+        self.snapshot_repository = get_snapshot_repository()  # SQLite > pickle
+        self.cheque_repository = get_cheque_report_repository()  # SQLite > pickle
         self.config_repository = JsonConfigRepository(os.path.join(CURRENT_DIR, "data.json"))
         
         # Initialize services

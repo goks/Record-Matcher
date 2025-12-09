@@ -10,21 +10,35 @@ operations behind clean interfaces. This provides:
 
 The module includes both abstract base classes (interfaces) and concrete
 implementations for:
-- Table snapshot persistence (pickle files)
-- Cheque report persistence (pickle files)
+- Table snapshot persistence (pickle files, SQLite database)
+- Cheque report persistence (pickle files, SQLite database)
 - Configuration data access (JSON files)
 - Firebase cloud storage
 
 Repository Hierarchy:
     IRepository (ABC)
     ├── ISnapshotRepository
-    │   └── PickleSnapshotRepository
+    │   ├── PickleSnapshotRepository (Legacy - deprecated)
+    │   └── SQLiteSnapshotRepository (Recommended)
     ├── IChequeReportRepository
-    │   └── PickleChequeReportRepository
+    │   ├── PickleChequeReportRepository (Legacy - deprecated)
+    │   └── SQLiteChequeReportRepository (Recommended)
     ├── IConfigRepository
     │   └── JsonConfigRepository
     └── IFirebaseRepository
         └── FirebaseCloudRepository
+
+MIGRATION NOTICE:
+    The pickle-based repositories (PickleSnapshotRepository, PickleChequeReportRepository)
+    are deprecated in favor of SQLite-based implementations for better:
+    - Performance (indexed queries, partial loads)
+    - Data integrity (ACID transactions, checksums)
+    - Security (no arbitrary code execution risk)
+    - Maintainability (SQL queries, easy data inspection)
+    
+    To migrate from pickle to SQLite, use:
+        from sqlite_storage import migrate_pickle_to_sqlite
+        migrate_pickle_to_sqlite()  # One-time migration
 """
 
 import os
@@ -693,3 +707,145 @@ class JsonConfigRepository(IConfigRepository):
 # Note: FirebaseCloudRepository implementation would go here
 # For now, keeping Firebase operations in the service layer since they
 # have complex dependencies on Firebase SDK
+
+
+# ============================================================================
+# SQLITE IMPLEMENTATIONS (RECOMMENDED)
+# ============================================================================
+
+# Import SQLite implementations
+try:
+    from sqlite_storage import (
+        SQLiteSnapshotRepository,
+        SQLiteChequeReportRepository,
+        migrate_pickle_to_sqlite
+    )
+    
+    logger.info("SQLite storage implementations available")
+    _SQLITE_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"SQLite storage not available: {e}")
+    logger.warning("Falling back to pickle-based storage")
+    SQLiteSnapshotRepository = None
+    SQLiteChequeReportRepository = None
+    migrate_pickle_to_sqlite = None
+    _SQLITE_AVAILABLE = False
+
+
+# ============================================================================
+# FACTORY FUNCTIONS (Recommended way to get repositories)
+# ============================================================================
+
+def get_snapshot_repository(
+    use_sqlite: bool = True,
+    db_path: Optional[str] = None,
+    app_name: str = "RecordMatcher"
+) -> ISnapshotRepository:
+    """Factory function to get snapshot repository.
+    
+    Automatically selects the best available implementation:
+    - SQLite if available and requested (default)
+    - Pickle as fallback
+    
+    Args:
+        use_sqlite: Prefer SQLite if available (default: True)
+        db_path: Custom database/file path
+        app_name: Application name for default paths
+    
+    Returns:
+        ISnapshotRepository implementation
+        
+    Example:
+        # Get default repository (SQLite if available, else pickle)
+        repo = get_snapshot_repository()
+        
+        # Force SQLite
+        repo = get_snapshot_repository(use_sqlite=True)
+        
+        # Force pickle (legacy)
+        repo = get_snapshot_repository(use_sqlite=False)
+        
+        # Custom path
+        repo = get_snapshot_repository(db_path="/path/to/db.sqlite")
+    """
+    if use_sqlite and _SQLITE_AVAILABLE:
+        logger.info("Using SQLite snapshot repository")
+        return SQLiteSnapshotRepository(db_path=db_path, app_name=app_name)
+    else:
+        if use_sqlite and not _SQLITE_AVAILABLE:
+            logger.warning("SQLite requested but not available, using pickle")
+        else:
+            logger.info("Using pickle snapshot repository (legacy)")
+        return PickleSnapshotRepository(save_path=db_path, app_name=app_name)
+
+
+def get_cheque_report_repository(
+    use_sqlite: bool = True,
+    db_path: Optional[str] = None,
+    app_name: str = "RecordMatcher"
+) -> IChequeReportRepository:
+    """Factory function to get cheque report repository.
+    
+    Automatically selects the best available implementation:
+    - SQLite if available and requested (default)
+    - Pickle as fallback
+    
+    Args:
+        use_sqlite: Prefer SQLite if available (default: True)
+        db_path: Custom database/file path
+        app_name: Application name for default paths
+    
+    Returns:
+        IChequeReportRepository implementation
+        
+    Example:
+        # Get default repository (SQLite if available, else pickle)
+        repo = get_cheque_report_repository()
+        
+        # Force SQLite
+        repo = get_cheque_report_repository(use_sqlite=True)
+        
+        # Force pickle (legacy)
+        repo = get_cheque_report_repository(use_sqlite=False)
+    """
+    if use_sqlite and _SQLITE_AVAILABLE:
+        logger.info("Using SQLite cheque report repository")
+        return SQLiteChequeReportRepository(db_path=db_path, app_name=app_name)
+    else:
+        if use_sqlite and not _SQLITE_AVAILABLE:
+            logger.warning("SQLite requested but not available, using pickle")
+        else:
+            logger.info("Using pickle cheque report repository (legacy)")
+        return PickleChequeReportRepository(save_path=db_path, app_name=app_name)
+
+
+# ============================================================================
+# MODULE EXPORTS
+# ============================================================================
+
+__all__ = [
+    # Abstract interfaces
+    'IRepository',
+    'ISnapshotRepository',
+    'IChequeReportRepository',
+    'IConfigRepository',
+    'IFirebaseRepository',
+    
+    # Pickle implementations (legacy - deprecated)
+    'PickleSnapshotRepository',
+    'PickleChequeReportRepository',
+    
+    # SQLite implementations (recommended)
+    'SQLiteSnapshotRepository',  # May be None if not available
+    'SQLiteChequeReportRepository',  # May be None if not available
+    
+    # JSON implementation
+    'JsonConfigRepository',
+    
+    # Factory functions (recommended)
+    'get_snapshot_repository',
+    'get_cheque_report_repository',
+    
+    # Migration utility
+    'migrate_pickle_to_sqlite',  # May be None if not available
+]
