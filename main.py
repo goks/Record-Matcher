@@ -18,8 +18,28 @@ from PySide2.QtCore import QBitArray, QObject, SIGNAL, Slot, Signal, Property, Q
 
 import core as C
 from core import TableOperations, TableSnapshot, InfiChequeStatement
-
 from core import TableSnapshotCollection
+
+# Import new architecture components
+from services import (
+    StateManagementService,
+    FileOperationService,
+    TablePopulationService,
+    SearchService,
+    SyncService,
+    ChequeReportService
+)
+from repositories import (
+    PickleSnapshotRepository,
+    PickleChequeReportRepository,
+    JsonConfigRepository
+)
+from models import (
+    ApplicationState,
+    UIDisplayData,
+    ValidationResult,
+    SearchResult
+)
 
 # Configure logging
 logging.basicConfig(
@@ -98,11 +118,31 @@ class MainWindow(QObject):
     """
     def __init__(self):
         QObject.__init__(self)
+        
+        # Legacy components (kept for backward compatibility during migration)
         self.hdfcBankChequeStatement = C.HDFCBankChequeStatement()
         self.iciciBankChequeStatement = C.ICICIBankChequeStatement() 
-        self.tableOperations = C.TableOperations()  
+        self.tableOperations = C.TableOperations()
+        
+        # Initialize repositories
+        self.snapshot_repository = PickleSnapshotRepository()
+        self.cheque_repository = PickleChequeReportRepository()
+        self.config_repository = JsonConfigRepository(os.path.join(CURRENT_DIR, "data.json"))
+        
+        # Initialize services
+        self.state_service = StateManagementService()
+        self.file_service = FileOperationService(self.tableOperations)
+        self.table_service = TablePopulationService(self.tableOperations, self.snapshot_repository)
+        self.search_service = SearchService(self.tableOperations)
+        self.sync_service = SyncService(self.tableOperations)
+        self.cheque_service = ChequeReportService(self.tableOperations, self.cheque_repository)
+        
+        # Snapshot data (being migrated to service layer)
         self.tableSnapshot = None
         self.masterDisplayTableData = list()
+        self.infiChequeStatement = None
+        
+        # UI display state
         self.populate_left_menu(True)
         self._monthYearData = ''
         self._companyData = ''
@@ -117,6 +157,8 @@ class MainWindow(QObject):
         self._progressBarValue = 0.0
         self._fullScreenLoadingInfo1 = ''
         self._fullScreenLoadingInfo2 = ''
+        
+        # Application state (migrating to StateManagementService)
         self.current_month = ''
         self.current_bank = ''
         self.current_year = ''
@@ -138,7 +180,39 @@ class MainWindow(QObject):
         
         # Register cleanup on exit
         atexit.register(self._cleanup_threads)
-        return   
+        
+        logger.info("MainWindow initialized with service layer architecture")
+        return
+    
+    def _sync_state_to_service(self) -> None:
+        """Synchronize current state to StateManagementService.
+        
+        This helper method updates the service layer with current UI state.
+        Used during initialization and when state changes.
+        """
+        with self._state_lock:
+            self.state_service.update_month(self.current_month)
+            self.state_service.update_year(self.current_year)
+            self.state_service.update_bank(self.current_bank)
+            self.state_service.update_company(self.current_company)
+            self.state_service.set_cheque_report_mode(self.chequeReportActivated)
+            self.state_service.set_tally_export_mode(self.tallyExportBoxActivated)
+    
+    def _sync_state_from_service(self) -> None:
+        """Synchronize state from StateManagementService to local variables.
+        
+        This helper method retrieves state from service layer and updates UI state.
+        Used when we want to ensure UI reflects service layer state.
+        """
+        state = self.state_service.get_state()
+        with self._state_lock:
+            self.current_month = state.current_month
+            self.current_year = state.current_year
+            self.current_bank = state.current_bank
+            self.current_company = state.current_company
+            self.chequeReportActivated = state.cheque_report_activated
+            self.tallyExportBoxActivated = state.tally_export_activated
+    
     def _thread_exception_wrapper(self, func, operation_name):
         """Wrapper to handle exceptions in threaded operations."""
         def wrapper(*args, **kwargs):
@@ -259,17 +333,16 @@ class MainWindow(QObject):
         Args:
             fileUrl: File URL from QML (format: file:///path/to/file)
         """
-        with self._state_lock:
-            if '' in [self.current_company, self.current_year]:
-                error_msg = VALIDATION_ERRORS.get(1, "Validation failed")
-                logger.warning(f"Upload validation failed: {error_msg}")
-                self.validationError.emit(1)
-                return   
-            if not self.chequeReportActivated and '' in [self.current_bank, self.current_month]:
-                error_msg = VALIDATION_ERRORS.get(3, "Validation failed")
-                logger.warning(f"Upload validation failed: {error_msg}")
-                self.validationError.emit(3)
-                return
+        # Sync current UI state to service
+        self._sync_state_to_service()
+        
+        # Validate state using service layer
+        validation_result = self.state_service.validate_for_upload()
+        if not validation_result.is_valid:
+            error_code = validation_result.error_code or 1
+            logger.warning(f"Upload validation failed: {validation_result.error_message}")
+            self.validationError.emit(error_code)
+            return
         
         try:
             fileUrl = fileUrl.split('///')[1]
@@ -337,12 +410,15 @@ class MainWindow(QObject):
         Args:
             fileURL: Destination file URL from QML
         """
+        # Validate snapshot exists
+        validation_result = self.state_service.validate_for_export()
+        if not validation_result.is_valid:
+            error_code = validation_result.error_code or 4
+            logger.error(f"Export failed: {validation_result.error_message}")
+            self.validationError.emit(error_code)
+            return
+        
         with self._snapshot_lock:
-            if not self.tableSnapshot:
-                error_msg = VALIDATION_ERRORS.get(4, "Unknown validation error")
-                logger.error(f"Export failed: {error_msg}")
-                self.validationError.emit(4)
-                return
             # Create a reference to current snapshot
             snapshot = self.tableSnapshot
         
@@ -433,14 +509,18 @@ class MainWindow(QObject):
 
     def populate_table(self):
         self.showMainScreenLoadingIndicator.emit()
+        
+        # Sync state and validate using service layer
+        self._sync_state_to_service()
+        validation_result = self.state_service.validate_for_populate_table()
+        
+        if not validation_result.is_valid:
+            logger.warning(f"Cannot populate table: {validation_result.error_message}")
+            self.showChooseOptionsPage.emit()
+            self.hideMainScreenLoadingIndicator.emit()
+            return -1
+        
         with self._state_lock:
-            current_state = (self.current_bank, self.current_company, self.current_month, self.current_year)
-            logger.debug(f"Populate table requested - State: bank={self.current_bank}, company={self.current_company}, month={self.current_month}, year={self.current_year}")
-            if '' in current_state:
-                logger.warning("Cannot populate table: incomplete state selection")
-                self.showChooseOptionsPage.emit()
-                self.hideMainScreenLoadingIndicator.emit()
-                return -1
             self.searchModeOffFirsttime = False
         
         # Submit to thread pool with exception handling
@@ -535,12 +615,19 @@ class MainWindow(QObject):
         return
 
     def populateChequeReports(self) -> Tuple[int, str]:
-        """Get list of available cheque reports.
+        """Get list of available cheque reports using cheque service.
         
         Returns:
             Tuple of (status_code, json_data_string)
-        """    
-        if '' in [self.current_company,self.current_year]:
+        """
+        # Sync and validate state
+        self._sync_state_to_service()
+        
+        with self._state_lock:
+            company = self.current_company
+            year = self.current_year
+        
+        if '' in [company, year]:
             logger.warning("Cannot populate cheque reports: company or year not selected")
             return -1, ''
         
@@ -551,28 +638,61 @@ class MainWindow(QObject):
         
         logger.info("Loading cheque reports...")
         try:
-            self.infiChequeStatement = self.tableOperations.get_chequeReport_from_collection(self.current_year, self.current_company)
-            if not self.infiChequeStatement:
+            # Use cheque service to load report (returns status_code, timestamp)
+            status_code, timestamp = self.cheque_service.load_cheque_report(year, company)
+            
+            # Also get the actual cheque entry for display
+            if status_code == 1:
+                with self._snapshot_lock:
+                    self.infiChequeStatement = self.tableOperations.get_chequeReport_from_collection(year, company)
+                logger.info(f"Cheque report loaded successfully (timestamp: {timestamp})")
+            elif status_code == 0:
                 logger.info("No cheque report found in collection")
-                return 0, ''
-            time = self.infiChequeStatement.get_time_stamp()
-            logger.info(f"Cheque report loaded successfully (timestamp: {time})")
-            return 1, time
+            else:
+                logger.error("Failed to load cheque report")
+            
+            return status_code, timestamp
         except Exception as e:
             logger.error(f"Failed to load cheque reports: {e}")
             logger.error(traceback.format_exc())
             return -1, ''
     @Slot(str, str)    
     def search(self, searchQuery, searchMode):
+        """Search table data using search service.
+        
+        Args:
+            searchQuery: Search query string
+            searchMode: Search mode ('off' to reset, or specific mode)
+        """
         logger.debug(f"Search initiated - Query: '{searchQuery}', Mode: {searchMode}")
+        
+        # Check if we need to repopulate when turning search off
+        if searchMode == "off" and self.searchModeOffFirsttime:
+            self.populate_table()
+            return
+        
+        self.searchModeOffFirsttime = False
+        
+        # Validate snapshot exists
         if not self.tableSnapshot:
             logger.warning("Search aborted: no table snapshot available")
             return
         
         try:
-            self._tableData, self._creditBal, self._debitBal = self.tableOperations.search_table(
-                searchQuery, searchMode, self.tableSnapshot, self.masterDisplayTableData
+            # Use search service
+            search_result = self.search_service.search(
+                query=searchQuery,
+                mode=searchMode,
+                master_table=self.tableSnapshot.get_master_table(),
+                master_display_data=self.masterDisplayTableData
             )
+            
+            # Update UI with search results
+            with self._data_lock:
+                self._tableData = search_result.filtered_data
+                self._creditBal = search_result.credit_balance
+                self._debitBal = search_result.debit_balance
+            
             self.table_data_changed.emit()
             self.creditBal_changed.emit()
             self.debitBal_changed.emit()
@@ -580,12 +700,6 @@ class MainWindow(QObject):
         except Exception as e:
             logger.error(f"Search failed: {e}")
             logger.error(traceback.format_exc())
-        if searchMode == "off" and self.searchModeOffFirsttime:
-            self.populate_table()
-            return
-        self.searchModeOffFirsttime=False
-        self._tableData = self.tableOperations.search(self.tableSnapshot.get_master_table(), searchQuery, searchMode)
-        self.table_data_changed.emit()
         return
     
     @Slot(bool)
@@ -701,8 +815,18 @@ class MainWindow(QObject):
 
     @Slot(str, str)
     def companyChanged(self, companyname, screenName):
+        """Handle company selection change.
+        
+        Args:
+            companyname: Selected company name
+            screenName: Screen name for display
+        """
+        # Update service layer state
+        self.state_service.update_company(companyname)
+        # Sync back to UI state
+        self._sync_state_from_service()
+        
         with self._state_lock:
-            self.current_company = companyname
             self._companyData = screenName
             cheque_activated = self.chequeReportActivated
             tally_activated = self.tallyExportBoxActivated
@@ -720,15 +844,34 @@ class MainWindow(QObject):
         self.populate_table()
     @Slot(str, str)
     def bankChanged(self, bankname, screenName):
+        """Handle bank selection change.
+        
+        Args:
+            bankname: Selected bank name
+            screenName: Screen name for display
+        """
+        # Update service layer state
+        self.state_service.update_bank(bankname)
+        # Sync back to UI state
+        self._sync_state_from_service()
+        
         with self._state_lock:
-            self.current_bank = bankname
             self._bankData = screenName
         self.bankData_changed.emit()
         self.populate_table()
     @Slot(str)
     def yearChanged(self, year):
+        """Handle year selection change.
+        
+        Args:
+            year: Selected year
+        """
+        # Update service layer state
+        self.state_service.update_year(year)
+        # Sync back to UI state
+        self._sync_state_from_service()
+        
         with self._state_lock:
-            self.current_year = year
             cheque_activated = self.chequeReportActivated
             tally_activated = self.tallyExportBoxActivated
         
@@ -745,8 +888,17 @@ class MainWindow(QObject):
         self.populate_table()
     @Slot(str, str)
     def monthChanged(self, month, screenNane):
-        with self._state_lock:
-            self.current_month = month
+        """Handle month selection change.
+        
+        Args:
+            month: Selected month name
+            screenNane: Screen name for display
+        """
+        # Update service layer state
+        self.state_service.update_month(month)
+        # Sync back to UI state
+        self._sync_state_from_service()
+        
         self.update_monthYearData()
         self.populate_table()
     def update_monthYearData(self):

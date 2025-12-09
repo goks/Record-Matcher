@@ -60,7 +60,7 @@
   - ✅ Concrete implementations: PickleSnapshotRepository, PickleChequeReportRepository, JsonConfigRepository
   - ✅ Thread-safe implementations with lazy loading and caching
   - ✅ Backward compatible with existing pickle files
-- **IN PROGRESS Separate business logic from UI**: `MainWindow` contains business logic. Move to service layer
+- **COMPLETED ✅ Separate business logic from UI**: `MainWindow` contains business logic. Move to service layer
   - ✅ Created `services.py` with 6 service classes:
     - StateManagementService: Application state and validation
     - FileOperationService: File upload/export operations
@@ -68,9 +68,20 @@
     - SearchService: Search and filtering
     - SyncService: Firebase synchronization
     - ChequeReportService: Cheque report management
-  - ⏳ TODO: Update MainWindow to use service layer instead of direct TableOperations calls
-  - ⏳ TODO: Replace dictionary/list data with dataclass models
-  - ⏳ TODO: Remove embedded business logic from MainWindow
+  - ✅ COMPLETED: Updated MainWindow to use service layer instead of direct TableOperations calls
+    - uploadFile() now uses state_service.validate_for_upload()
+    - exportFile() now uses state_service.validate_for_export()
+    - populate_table() now uses state_service.validate_for_populate_table()
+    - search() now uses search_service.search()
+    - State change methods (monthChanged, yearChanged, bankChanged, companyChanged) now use state_service
+    - populateChequeReports() now uses cheque_service.load_cheque_report()
+  - ✅ COMPLETED: Removed embedded business logic from MainWindow
+    - Validation logic delegated to StateManagementService
+    - File processing delegated to FileOperationService
+    - Search operations delegated to SearchService
+    - State updates use service layer with sync helpers (_sync_state_to_service, _sync_state_from_service)
+  - ⏳ TODO: Replace dictionary/list data with dataclass models (incremental migration)
+  - ⏳ TODO: Full integration testing with all workflows
 
 ### State Management
 - **Centralize application state**: Multiple instance variables in `MainWindow` should be in dedicated state manager

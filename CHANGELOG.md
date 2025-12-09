@@ -6,16 +6,111 @@
 
 ---
 
-## [December 9, 2025] - Data Models, Repository Pattern & Service Layer Extraction
+## [December 9, 2025] - Data Models, Repository Pattern & Service Layer Integration (COMPLETED)
 
-### Category: Architecture & Code Quality - Phase 2
+### Category: Architecture & Code Quality - Phase 2 Integration
+
+### Files Modified
+- `main.py` - Integrated service layer into MainWindow controller
+  - Added imports for services, repositories, and models
+  - Initialized 6 service instances in `__init__`
+  - Refactored business logic methods to use services
+  - Added state synchronization helper methods
+
+### Integration Changes
+
+**What Changed:**
+
+Successfully completed integration of the modern architecture layer into MainWindow:
+
+#### 1. **Service Layer Integration** ✅
+
+**MainWindow Updates:**
+- Added service infrastructure initialization in `__init__`:
+  ```python
+  # Repositories
+  self.snapshot_repository = PickleSnapshotRepository()
+  self.cheque_repository = PickleChequeReportRepository()
+  self.config_repository = JsonConfigRepository(...)
+  
+  # Services
+  self.state_service = StateManagementService()
+  self.file_service = FileOperationService(self.tableOperations)
+  self.table_service = TablePopulationService(...)
+  self.search_service = SearchService(self.tableOperations)
+  self.sync_service = SyncService(self.tableOperations)
+  self.cheque_service = ChequeReportService(...)
+  ```
+
+- Added state synchronization helpers:
+  - `_sync_state_to_service()`: Updates service with current UI state (17 lines)
+  - `_sync_state_from_service()`: Updates UI state from service (12 lines)
+
+**Methods Refactored:**
+
+1. **uploadFile()** - Now uses service layer:
+   - `state_service.validate_for_upload()` for validation
+   - Replaced embedded validation logic
+   - Cleaner error handling with ValidationResult
+
+2. **exportFile()** - Now uses service layer:
+   - `state_service.validate_for_export()` for validation
+   - Removed direct snapshot checking
+
+3. **populate_table()** - Now uses service layer:
+   - `state_service.validate_for_populate_table()` for validation
+   - Replaced tuple-based state checking
+
+4. **search()** - Now uses SearchService:
+   - `search_service.search()` returns SearchResult model
+   - Removed duplicate search logic
+   - Consistent search mode handling
+
+5. **State Change Methods** - All use StateManagementService:
+   - `monthChanged()`: Calls `state_service.update_month()`
+   - `yearChanged()`: Calls `state_service.update_year()`
+   - `bankChanged()`: Calls `state_service.update_bank()`
+   - `companyChanged()`: Calls `state_service.update_company()`
+   - Each method syncs state bidirectionally
+
+6. **populateChequeReports()** - Uses ChequeReportService:
+   - `cheque_service.load_cheque_report()` for loading
+   - Cleaner status code handling
+
+**Benefits Achieved:**
+
+- ✅ **Separation of Concerns**: Business logic moved from UI to service layer
+- ✅ **Improved Testability**: Services can be tested independently
+- ✅ **Better Maintainability**: Clear boundaries between layers
+- ✅ **Type Safety**: ValidationResult provides structured error handling
+- ✅ **Thread Safety**: Services maintain their own locks
+- ✅ **Backward Compatibility**: Legacy TableOperations still available during migration
+- ✅ **Progressive Migration**: Can incrementally replace remaining direct calls
+
+**Code Quality Improvements:**
+- Removed ~150 lines of embedded validation logic from MainWindow
+- Centralized state management with bidirectional sync
+- Consistent validation pattern across all operations
+- Improved logging with service-level context
+
+**Next Steps:**
+- Incremental migration of data structures to dataclass models
+- Full integration testing across all workflows
+- Performance benchmarking
+- Consider removing legacy TableOperations calls once fully migrated
+
+---
+
+## [December 9, 2025] - Data Models, Repository Pattern & Service Layer Creation
+
+### Category: Architecture & Code Quality - Phase 1 Infrastructure
 
 ### Files Created
 - `models.py` - Type-safe data models using dataclasses
 - `repositories.py` - Repository pattern for data access abstraction
 - `services.py` - Business logic services extracted from MainWindow
 
-### Changes Made
+### Infrastructure Changes
 
 **What Changed:**
 
