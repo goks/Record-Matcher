@@ -2886,7 +2886,21 @@ class IntermediateDaybook:
         return val    
     def grab_data(self):
         self.df = self.df[self.df['Number'].notna()]
-        self.df['Date'] = self.df['Date'].apply(self.convert_to_datetime_obj)
+        # Vectorized date conversion with error handling
+        # Try primary format first, fallback to secondary format if needed
+        try:
+            self.df['Date'] = pd.to_datetime(self.df['Date'], format='%d-%m-%Y', errors='coerce')
+            # Fill NaT values by trying alternative format
+            mask = self.df['Date'].isna()
+            if mask.any():
+                self.df.loc[mask, 'Date'] = pd.to_datetime(
+                    self.df.loc[mask, 'Date'], 
+                    format='%d-%b-%Y', 
+                    errors='coerce'
+                )
+        except:
+            # Fallback to slower but more flexible parsing
+            self.df['Date'] = self.df['Date'].apply(self.convert_to_datetime_obj)
         return
     def prepare_valid_ids_without_bank_receipt_voucher_filtering(self):
         vouchers_with_receipt_df = self.df[(self.df["Voucher Type"]=="Receipt Voucher") & (self.df["Debit Ledger"] == "Cash Book")]
@@ -2896,10 +2910,12 @@ class IntermediateDaybook:
             return pd.DataFrame()
         vouchers_without_receipt_df = self.df[((self.df['Voucher Type']!="Receipt Voucher") & (self.df['Voucher Type']!="Payment Voucher"))]
         daybook_wih_fixed_data = self.df[ self.df['Number'].isin(valid_ids__with_receipt)].copy()
-        daybook_wih_fixed_data = daybook_wih_fixed_data.append(vouchers_without_receipt_df, ignore_index=True)
+        # Replace append with concat for better performance
+        daybook_wih_fixed_data = pd.concat([daybook_wih_fixed_data, vouchers_without_receipt_df], ignore_index=True)
         daybook_wih_fixed_data.reset_index(inplace=True, drop=True)
         daybook_wih_fixed_data = daybook_wih_fixed_data[(daybook_wih_fixed_data['Date']>=self.fromDate) & (daybook_wih_fixed_data['Date']<=self.toDate)]
-        daybook_wih_fixed_data['Date'] = daybook_wih_fixed_data['Date'].apply(lambda x: str(datetime.datetime.strftime(x, '%d-%m-%Y')))
+        # Vectorized date formatting (faster than apply with lambda)
+        daybook_wih_fixed_data['Date'] = daybook_wih_fixed_data['Date'].dt.strftime('%d-%m-%Y')
         daybook_wih_fixed_data.reset_index(inplace=True, drop=True)
         daybook_wih_fixed_data.to_excel("./temp/daybook_wih_fixed_data.xlsx")
         return daybook_wih_fixed_data
@@ -2924,8 +2940,9 @@ class IntermediateDaybook:
             return pd.DataFrame()
         row_1_df = pd.DataFrame()
         row_1_df['Number'] = consolidated_df.apply( lambda x: self.create_id_for_voucher(x['Bank Name'],x['Date']), axis=1 )
-        consolidated_df['Date'] = consolidated_df['Date'].apply( lambda x: str(x.strftime("%d-%m-%Y")))    
-        row_1_df['Date'] = consolidated_df['Date']
+        # Vectorized date formatting (faster than apply with lambda)
+        formatted_dates = consolidated_df['Date'].dt.strftime("%d-%m-%Y")
+        row_1_df['Date'] = formatted_dates
         row_1_df['Voucher Type'] = "Payment Voucher"
         row_1_df['Debit Ledger'] =  PAYMENT_INTERMEDIARY_TALLY_LEDGERNAME
         row_1_df['Debit Amount'] =  consolidated_df['Amount']
@@ -2945,7 +2962,8 @@ class IntermediateDaybook:
             return pd.DataFrame()
         row_1_df = pd.DataFrame()
         row_1_df['Number'] = consolidated_df.apply( lambda x: self.create_id_for_voucher(x['Bank Name'],x['Date'],type='r'), axis=1 )
-        row_1_df['Date'] = consolidated_df['Date'].apply( lambda x: str(x.strftime("%d-%m-%Y")))    
+        # Vectorized date formatting (faster than apply with lambda)
+        row_1_df['Date'] = consolidated_df['Date'].dt.strftime("%d-%m-%Y")
         row_1_df['Voucher Type'] = "Receipt Voucher"
         row_1_df['Debit Ledger'] =  consolidated_df["Bank Name"]
         row_1_df['Debit Amount'] =  consolidated_df['Amount']
@@ -2967,7 +2985,8 @@ class IntermediateDaybook:
         consolidated_df['Narration'] = consolidated_df.apply(lambda x: x['Cheque No.'] if x['Bank Name']==HDFC_TALLY_LEDGERNAME else x['Narration'], axis=1 )
         row_1_df = pd.DataFrame()
         row_1_df['Number'] = consolidated_df.apply( lambda x: self.create_id_for_voucher(x['Bank Name'],x['Date'],type='c'), axis=1 )
-        row_1_df['Date'] = consolidated_df['Date'].apply( lambda x: str(x.strftime("%d-%m-%Y")))    
+        # Vectorized date formatting (faster than apply with lambda)
+        row_1_df['Date'] = consolidated_df['Date'].dt.strftime("%d-%m-%Y")
         row_1_df['Voucher Type'] = "Receipt Voucher"
         row_1_df['Debit Ledger'] =  consolidated_df["Bank Name"]
         row_1_df['Debit Amount'] =  consolidated_df['Amount']
@@ -2983,12 +3002,22 @@ class IntermediateDaybook:
         output_df.to_excel(get_temp_file_path('receipt_voucher_with_cheques_daybook.xlsx'))
         return output_df   
     def prepare_daybook(self, consolidatedChequeReceiptVouchers, consolidatedBankPaymentVouchers, consolidatedWithoutChequeReceiptVouchers):
-        final_daybook = pd.DataFrame()    
-        final_daybook = final_daybook.append(self.prepare_valid_ids_without_bank_receipt_voucher_filtering(), ignore_index=True)
-        # final_daybook = final_daybook.append(self.prepare_valid_ids_with_bank_receipt_voucher_filtering(consolidatedChequeReport, startDate, endDate), ignore_index=True)
-        final_daybook = final_daybook.append(self.prepare_receipt_voucher_with_cheques_daybook_entries(consolidatedChequeReceiptVouchers), ignore_index=True)
-        final_daybook = final_daybook.append(self.prepare_payment_voucher_daybook_entries(consolidatedBankPaymentVouchers), ignore_index=True)
-        final_daybook = final_daybook.append(self.prepare_receipt_voucher_without_cheques_daybook_entries(consolidatedWithoutChequeReceiptVouchers), ignore_index=True)
+        # Collect all DataFrames in a list for efficient concatenation
+        daybook_parts = [
+            self.prepare_valid_ids_without_bank_receipt_voucher_filtering(),
+            # self.prepare_valid_ids_with_bank_receipt_voucher_filtering(consolidatedChequeReport, startDate, endDate),
+            self.prepare_receipt_voucher_with_cheques_daybook_entries(consolidatedChequeReceiptVouchers),
+            self.prepare_payment_voucher_daybook_entries(consolidatedBankPaymentVouchers),
+            self.prepare_receipt_voucher_without_cheques_daybook_entries(consolidatedWithoutChequeReceiptVouchers)
+        ]
+        
+        # Filter out empty DataFrames and concatenate all at once
+        non_empty_parts = [df for df in daybook_parts if not df.empty]
+        if non_empty_parts:
+            final_daybook = pd.concat(non_empty_parts, ignore_index=True)
+        else:
+            final_daybook = pd.DataFrame()
+            
         column_list = "Number	Date	Voucher Type	Debit Ledger	Debit Amount	Credit Ledger	Credit Amount	Narration".split('\t')
         final_daybook = final_daybook.reindex(columns=column_list)
         final_daybook.to_excel('./temp/final_daybook.xlsx', index=False)
@@ -3002,7 +3031,9 @@ class ConsolidatedReceiptVouchers:
         self.main_df = pd.DataFrame()
 
     def prepare_df(self, startDate, endDate, mode="matched_cheques"):    
-        self.main_df = pd.DataFrame()
+        # Collect all DataFrames in a list for efficient concatenation
+        df_list = []
+        
         for each in self.snapshot_list:
             temp_df = pd.DataFrame(each.get_master_table())
             if not temp_df.empty:
@@ -3012,8 +3043,19 @@ class ConsolidatedReceiptVouchers:
                     bank_name = ICICI_TALLY_LEDGERNAME_GOK
                 else: 
                     bank_name = HDFC_TALLY_LEDGERNAME
-                temp_df['Bank Name'] = bank_name         
-                self.main_df = self.main_df.append(temp_df, ignore_index=True)
+                # Use categorical dtype for memory optimization
+                temp_df['Bank Name'] = pd.Categorical([bank_name] * len(temp_df), 
+                                                      categories=[HDFC_TALLY_LEDGERNAME, 
+                                                                ICICI_TALLY_LEDGERNAME_GOK, 
+                                                                ICICI_TALLY_LEDGERNAME_UNI])
+                df_list.append(temp_df)
+        
+        # Concatenate all DataFrames at once (much faster than iterative append)
+        if df_list:
+            self.main_df = pd.concat(df_list, ignore_index=True)
+        else:
+            self.main_df = pd.DataFrame()
+            
         if self.main_df.empty:
             return       
         
@@ -3029,8 +3071,10 @@ class ConsolidatedReceiptVouchers:
         else:
             self.main_df = self.get_receipts_without_cheque_entries()
         self.main_df.drop('Debit', axis='columns', inplace=True)
-        self.main_df['Date'] = self.main_df['Bank Date'].map( lambda x: self.process_date(x))
+        # Vectorized date parsing (faster than map with lambda)
+        self.main_df['Date'] = pd.to_datetime(self.main_df['Bank Date'], dayfirst=True, errors='coerce')
         self.main_df.drop('Bank Date', axis='columns', inplace=True)
+        # Filter by date range using vectorized comparison
         self.main_df = self.main_df[ (self.main_df['Date']>=startDate) & (self.main_df['Date']<=endDate) ]
         self.main_df.rename(columns={'Chq No': 'Cheque No.', 'Bank Narration':'Narration', 'Credit':'Amount', 'Party Name': 'Debit Ledger'}, inplace=True)
 
@@ -3074,7 +3118,9 @@ class ConsolidatedPaymentVouchers:
         self.main_df = pd.DataFrame()
 
     def prepare_df(self, startDate, endDate):    
-        self.main_df = pd.DataFrame()
+        # Collect all DataFrames in a list for efficient concatenation
+        df_list = []
+        
         for each in self.snapshot_list:
             temp_df = pd.DataFrame(each.get_master_table())
             if not temp_df.empty:
@@ -3084,8 +3130,19 @@ class ConsolidatedPaymentVouchers:
                     bank_name = ICICI_TALLY_LEDGERNAME_GOK
                 else: 
                     bank_name = HDFC_TALLY_LEDGERNAME
-                temp_df['Bank Name'] = bank_name         
-                self.main_df = self.main_df.append(temp_df, ignore_index=True)
+                # Use categorical dtype for memory optimization
+                temp_df['Bank Name'] = pd.Categorical([bank_name] * len(temp_df),
+                                                      categories=[HDFC_TALLY_LEDGERNAME,
+                                                                ICICI_TALLY_LEDGERNAME_GOK,
+                                                                ICICI_TALLY_LEDGERNAME_UNI])
+                df_list.append(temp_df)
+        
+        # Concatenate all DataFrames at once (much faster than iterative append)
+        if df_list:
+            self.main_df = pd.concat(df_list, ignore_index=True)
+        else:
+            self.main_df = pd.DataFrame()
+            
         if self.main_df.empty:
             return        
         self.main_df = self.main_df.replace(r'^\s*$', np.NaN, regex=True)
@@ -3095,7 +3152,9 @@ class ConsolidatedPaymentVouchers:
         self.main_df = self.main_df.dropna(subset=['Debit'])
         # self.main_df.drop('Credit', axis='columns', inplace=True)
         self.main_df.drop('Chq No', axis='columns', inplace=True)
-        self.main_df['Date'] = self.main_df['Bank Date'].map( lambda x: self.process_date(x))
+        # Vectorized date parsing (faster than map with lambda)
+        self.main_df['Date'] = pd.to_datetime(self.main_df['Bank Date'], dayfirst=True, errors='raise')
+        # Filter by date range using vectorized comparison
         self.main_df = self.main_df[ (self.main_df['Date']>=startDate) & (self.main_df['Date']<=endDate) ]
         self.main_df.drop('Bank Date', axis='columns', inplace=True)
         self.main_df.drop('meta', axis='columns', inplace=True)
