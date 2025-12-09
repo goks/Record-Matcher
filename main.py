@@ -41,6 +41,16 @@ from models import (
     SearchResult
 )
 
+# Import memory optimization utilities
+from memory_optimizer import (
+    Paginator,
+    LazyDataLoader,
+    WeakValueCache,
+    managed_excel_workbook,
+    clear_large_objects,
+    format_table_generator
+)
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
