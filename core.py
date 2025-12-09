@@ -1,7 +1,10 @@
 import re
 from time import strftime
-import xlrd
-import xlwt
+# Excel compatibility layer (openpyxl wrapper replacing xlrd/xlwt)
+from excel_compat import (
+    ExcelWorkbookReader, ExcelWorkbookWriter,
+    open_workbook, create_workbook
+)
 import os,json,sys
 import datetime, pytz
 import pickle
@@ -55,12 +58,6 @@ except ImportError:
                 return json.load(f)
         except:
             return default
-
-# Fix for opening xlsx
-xlrd.xlsx.ensure_elementtree_imported(False, None)
-xlrd.xlsx.Element_has_iter = True
-
-# TODO: Check if the uploaded statement are in correct date range!
 
 # Import configuration manager
 from config import get_config
@@ -499,7 +496,7 @@ class InfiChequeStatement:
     def setPath(self, path: str) -> bool:
         if validate_path(path):
             self.path = path
-            self.workbook = xlrd.open_workbook(self.path)
+            self.workbook = open_workbook(self.path)
             self.worksheet = self.workbook.sheet_by_index(0)
             return True
         else:
@@ -697,7 +694,7 @@ class HDFCBankChequeStatement:
     def setPath(self, path):
         if validate_path(path):
             self.path = path
-            self.workbook = xlrd.open_workbook(self.path)
+            self.workbook = open_workbook(self.path)
             self.worksheet = self.workbook.sheet_by_index(0)
             self.find_start_row()
             return True
@@ -768,7 +765,7 @@ class ICICIBankChequeStatement:
     def setPath(self, path):
         if validate_path(path):
             self.path = path
-            self.workbook = xlrd.open_workbook(self.path)
+            self.workbook = open_workbook(self.path)
             self.worksheet = self.workbook.sheet_by_index(0)
             self.find_start_row()
             return True
