@@ -1,0 +1,18 @@
+# Record Matcher - Local Configuration Template
+# This file is for local development overrides and should NOT be committed to git.
+# Copy this file to config.local.toml and customize as needed.
+
+# Example: Override Tally ledger names for testing
+# [tally]
+# hdfc_ledger_name = "HDFC Test Account"
+# icici_ledger_name_gok = "ICICI Test Account"
+
+# Example: Override paths for local development
+# [paths]
+# temp_directory = "C:/Users/YourName/AppData/Local/RecordMatcher/temp"
+# output_directory = "C:/Users/YourName/Documents/RecordMatcher/output"
+
+# Example: Override Firebase settings
+# [firebase]
+# credentials_file = "path/to/your/test-credentials.json"
+# batch_size = 50

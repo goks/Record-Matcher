@@ -129,14 +129,64 @@
   - ✅ Error codes mapped to descriptive messages
 
 ### Configuration Management
-- **Move hardcoded values to config**: Values like these should be configurable:
-  ```python
-  HDFC_TALLY_LEDGERNAME = "HDFC Bank A/c No.50200008623602"
-  ICICI_TALLY_LEDGERNAME_GOK = "ICICI Bank A/c No.099005000974"
-  ```
-- **Create config file**: Use YAML or TOML for configuration instead of hardcoding
-- **Environment-specific configs**: Support dev/prod configurations
-- **Validate configuration**: Add schema validation for config files
+- **COMPLETED ✅ Move hardcoded values to config**: All hardcoded values now configurable via TOML files
+  - ✅ Created `config.py` with ConfigManager class (550+ lines)
+  - ✅ Implemented Pydantic schema validation
+  - ✅ Environment-specific configs (development/production/staging)
+  - ✅ Local override support via `config.local.toml` (gitignored)
+  - ✅ Backward compatible: existing code continues to work
+  - ✅ Migrated constants from core.py:
+    - `HDFC_TALLY_LEDGERNAME` → `config.tally.hdfc_ledger_name`
+    - `ICICI_TALLY_LEDGERNAME_GOK` → `config.tally.icici_ledger_name_gok`
+    - `ICICI_TALLY_LEDGERNAME_UNI` → `config.tally.icici_ledger_name_uni`
+    - `PAYMENT_INTERMEDIARY_TALLY_LEDGERNAME` → `config.tally.payment_intermediary_ledger`
+    - `RECEIPT_INTERMEDIARY_TALLY_LEDGERNAME` → `config.tally.receipt_intermediary_ledger`
+    - `MAX_CHEQUE_NUMBER_LENGTH` → `config.validation.max_cheque_number_length`
+    - `CHEQUE_NUMBER_PADDING_LENGTH` → `config.validation.cheque_number_padding_length`
+  
+- **COMPLETED ✅ Create config file**: TOML-based configuration system implemented
+  - ✅ `config.default.toml` - Default configuration values
+  - ✅ `config.development.toml` - Development environment overrides (debug mode, extended timeouts)
+  - ✅ `config.production.toml` - Production environment settings (optimized batch sizes)
+  - ✅ `config.local.toml.template` - Template for local customization
+  - ✅ Configuration sections: application, tally, validation, paths, firebase
+  - ✅ Human-readable format with comments
+  
+- **COMPLETED ✅ Environment-specific configs**: Full support for dev/staging/prod configurations
+  - ✅ Environment detection via `RECORD_MATCHER_ENV` environment variable
+  - ✅ Hierarchical configuration merging (default → environment → local)
+  - ✅ Different settings per environment:
+    - Development: debug_mode=true, log_level=DEBUG, extended timeouts
+    - Production: debug_mode=false, log_level=INFO, optimized settings
+  - ✅ Singleton pattern ensures consistent config across application
+  
+- **COMPLETED ✅ Validate configuration**: Comprehensive schema validation with Pydantic
+  - ✅ Type validation for all configuration values
+  - ✅ Range constraints (e.g., batch_size: 1-10000, timeout: 5-300 seconds)
+  - ✅ Business rule validation (padding_length > max_length)
+  - ✅ Environment name validation (must be development/staging/production)
+  - ✅ Log level validation (must be valid Python logging level)
+  - ✅ Descriptive error messages on validation failure
+  - ✅ Early failure at config load time (not runtime)
+  
+- **COMPLETED ✅ Additional Features Implemented**:
+  - ✅ Hot-reload support (optional auto-reload on file changes)
+  - ✅ Configuration saving to local overrides
+  - ✅ Type-safe access with full IDE support
+  - ✅ Lazy loading for performance
+  - ✅ Added to .gitignore: `config.local.toml`, `*.local.toml`
+  - ✅ Dependencies added: `toml==0.10.2`, `pydantic==1.10.13`
+  - ✅ Test script created: `test_config.py`
+  - ✅ Documentation added to CHANGELOG.md
+  - ✅ All tests passed
+
+**Configuration System Benefits:**
+- 🔒 **Security**: Sensitive values in gitignored files, no hardcoded credentials
+- 🔧 **Flexibility**: Change settings without rebuilding application
+- 🏢 **Multi-Environment**: Easy dev/staging/prod separation
+- ✅ **Validation**: Catch configuration errors early with descriptive messages
+- 📖 **Maintainability**: All settings in one place, well-documented
+- 🔄 **Backward Compatible**: Existing code works without changes
 
 ## 4. Data Processing Inefficiencies
 

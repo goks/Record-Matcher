@@ -59,17 +59,63 @@ xlrd.xlsx.Element_has_iter = True
 
 # TODO: Check if the uploaded statement are in correct date range!
 
-APP_NAME = "Record Matcher"
+# Import configuration manager
+from config import get_config
 
-# Cheque number formatting constants
-MAX_CHEQUE_NUMBER_LENGTH = 15
-CHEQUE_NUMBER_PADDING_LENGTH = 16
+# Initialize configuration (lazy loaded)
+_config = None
 
-HDFC_TALLY_LEDGERNAME = "HDFC Bank A/c No.50200008623602"
-ICICI_TALLY_LEDGERNAME_GOK = "ICICI Bank A/c No.099005000974"
-ICICI_TALLY_LEDGERNAME_UNI = "ICICI 1027"
-PAYMENT_INTERMEDIARY_TALLY_LEDGERNAME = "OTHER CREDITORS"
-RECEIPT_INTERMEDIARY_TALLY_LEDGERNAME = "OTHER DEBTORS"
+def _get_config():
+    """Get global configuration instance (lazy initialization)."""
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config
+
+# Configuration-based constants (backward compatibility)
+# These are now functions that read from config, but maintain the same interface
+def get_app_name():
+    """Get application name from configuration."""
+    return _get_config().application.app_name
+
+def get_max_cheque_number_length():
+    """Get maximum cheque number length from configuration."""
+    return _get_config().validation.max_cheque_number_length
+
+def get_cheque_number_padding_length():
+    """Get cheque number padding length from configuration."""
+    return _get_config().validation.cheque_number_padding_length
+
+def get_hdfc_tally_ledgername():
+    """Get HDFC Tally ledger name from configuration."""
+    return _get_config().tally.hdfc_ledger_name
+
+def get_icici_tally_ledgername_gok():
+    """Get ICICI Tally ledger name (GOK) from configuration."""
+    return _get_config().tally.icici_ledger_name_gok
+
+def get_icici_tally_ledgername_uni():
+    """Get ICICI Tally ledger name (UNI) from configuration."""
+    return _get_config().tally.icici_ledger_name_uni
+
+def get_payment_intermediary_tally_ledgername():
+    """Get payment intermediary ledger name from configuration."""
+    return _get_config().tally.payment_intermediary_ledger
+
+def get_receipt_intermediary_tally_ledgername():
+    """Get receipt intermediary ledger name from configuration."""
+    return _get_config().tally.receipt_intermediary_ledger
+
+# Backward compatibility: Create module-level constants that read from config
+# These will be initialized on first import
+APP_NAME = get_app_name()
+MAX_CHEQUE_NUMBER_LENGTH = get_max_cheque_number_length()
+CHEQUE_NUMBER_PADDING_LENGTH = get_cheque_number_padding_length()
+HDFC_TALLY_LEDGERNAME = get_hdfc_tally_ledgername()
+ICICI_TALLY_LEDGERNAME_GOK = get_icici_tally_ledgername_gok()
+ICICI_TALLY_LEDGERNAME_UNI = get_icici_tally_ledgername_uni()
+PAYMENT_INTERMEDIARY_TALLY_LEDGERNAME = get_payment_intermediary_tally_ledgername()
+RECEIPT_INTERMEDIARY_TALLY_LEDGERNAME = get_receipt_intermediary_tally_ledgername()
 
 def get_current_time() -> str:
     """Get current time in Indian timezone formatted as string.

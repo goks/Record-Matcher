@@ -7,6 +7,10 @@ output/
 service-account/
 RecordMatcher_env/
 
+# Configuration files
+config.local.toml
+*.local.toml
+
 *~
 *.autosave
 *.a

@@ -1,0 +1,18 @@
+# Record Matcher - Development Environment Configuration
+# This file overrides default settings for development environment.
+# To use: Set environment variable RECORD_MATCHER_ENV=development
+
+[application]
+environment = "development"
+debug_mode = true
+log_level = "DEBUG"
+
+[firebase]
+# Use longer timeout for development
+timeout_seconds = 60
+batch_size = 100  # Smaller batches for easier debugging
+
+# Development-specific paths (if needed)
+# [paths]
+# temp_directory = "./dev_temp"
+# output_directory = "./dev_output"

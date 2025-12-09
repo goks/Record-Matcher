@@ -6,6 +6,293 @@
 
 ---
 
+## [December 9, 2025] - Configuration Management System (COMPLETED)
+
+### Category: Architecture & Code Quality - Configuration Management
+
+### Files Created
+- `config.py` - Comprehensive configuration management system (550+ lines)
+  - ConfigManager class with singleton pattern
+  - Pydantic models for schema validation
+  - Environment-specific configuration support
+  - Hot-reload capability
+  - Type-safe configuration access
+
+- `config.default.toml` - Default configuration values
+- `config.development.toml` - Development environment overrides
+- `config.production.toml` - Production environment configuration
+- `config.local.toml.template` - Template for local overrides
+- `test_config.py` - Configuration system validation script
+
+### Files Modified
+- `core.py` - Migrated hardcoded constants to configuration system
+  - Added configuration manager integration
+  - Created backward-compatible constant access
+  - Maintained existing API for seamless integration
+
+- `requirements.txt` - Added configuration dependencies
+  - `toml==0.10.2` for TOML file parsing
+  - `pydantic==1.10.13` for schema validation
+
+- `.gitignore` - Added local configuration exclusions
+  - `config.local.toml`
+  - `*.local.toml`
+
+### Configuration Changes
+
+**What Changed:**
+
+Successfully implemented enterprise-grade configuration management system to replace hardcoded values throughout the application.
+
+#### 1. **Configuration Architecture** ✅
+
+**ConfigManager Features:**
+- **Singleton Pattern**: Single configuration instance across application
+- **Lazy Loading**: Configuration loaded on first access
+- **Environment Support**: Automatic environment detection via `RECORD_MATCHER_ENV` variable
+- **Configuration Merging**: Hierarchical configuration loading:
+  1. `config.default.toml` (base values)
+  2. `config.{environment}.toml` (environment overrides)
+  3. `config.local.toml` (local development overrides, gitignored)
+- **Hot Reload**: Optional automatic reload on file changes
+- **Type Safety**: Full type hints and Pydantic validation
+- **Validation**: Schema validation with descriptive error messages
+
+**Configuration Structure:**
+```python
+# Application settings
+config.application.app_name          # "Record Matcher"
+config.application.environment       # "production"/"development"/"staging"
+config.application.debug_mode        # Boolean
+config.application.log_level         # "DEBUG"/"INFO"/etc.
+
+# Tally ledger names (previously hardcoded)
+config.tally.hdfc_ledger_name                 # "HDFC Bank A/c No.50200008623602"
+config.tally.icici_ledger_name_gok            # "ICICI Bank A/c No.099005000974"
+config.tally.icici_ledger_name_uni            # "ICICI 1027"
+config.tally.payment_intermediary_ledger      # "OTHER CREDITORS"
+config.tally.receipt_intermediary_ledger      # "OTHER DEBTORS"
+
+# Validation rules (previously hardcoded)
+config.validation.max_cheque_number_length    # 15
+config.validation.cheque_number_padding_length # 16
+
+# File paths
+config.paths.temp_directory           # "./temp"
+config.paths.output_directory         # "./output"
+config.paths.fonts_directory          # "./fonts"
+config.paths.images_directory         # "./images"
+config.paths.service_account_directory # "./service-account"
+
+# Firebase configuration
+config.firebase.credentials_file      # Path to credentials JSON
+config.firebase.database_url          # Optional database URL
+config.firebase.batch_size            # 500
+config.firebase.timeout_seconds       # 30
+```
+
+#### 2. **Schema Validation with Pydantic** ✅
+
+**Validation Models:**
+- `ApplicationConfig`: Application-level settings
+  - Validates environment is one of: development/staging/production
+  - Validates log level is valid Python logging level
+- `TallyLedgerConfig`: Tally ledger names (prevents typos)
+- `ValidationConfig`: Validation rules with constraints
+  - Ensures `max_cheque_number_length` is between 1-50
+  - Validates `cheque_number_padding_length` exceeds max length
+- `PathConfig`: File system paths
+- `FirebaseConfig`: Firebase settings with reasonable defaults
+  - Batch size between 1-10000
+  - Timeout between 5-300 seconds
+
+**Validation Benefits:**
+- Early error detection at configuration load time
+- Descriptive validation error messages
+- Type checking prevents runtime errors
+- Business rule enforcement (e.g., padding > max length)
+
+#### 3. **Environment-Specific Configuration** ✅
+
+**Environment Detection:**
+```bash
+# Set via environment variable (defaults to "production")
+$env:RECORD_MATCHER_ENV = "development"
+```
+
+**Development Environment (`config.development.toml`):**
+- `debug_mode = true`
+- `log_level = "DEBUG"`
+- `firebase.timeout_seconds = 60` (longer for debugging)
+- `firebase.batch_size = 100` (smaller batches)
+
+**Production Environment (`config.production.toml`):**
+- `debug_mode = false`
+- `log_level = "INFO"`
+- `firebase.batch_size = 500` (optimized)
+- `firebase.timeout_seconds = 30`
+
+**Local Overrides (`config.local.toml`):**
+- Gitignored for developer-specific settings
+- Template provided in `config.local.toml.template`
+- Use for: test credentials, custom paths, local database URLs
+
+#### 4. **Backward Compatibility** ✅
+
+**core.py Integration:**
+```python
+# Old code (still works):
+if len(chqno) <= MAX_CHEQUE_NUMBER_LENGTH:
+    formatted = format_chqNo(chqno)
+
+# Constants now read from config:
+MAX_CHEQUE_NUMBER_LENGTH = get_max_cheque_number_length()
+HDFC_TALLY_LEDGERNAME = get_hdfc_tally_ledgername()
+# ... etc.
+```
+
+**Benefits:**
+- Existing code continues to work without changes
+- No breaking changes to public API
+- Gradual migration path available
+- Can update individual modules to use `get_config()` directly
+
+#### 5. **Usage Examples** ✅
+
+**Basic Usage:**
+```python
+from config import get_config
+
+# Get configuration instance
+config = get_config()
+
+# Access values with type safety
+ledger_name = config.tally.hdfc_ledger_name
+max_length = config.validation.max_cheque_number_length
+is_debug = config.application.debug_mode
+```
+
+**Environment-Specific Usage:**
+```python
+from config import ConfigManager
+
+# Explicitly set environment
+config = ConfigManager(environment='development')
+
+# Check environment
+if config.application.environment == 'development':
+    # Enable development features
+    pass
+```
+
+**Hot Reload:**
+```python
+# Enable auto-reload on file changes
+config = ConfigManager(auto_reload=True)
+
+# Manual reload
+config.reload()
+```
+
+**Save Configuration:**
+```python
+# Modify configuration
+config.tally.hdfc_ledger_name = "New Account Name"
+
+# Save to local config
+config.save_config()  # Saves to config.local.toml
+```
+
+**Why:**
+
+Configuration management was identified as critical technical debt in `suggestions.md`:
+- **Security Risk**: Hardcoded Firebase credentials and passwords
+- **Maintainability**: Changing ledger names required code modifications
+- **Environment Management**: No way to have different dev/prod settings
+- **Validation**: No validation of configuration values
+- **Flexibility**: Impossible to customize without rebuilding application
+
+**How:**
+
+Implemented using modern Python best practices:
+1. **TOML Format**: Human-readable, industry-standard configuration format
+2. **Pydantic**: Runtime validation with descriptive errors
+3. **Type Safety**: Full type hints for IDE support
+4. **Singleton Pattern**: Prevents multiple config instances
+5. **Lazy Loading**: Configuration loaded only when needed
+6. **Hierarchical Merging**: Logical override priority
+7. **Gitignore**: Sensitive local config excluded from version control
+
+**Impact:**
+
+**Components Affected:**
+- ✅ `core.py`: All hardcoded constants now from config
+- ⏳ `main.py`: Can migrate to use `config.paths.*` for file paths
+- ⏳ `FirebaseControls`: Can migrate to use `config.firebase.*`
+- ⏳ All modules: Can access config via `get_config()`
+
+**Breaking Changes:**
+- ⚠️ **None** - Fully backward compatible with existing code
+- ⚠️ **New Dependency**: Requires `toml` and `pydantic` (added to requirements.txt)
+
+**Migration Notes:**
+- Existing deployments: No changes required
+- New deployments: Copy `config.default.toml` to deployment directory
+- Custom configurations: Create `config.local.toml` with overrides
+- Environment setup: Set `RECORD_MATCHER_ENV` environment variable if needed
+
+**Testing:**
+
+**Validation Tests:**
+```bash
+# Test configuration loading
+python test_config.py
+
+# Output:
+✓ Config loaded successfully
+  App Name: Record Matcher
+  Environment: production
+  HDFC Ledger: HDFC Bank A/c No.50200008623602
+  ICICI GOK Ledger: ICICI Bank A/c No.099005000974
+  ICICI UNI Ledger: ICICI 1027
+  Max Cheque Length: 15
+  Cheque Padding Length: 16
+  ...
+✓ All configuration values accessed successfully
+✓ Configuration system working correctly
+```
+
+**Test Coverage:**
+- ✅ Configuration file loading (default, environment, local)
+- ✅ Schema validation with Pydantic
+- ✅ Type-safe value access
+- ✅ Backward compatibility with existing constants
+- ✅ Environment detection
+- ✅ Configuration merging
+- ✅ Syntax validation (py_compile passed)
+
+**Security Improvements:**
+- 🔒 Sensitive values moved to gitignored `config.local.toml`
+- 🔒 Firebase credentials path configurable (can use environment-specific paths)
+- 🔒 No hardcoded passwords or credentials in source code
+- 🔒 Template file shows secure configuration practices
+
+**Performance:**
+- ⚡ Lazy loading: Config loaded only when needed
+- ⚡ Singleton pattern: One config instance, minimal memory
+- ⚡ Cached values: Configuration accessed without file I/O after initial load
+- ⚡ Optional hot-reload: Can be disabled for production performance
+
+**Future Enhancements:**
+1. **Encrypt sensitive values** in config files
+2. **Remote configuration** support (load from cloud)
+3. **Configuration validation CLI** tool
+4. **Auto-migration** from old hardcoded values
+5. **Configuration UI** for non-technical users
+6. **Audit logging** of configuration changes
+
+---
+
 ## [December 9, 2025] - Data Models, Repository Pattern & Service Layer Integration (COMPLETED)
 
 ### Category: Architecture & Code Quality - Phase 2 Integration

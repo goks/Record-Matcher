@@ -1,0 +1,13 @@
+# Record Matcher - Production Environment Configuration
+# This file contains production-specific settings.
+# To use: Set environment variable RECORD_MATCHER_ENV=production (default)
+
+[application]
+environment = "production"
+debug_mode = false
+log_level = "INFO"
+
+[firebase]
+# Production optimized settings
+batch_size = 500
+timeout_seconds = 30

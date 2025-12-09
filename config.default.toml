@@ -1,0 +1,41 @@
+# Record Matcher - Default Configuration
+# This file contains the default configuration values for the application.
+# DO NOT modify this file directly. Instead:
+# - For environment-specific changes: Use config.development.toml or config.production.toml
+# - For local overrides: Create config.local.toml (gitignored)
+
+[application]
+app_name = "Record Matcher"
+environment = "production"  # Options: development, staging, production
+debug_mode = false
+log_level = "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+[tally]
+# Tally ledger names for different banks and companies
+hdfc_ledger_name = "HDFC Bank A/c No.50200008623602"
+icici_ledger_name_gok = "ICICI Bank A/c No.099005000974"
+icici_ledger_name_uni = "ICICI 1027"
+
+# Intermediate ledger accounts
+payment_intermediary_ledger = "OTHER CREDITORS"
+receipt_intermediary_ledger = "OTHER DEBTORS"
+
+[validation]
+# Cheque number validation rules
+max_cheque_number_length = 15
+cheque_number_padding_length = 16
+
+[paths]
+# Directory paths (relative to application root)
+temp_directory = "./temp"
+output_directory = "./output"
+fonts_directory = "./fonts"
+images_directory = "./images"
+service_account_directory = "./service-account"
+
+[firebase]
+# Firebase configuration
+credentials_file = "service-account/recordmatcher-firebase-adminsdk-mfcn7-d0ee2c6bad.json"
+database_url = ""  # Leave empty to use default from credentials
+batch_size = 500
+timeout_seconds = 30
