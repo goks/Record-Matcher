@@ -47,17 +47,21 @@ class StateManagementService:
     
     This service centralizes all state management logic that was previously
     scattered across MainWindow. It maintains the current application state
-    and provides validation methods.
+    including UI display data.
     
     Attributes:
         state: Current application state
+        ui_data: Current UI display data (table, balances, dates, etc.)
         _state_lock: Thread lock for state access
+        _ui_lock: Thread lock for UI data access
     """
     
     def __init__(self):
         """Initialize state management service."""
         self.state = ApplicationState()
+        self.ui_data = UIDisplayData()
         self._state_lock = threading.Lock()
+        self._ui_lock = threading.Lock()
         logger.debug("StateManagementService initialized")
     
     def get_state(self) -> ApplicationState:
@@ -231,6 +235,78 @@ class StateManagementService:
                     return f"{self.state.current_month.capitalize()} {self.state.current_year}"
                 else:
                     return ''
+    
+    # UI Data Management Methods
+    
+    def update_table_data(self, table_data: List, credit_bal: str, debit_bal: str) -> None:
+        """Update table display data (thread-safe).
+        
+        Args:
+            table_data: List of table rows
+            credit_bal: Credit balance string
+            debit_bal: Debit balance string
+        """
+        with self._ui_lock:
+            self.ui_data.table_data = table_data
+            self.ui_data.credit_balance = credit_bal
+            self.ui_data.debit_balance = debit_bal
+            logger.debug(f"Table data updated: {len(table_data)} rows")
+    
+    def get_table_data(self) -> Tuple[List, str, str]:
+        """Get current table display data (thread-safe).
+        
+        Returns:
+            Tuple of (table_data, credit_balance, debit_balance)
+        """
+        with self._ui_lock:
+            return (
+                self.ui_data.table_data[:],  # Return copy
+                self.ui_data.credit_balance,
+                self.ui_data.debit_balance
+            )
+    
+    def update_selected_rows(self, selected_rows: List[int]) -> None:
+        """Update selected rows (thread-safe).
+        
+        Args:
+            selected_rows: List of selected row indices
+        """
+        with self._ui_lock:
+            self.ui_data.selected_rows = selected_rows[:]
+            logger.debug(f"Selected rows updated: {len(selected_rows)} rows")
+    
+    def get_selected_rows(self) -> List[int]:
+        """Get selected rows (thread-safe).
+        
+        Returns:
+            Copy of selected rows list
+        """
+        with self._ui_lock:
+            return self.ui_data.selected_rows[:]
+    
+    def update_date_range(self, start_date: str, end_date: str) -> None:
+        """Update date range (thread-safe).
+        
+        Args:
+            start_date: Start date as string
+            end_date: End date as string
+        """
+        with self._ui_lock:
+            self.ui_data.start_date = start_date
+            self.ui_data.end_date = end_date
+            logger.debug(f"Date range updated: {start_date} to {end_date}")
+    
+    def get_date_range(self) -> Tuple[str, str]:
+        """Get current date range (thread-safe).
+        
+        Returns:
+            Tuple of (start_date, end_date) as strings
+        """
+        with self._ui_lock:
+            return (
+                self.ui_data.start_date or "",
+                self.ui_data.end_date or ""
+            )
 
 
 class FileOperationService:

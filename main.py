@@ -137,34 +137,29 @@ class MainWindow(QObject):
         self.sync_service = SyncService(self.tableOperations)
         self.cheque_service = ChequeReportService(self.tableOperations, self.cheque_repository)
         
-        # Snapshot data (being migrated to service layer)
+        # Snapshot data (legacy - still needed for some operations)
         self.tableSnapshot = None
         self.masterDisplayTableData = list()
         self.infiChequeStatement = None
         
-        # UI display state
+        # UI display state - NOW MANAGED BY STATE_SERVICE
+        # Access via: state_service.get_table_data(), state_service.get_selected_rows(), etc.
         self.populate_left_menu(True)
-        self._monthYearData = ''
-        self._companyData = ''
-        self._bankData = ''
-        self._tableData =  list()
-        self._creditBal = 'Credit Bal' 
-        self._debitBal = 'Debit Bal' 
         self._header = self.tableOperations.get_header()
-        self._selectedRows = [1,2,3]
-        self._endDateCalendar =  QDate(2020,6,5)
-        self._startDateCalendar = QDate(2016,1,1)
+        
+        # Progress indicators (not in state service - UI specific)
         self._progressBarValue = 0.0
         self._fullScreenLoadingInfo1 = ''
         self._fullScreenLoadingInfo2 = ''
         
-        # Application state (migrating to StateManagementService)
-        self.current_month = ''
-        self.current_bank = ''
-        self.current_year = ''
-        self.current_company = ''
-        self.chequeReportActivated  = False
-        self.searchModeOffFirsttime = False
+        # Temporary state for backward compatibility - REMOVE these after full migration
+        # These should be accessed via state_service.get_state() instead
+        self.current_month = ''  # USE: state_service.get_state().current_month
+        self.current_bank = ''   # USE: state_service.get_state().current_bank
+        self.current_year = ''   # USE: state_service.get_state().current_year
+        self.current_company = '' # USE: state_service.get_state().current_company
+        self.chequeReportActivated  = False  # USE: state_service.get_state().cheque_report_activated
+        self.searchModeOffFirsttime = False  # USE: state_service.get_state().search_mode_off_first_time
         self.tallyExportBoxActivated = False
         
         # Thread lifecycle management
@@ -575,10 +570,8 @@ class MainWindow(QObject):
                 self.tableSnapshot = tableSnapshot
                 self.masterDisplayTableData = masterDisplayTableData
             
-            with self._data_lock:
-                self._tableData = masterDisplayTableData
-                self._creditBal = credit_bal
-                self._debitBal = debit_bal
+            # Update table data in state service (thread-safe)
+            self.state_service.update_table_data(masterDisplayTableData, credit_bal, debit_bal)
             
             # Emit signals to update UI
             self.table_data_changed.emit()
@@ -586,13 +579,20 @@ class MainWindow(QObject):
             self.debitBal_changed.emit()
             
             logger.debug(f"Date range: {start_date} to {end_date}")
+            # Update date range in state service
+            self.state_service.update_date_range(start_date, end_date)
+            # Keep QDate objects for backward compatibility
             self._startDateCalendar = QDate(int(start_date.split('/')[0]), int(start_date.split('/')[1]), int(start_date.split('/')[2]))
             self.startDateCalendar_changed.emit()
             self._endDateCalendar = QDate(int(end_date.split('/')[0]), int(end_date.split('/')[1]), int(end_date.split('/')[2]))
             self.endDateCalendar_changed.emit()
             
+            # Update selected rows in state service
+            selected_rows = tableSnapshot.get_master_selected_rows()
+            self.state_service.update_selected_rows(selected_rows)
+            # Keep for backward compatibility
             with self._snapshot_lock:
-                self._selectedRows = tableSnapshot.get_master_selected_rows()
+                self._selectedRows = selected_rows
             self.selectedRows_changed.emit()
             
             self.showTablePage.emit()
@@ -687,16 +687,18 @@ class MainWindow(QObject):
                 master_display_data=self.masterDisplayTableData
             )
             
-            # Update UI with search results
-            with self._data_lock:
-                self._tableData = search_result.filtered_data
-                self._creditBal = search_result.credit_balance
-                self._debitBal = search_result.debit_balance
+            # Update state service with search results (thread-safe)
+            self.state_service.update_table_data(
+                search_result.filtered_data,
+                search_result.credit_balance,
+                search_result.debit_balance
+            )
             
+            # Emit signals to update UI
             self.table_data_changed.emit()
             self.creditBal_changed.emit()
             self.debitBal_changed.emit()
-            logger.debug(f"Search completed - Results: {len(self._tableData)} rows")
+            logger.debug(f"Search completed - Results: {len(search_result.filtered_data)} rows")
         except Exception as e:
             logger.error(f"Search failed: {e}")
             logger.error(traceback.format_exc())
@@ -958,19 +960,25 @@ class MainWindow(QObject):
         print('table_data_changed')
         return
     def get_table_data(self):
-        return self._tableData 
+        """Get table data from state service."""
+        table_data, _, _ = self.state_service.get_table_data()
+        return table_data 
     @Signal
     def creditBal_changed(self):
         print('creditBal_changed')
         return
     def get_creditBal(self):
-        return self._creditBal
+        """Get credit balance from state service."""
+        _, credit_bal, _ = self.state_service.get_table_data()
+        return credit_bal
     @Signal
     def debitBal_changed(self):
         print('debitBal_changed')
         return
     def get_debitBal(self):
-        return self._debitBal         
+        """Get debit balance from state service."""
+        _, _, debit_bal = self.state_service.get_table_data()
+        return debit_bal         
     @Signal
     def header_changed(self):
         print('header_changed')
