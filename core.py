@@ -18,6 +18,9 @@ from dateutil.relativedelta import relativedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import time
+
+# Import centralized date handler
+from date_handler import DateHandler, get_date_handler, validate_date_range
 import random
 
 # Import utilities for better file management
@@ -814,13 +817,15 @@ class ICICIBankChequeStatement:
         return entry
 
     def process_date(self, entry):
+        """Process date field using centralized DateHandler."""
         date = entry[2]
         try:
-            date= dateutil.parser.parse(date , dayfirst=True)
-        except :
+            handler = get_date_handler()
+            parsed_date = handler.parse(str(date), dayfirst=True)
+            entry[2] = handler.format(parsed_date, handler.TALLY_OUTPUT_FORMAT)
+        except Exception:
             print(date)
             raise
-        entry[2] = date.strftime('%d-%b-%Y')
         return entry        
 
     def grab_data(self):
@@ -1763,14 +1768,16 @@ class SearchService:
         return final_table
     
     def _search_by_date(self, masterTableData: List[Dict], searchQuery: str) -> List[Dict]:
-        """Legacy method - use _search_by_date_optimized instead."""
+        """Legacy method - use _search_by_date_optimized instead (DateHandler integrated)."""
         final_table = []
         querydate = searchQuery.split('/')
+        handler = get_date_handler()
         
         for each in masterTableData:
             try:
-                date = dateutil.parser.parse(each['Bank Date'], dayfirst=True).strftime("%d/%m/%Y")
-                stmtdate = date.split('/')
+                parsed_date = handler.parse(each['Bank Date'], dayfirst=True)
+                formatted_date = handler.format(parsed_date)
+                stmtdate = formatted_date.split('/')
                 
                 if (stmtdate[0] == querydate[0] and
                     stmtdate[1] == querydate[1] and
@@ -3059,20 +3066,29 @@ class IntermediateDaybook:
                 return False, -8
             self.header = list(self.df.columns)
         else:
-            return False, -1  
-        try:             
-            self.fromDate = datetime.datetime.strptime(self.fromDate, "%d/%m/%Y")
-        except ValueError:
-            return False, -2   
-        try:             
-            self.toDate = datetime.datetime.strptime(self.toDate, "%d/%m/%Y")   
-        except ValueError:
+            return False, -1
+        
+        # Use centralized DateHandler for date parsing and validation
+        handler = get_date_handler()
+        try:
+            self.fromDate = handler.parse_to_naive(self.fromDate)
+        except Exception:
+            return False, -2
+        
+        try:
+            self.toDate = handler.parse_to_naive(self.toDate)
+        except Exception:
             return False, -3
-        if self.fromDate>=self.toDate:
-            return False, -4    
-        no_of_months = (self.toDate.year - self.fromDate.year) * 12 + (self.toDate.month - self.fromDate.month)
-        if no_of_months>12:
-            return False, -5    
+        
+        # Validate date range using DateHandler
+        valid, error_msg = validate_date_range(self.fromDate, self.toDate, max_months=12)
+        if not valid:
+            if "before or equal" in error_msg:
+                return False, -4  # Start date not before end date
+            elif "exceeds maximum" in error_msg:
+                return False, -5  # Exceeds 12 months
+            else:
+                return False, -2  # Other validation error    
         if self.company not in ['gokul','universal','gawel1','gawel2','focus']:
             return False, -6
         try:
@@ -3091,11 +3107,9 @@ class IntermediateDaybook:
     def getdf(self):
         return self.df      
     def convert_to_datetime_obj(self, date):
-        try:
-            val = datetime.datetime.strptime(date, '%d-%m-%Y')     
-        except ValueError:
-            val = datetime.datetime.strptime(date,'%d-%b-%Y')
-        return val    
+        """Convert date string to datetime object using centralized DateHandler."""
+        handler = get_date_handler()
+        return handler.parse_to_naive(date)    
     def grab_data(self):
         self.df = self.df[self.df['Number'].notna()]
         # Vectorized date conversion with error handling
