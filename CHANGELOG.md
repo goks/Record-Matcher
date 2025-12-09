@@ -6,6 +6,197 @@
 
 ---
 
+## [December 9, 2025] - Data Models, Repository Pattern & Service Layer Extraction
+
+### Category: Architecture & Code Quality - Phase 2
+
+### Files Created
+- `models.py` - Type-safe data models using dataclasses
+- `repositories.py` - Repository pattern for data access abstraction
+- `services.py` - Business logic services extracted from MainWindow
+
+### Changes Made
+
+**What Changed:**
+
+Implemented a comprehensive architectural improvement following modern software engineering best practices:
+
+#### 1. **Data Models (models.py)** - Type Safety with Dataclasses
+
+Created 14 immutable dataclass models to replace dictionary-based data structures:
+
+**Core Data Models:**
+- `BankStatementEntry` (frozen): Bank transaction with 7 fields (date, narration, cheque_number, value_date, debit, credit, balance)
+  - Methods: `to_list()`, `from_list()`, `is_debit_transaction()`, `is_credit_transaction()`
+  - Benefits: Type safety, validation, IDE autocomplete
+  
+- `ChequeReportEntry` (frozen): Infi cheque entry with 11 fields (trans_date, trans_no, book, code, ledger_name, chq_no, chq_date, transtype_voucher, narration, debit, credit)
+  - Methods: `to_list()`, `from_list()`
+  - Benefits: Immutable data structure prevents accidental mutations
+  
+- `TableSnapshotData`: Complete snapshot state with metadata
+  - Fields: month, year, bank, company, master_table, master_selected_rows, creation_time, last_edited_time
+  - Methods: `to_dict()`, `from_dict()`, `get_reference_key()`
+  - Benefits: Clear contract for snapshot persistence
+
+**Configuration & Results:**
+- `SearchResult`: Search results with filtered_data, credit_balance, debit_balance, row_count
+- `ValidationResult`: Standardized validation responses with success/failure factory methods
+- `ExportConfig`: Export configuration with customizable sheet options
+- `DaybookConfig`: Daybook generation parameters with date validation
+- `FirebaseSyncProgress`: Progress tracking with percentage calculation
+
+**Application State:**
+- `ApplicationState`: Central state management with validation methods
+  - Methods: `is_ready_for_bank_statement()`, `is_ready_for_cheque_report()`, `get_validation_error()`
+  - Benefits: Single source of truth for UI state
+  
+- `UIDisplayData`: Aggregated display data for UI layer
+  - Fields: table_data, credit_balance, debit_balance, header, selected_rows, month_year_data, company_data, bank_data, start_date, end_date
+  - Benefits: Clean separation of data preparation and presentation
+
+**Enums:**
+- `BankType`: HDFC, ICICI with `from_string()` converter
+- `ValidationErrorType`: 8 error codes matching existing system
+
+#### 2. **Repository Pattern (repositories.py)** - Data Access Abstraction
+
+Implemented complete repository pattern with interfaces and concrete implementations:
+
+**Abstract Interfaces (ABC):**
+- `IRepository`: Base interface with `health_check()`
+- `ISnapshotRepository`: Table snapshot CRUD operations
+  - Methods: `save()`, `load()`, `delete()`, `exists()`, `list_all()`
+  
+- `IChequeReportRepository`: Cheque report CRUD operations
+  - Methods: `save()`, `load()`, `delete()`, `exists()`
+  
+- `IConfigRepository`: Configuration data access
+  - Methods: `get_companies()`, `get_banks()`, `get_years()`, `get_months()`, `get_admin_password()`, `get_all_config()`, `reload()`
+  
+- `IFirebaseRepository`: Cloud storage operations
+  - Methods: `upload_snapshot()`, `download_snapshot()`, `upload_config()`, `download_config()`
+
+**Concrete Implementations:**
+- `PickleSnapshotRepository`: Pickle-based snapshot storage
+  - Features: In-memory cache, lazy loading, automatic directory creation
+  - Thread-safe: Uses `_ensure_loaded()` pattern
+  - Compatible: Works with existing TableSnapshotCollection pickle files
+  
+- `PickleChequeReportRepository`: Pickle-based cheque report storage
+  - Features: Dictionary-based cache, atomic writes
+  - Compatible: Works with existing ChequeReportCollection pickle files
+  
+- `JsonConfigRepository`: JSON file configuration loader
+  - Features: Lazy loading, reload support, error handling
+  - Validates: JSON syntax and file existence
+
+**Benefits:**
+- Decoupling: Business logic independent of storage mechanism
+- Testability: Easy to create mock repositories for unit tests
+- Flexibility: Can swap pickle → SQLite without changing business logic
+- Centralization: All data access in one place
+- Type Safety: Clear method signatures with type hints
+
+#### 3. **Service Layer (services.py)** - Business Logic Extraction
+
+Extracted all business logic from `MainWindow` into 6 dedicated service classes:
+
+**StateManagementService:**
+- Responsibility: Application state management and validation
+- Methods:
+  - State access: `get_state()`, `update_month()`, `update_year()`, `update_bank()`, `update_company()`
+  - Mode control: `set_cheque_report_mode()`, `set_tally_export_mode()`
+  - Validation: `validate_for_upload()`, `validate_for_export()`, `validate_for_populate_table()`
+  - Display: `generate_month_year_display()`
+- Thread-safe: Uses `_state_lock` for concurrent access
+- Benefits: Centralized state logic, consistent validation
+
+**FileOperationService:**
+- Responsibility: File upload/export operations
+- Methods:
+  - Upload: `process_upload()` - handles bank statements and cheque reports
+  - Export: `process_export()` - Excel file generation
+  - Daybook: `validate_daybook_inputs()`, `generate_daybook()`
+- Error Handling: Comprehensive exception catching with error codes
+- Thread-safe: Uses `_lock` for file operations
+- Benefits: Isolated file I/O logic, easier testing
+
+**TablePopulationService:**
+- Responsibility: Table data loading and UI preparation
+- Methods:
+  - Loading: `load_table_data()` - retrieves snapshot from repository
+  - Preparation: `prepare_ui_display_data()` - formats for UI display
+  - Persistence: `save_snapshot()` - saves with selected rows
+- Repository Integration: Uses `ISnapshotRepository` for data access
+- Thread-safe: Uses `_lock` for data operations
+- Benefits: Clean separation of data retrieval and presentation
+
+**SearchService:**
+- Responsibility: Search and filtering operations
+- Methods:
+  - Search: `search()` - supports multiple modes (chqno, date, amount, off)
+- Returns: `SearchResult` model with filtered data and balances
+- Thread-safe: Uses `_lock` for search operations
+- Benefits: Dedicated search logic, easy to add new search modes
+
+**SyncService:**
+- Responsibility: Firebase synchronization coordination
+- Methods:
+  - Download: `download_from_firebase()` with progress callback
+  - Upload: `upload_to_firebase()` with progress callback
+- Progress Tracking: Supports callback function for UI updates
+- Thread-safe: Uses `_lock` for sync operations
+- Benefits: Isolated cloud sync logic, consistent error handling
+
+**ChequeReportService:**
+- Responsibility: Cheque report management
+- Methods:
+  - Loading: `load_cheque_report()` - returns status and timestamp
+  - Deletion: `delete_cheque_report()` - removes from collection
+- Repository Integration: Uses `IChequeReportRepository`
+- Thread-safe: Uses `_lock` for operations
+- Benefits: Dedicated cheque report logic
+
+**Cross-Cutting Features:**
+- Logging: All services use Python logging module with DEBUG/INFO/ERROR levels
+- Thread Safety: All services have locks protecting shared state
+- Error Handling: Comprehensive try/except with logging and user-friendly error codes
+- Type Hints: Complete type annotations for all methods
+- Docstrings: Detailed documentation following Google style
+
+#### **Next Steps (MainWindow Refactoring):**
+The MainWindow class will be updated to:
+1. Replace direct `TableOperations` calls with service layer calls
+2. Use repository pattern for data access
+3. Consume data models instead of raw dictionaries/lists
+4. Remove embedded business logic (now in services)
+5. Focus purely on UI coordination and event handling
+
+**Impact:**
+- MainWindow: From ~700 lines to ~400 lines (estimated)
+- Business Logic: Completely separated from UI layer
+- Testability: Services can be unit tested without UI
+- Maintainability: Each service has single responsibility
+- Reusability: Services can be used in CLI, web, or other UIs
+
+**Backward Compatibility:**
+- All existing functionality preserved
+- No changes to QML UI layer required
+- Pickle file formats unchanged
+- Gradual migration path: can integrate services one at a time
+
+**Benefits Summary:**
+1. **Type Safety**: Dataclasses catch errors at development time
+2. **Separation of Concerns**: Clear boundaries between UI, business logic, and data access
+3. **Testability**: Each layer can be tested independently
+4. **Maintainability**: Easier to understand, modify, and extend
+5. **Flexibility**: Easy to swap implementations (pickle → database, add web UI, etc.)
+6. **Documentation**: Self-documenting code with type hints and docstrings
+7. **Modern Practices**: Following industry-standard patterns (Repository, Service Layer, Data Models)
+
+---
+
 ## [December 20, 2025] - Architecture Refactoring (Service-Oriented Architecture)
 
 ### Category: Architecture & Code Quality

@@ -691,10 +691,255 @@ finally:
 
 ---
 
+## Modern Architecture Layer (December 9, 2025)
+
+### Overview
+A comprehensive architectural improvement was implemented following modern software engineering best practices. This new layer sits alongside the existing architecture, providing a migration path while maintaining backward compatibility.
+
+### New Layered Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│               Presentation Layer (UI)                    │
+│              main.py, QML Components                     │
+│  • MainWindow: UI controller & event dispatcher         │
+│  • TableBackend: Table operations UI binding            │
+│  • Signals/Slots: Qt communication mechanism            │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│                  Service Layer                           │
+│                   services.py                            │
+│  • StateManagementService: State & validation           │
+│  • FileOperationService: File I/O operations            │
+│  • TablePopulationService: Data loading                 │
+│  • SearchService: Search & filtering                    │
+│  • SyncService: Firebase coordination                   │
+│  • ChequeReportService: Cheque logic                    │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│              Domain/Core Layer                           │
+│             core.py, models.py                           │
+│  • TableOperations: Facade for backward compat          │
+│  • Data Models: Type-safe dataclasses                   │
+│  • Business Entities: TableSnapshot, etc.               │
+│  • Domain Logic: Matching algorithms                    │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│               Data Access Layer                          │
+│                repositories.py                           │
+│  • ISnapshotRepository: Abstract interface              │
+│  • IChequeReportRepository: Abstract interface          │
+│  • IConfigRepository: Abstract interface                │
+│  • Concrete implementations: Pickle, JSON               │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Design Patterns Implemented
+
+#### 1. Repository Pattern
+**Purpose:** Abstract data persistence behind clean interfaces
+
+**Structure:**
+- Abstract base classes (`ISnapshotRepository`, `IChequeReportRepository`, `IConfigRepository`)
+- Concrete implementations (`PickleSnapshotRepository`, `PickleChequeReportRepository`, `JsonConfigRepository`)
+- Dependency injection for flexibility
+
+**Benefits:**
+- Business logic decoupled from storage mechanism
+- Easy to mock for testing
+- Can swap pickle → database without changing business logic
+- Centralized data access
+
+#### 2. Service Layer Pattern
+**Purpose:** Encapsulate business logic in reusable services
+
+**Services:**
+1. **StateManagementService** - Application state and validation
+2. **FileOperationService** - File upload/export operations
+3. **TablePopulationService** - Data loading and UI preparation
+4. **SearchService** - Search and filtering
+5. **SyncService** - Firebase synchronization
+6. **ChequeReportService** - Cheque report management
+
+**Benefits:**
+- Single Responsibility Principle
+- Testable in isolation
+- Reusable across different UIs
+- Clear API boundaries
+
+#### 3. Data Transfer Objects (DTOs)
+**Purpose:** Type-safe, immutable data structures
+
+**Key Models:**
+- `BankStatementEntry` (frozen): Bank transaction with validation
+- `ChequeReportEntry` (frozen): Cheque entry immutable data
+- `TableSnapshotData`: Complete snapshot state
+- `ApplicationState`: Current app state with validation methods
+- `UIDisplayData`: Aggregated display data
+- `ValidationResult`: Standardized validation responses
+- `SearchResult`: Typed search results
+
+**Benefits:**
+- Type safety catches errors at development time
+- IDE autocomplete support
+- Self-documenting code
+- Prevents accidental mutations
+
+#### 4. Facade Pattern
+**Purpose:** Maintain backward compatibility during refactoring
+
+**Implementation:**
+- `TableOperations` acts as facade over new services
+- Delegates to specialized services
+- Maintains original interface
+- Allows gradual migration
+
+### Thread Safety Architecture
+
+All new components implement comprehensive thread safety:
+
+**Mechanisms:**
+1. **Locks:** Each service has `_lock` protecting shared state
+2. **Lock Context Managers:** Proper acquisition/release with `with`
+3. **Immutable Data:** Frozen dataclasses prevent mutation
+4. **Copy-on-Read:** State services return copies
+
+**Example:**
+```python
+class StateManagementService:
+    def __init__(self):
+        self.state = ApplicationState()
+        self._state_lock = threading.Lock()
+    
+    def get_state(self) -> ApplicationState:
+        with self._state_lock:
+            return ApplicationState(...)  # Return copy
+```
+
+### Error Handling Strategy
+
+Consistent error handling across all layers:
+
+**Validation Layer:**
+- `ValidationResult` objects with success/failure factory methods
+- Enum-based error codes (`ValidationErrorType`)
+- Human-readable messages
+
+**Repository Layer:**
+- Return tuples: `(success: bool, error_code: int)`
+- Standard error codes: 0=success, -1=serialization, -2=file, -3=other
+- Health check methods
+
+**Service Layer:**
+- Comprehensive try/except with logging
+- Convert exceptions to user-friendly codes
+- Return typed results
+- Stack traces for debugging
+
+### Logging Architecture
+
+Comprehensive logging throughout:
+
+**Configuration:**
+```python
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('record_matcher.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+```
+
+**Levels:**
+- DEBUG: Detailed debugging info
+- INFO: General informational messages
+- WARNING: Non-critical issues
+- ERROR: Errors with stack traces
+
+### Testing Strategy
+
+The new architecture enables comprehensive testing:
+
+**Unit Testing:**
+- Services testable in isolation
+- Mock repositories for data layer
+- Typed contracts verify interfaces
+
+**Integration Testing:**
+- Test workflows across layers
+- Use real repositories with test data
+- Verify end-to-end functionality
+
+**Example:**
+```python
+def test_upload_workflow():
+    # Arrange
+    state_service = StateManagementService()
+    file_service = FileOperationService(mock_table_ops)
+    state_service.update_all_required_fields()
+    
+    # Act
+    validation = state_service.validate_for_upload()
+    success, code = file_service.process_upload(path, False)
+    
+    # Assert
+    assert validation.is_valid
+    assert success
+```
+
+### Migration Path
+
+**Phase 1: Infrastructure (COMPLETED)**
+- ✅ Created models.py with 14 dataclass models
+- ✅ Created repositories.py with abstract interfaces
+- ✅ Created services.py with 6 service classes
+- ✅ All backward compatible with existing code
+
+**Phase 2: Integration (IN PROGRESS)**
+- ⏳ Update MainWindow to use services
+- ⏳ Replace dictionaries with data models
+- ⏳ Remove business logic from UI layer
+
+**Phase 3: Optimization (FUTURE)**
+- Add caching layer
+- Implement database repository
+- Add async operations
+- Performance profiling
+
+### Benefits Summary
+
+1. **Type Safety:** Dataclasses catch errors at development time
+2. **Separation of Concerns:** Clear layer boundaries
+3. **Testability:** Each component testable in isolation
+4. **Maintainability:** Single responsibility per class
+5. **Flexibility:** Easy to swap implementations
+6. **Documentation:** Self-documenting with types
+7. **Modern Practices:** Industry-standard patterns
+
+### Files Added
+
+| File | Purpose | Lines | Key Classes |
+|------|---------|-------|-------------|
+| models.py | Data models | ~550 | 14 dataclasses, 2 enums |
+| repositories.py | Data access | ~750 | 4 interfaces, 3 implementations |
+| services.py | Business logic | ~850 | 6 service classes |
+| ARCHITECTURE.md | Documentation | This file | - |
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.1 | Dec 9, 2025 | Added service layer, repository pattern, data models |
 | 2.0 | Dec 2025 | Threading improvements, logging, validation, documentation |
 | 1.0 | - | Initial release |
 
@@ -705,4 +950,4 @@ finally:
 For architectural questions or suggestions, contact the development team.
 
 **Documentation maintained by:** Custom Documentation Agent  
-**Last architectural review:** December 19, 2025
+**Last architectural review:** December 9, 2025
