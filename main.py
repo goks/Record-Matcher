@@ -51,6 +51,15 @@ from memory_optimizer import (
     format_table_generator
 )
 
+# Import UI/UX optimization utilities
+from ui_optimizer import (
+    SignalBatcher,
+    PropertyUpdateBatcher,
+    BindingOptimizer,
+    UIPerformanceMonitor,
+    UIOptimizationMixin
+)
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
@@ -93,7 +102,7 @@ VALIDATION_ERRORS = {
 
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
-class MainWindow(QObject):
+class MainWindow(QObject, UIOptimizationMixin):
     """Main application window and controller for Record Matcher.
     
     This class serves as the central controller for the bank statement reconciliation
@@ -128,6 +137,7 @@ class MainWindow(QObject):
     """
     def __init__(self):
         QObject.__init__(self)
+        UIOptimizationMixin.init_ui_optimization(self)
         
         # Legacy components (kept for backward compatibility during migration)
         self.hdfcBankChequeStatement = C.HDFCBankChequeStatement()
@@ -583,10 +593,11 @@ class MainWindow(QObject):
             # Update table data in state service (thread-safe)
             self.state_service.update_table_data(masterDisplayTableData, credit_bal, debit_bal)
             
-            # Emit signals to update UI
-            self.table_data_changed.emit()
-            self.creditBal_changed.emit()
-            self.debitBal_changed.emit()
+            # OPTIMIZED: Batch signal emissions (reduces UI recalculations)
+            with self.batch_properties() as batch:
+                batch.queue_signal(self.table_data_changed)
+                batch.queue_signal(self.creditBal_changed)
+                batch.queue_signal(self.debitBal_changed)
             
             logger.debug(f"Date range: {start_date} to {end_date}")
             # Update date range in state service
@@ -704,10 +715,11 @@ class MainWindow(QObject):
                 search_result.debit_balance
             )
             
-            # Emit signals to update UI
-            self.table_data_changed.emit()
-            self.creditBal_changed.emit()
-            self.debitBal_changed.emit()
+            # OPTIMIZED: Batch signal emissions for search results
+            with self.batch_properties() as batch:
+                batch.queue_signal(self.table_data_changed)
+                batch.queue_signal(self.creditBal_changed)
+                batch.queue_signal(self.debitBal_changed)
             logger.debug(f"Search completed - Results: {len(search_result.filtered_data)} rows")
         except Exception as e:
             logger.error(f"Search failed: {e}")
