@@ -1,22 +1,38 @@
-import QtQuick 2.15
-import  "../controls"
+import QtQuick 6.5
+import QtQuick.Controls 6.5
+import "../controls"
 
+// Modern scrollable ListView with improved visual design
 ListView {
     id: listView
-    // height: vscale(10)
+    
+    // Public properties (same interface as before for compatibility)
     property var data: [
         {"name": "HDFC", "value": "hdfc"},
         {"name": "ICICI", "value": "icici"}
-    ];
+    ]
     property string selected: ''
     property string selectedName: ''
-    spacing: 3
-    layoutDirection: Qt.LeftToRight
-    topMargin: 0
-    currentIndex: 0
-    // property real scaleFactor : 1
     property real scaleFactorHeight: 1
     property real scaleFactorWidth: 1
+    
+    // List spacing and behavior
+    spacing: vscale(2)
+    topMargin: vscale(2)
+    bottomMargin: vscale(2)
+    leftMargin: hscale(4)
+    rightMargin: hscale(4)
+    clip: true
+    
+    // Smooth scrolling configuration - reduced speed for better control
+    boundsBehavior: Flickable.StopAtBounds
+    flickDeceleration: 5000
+    maximumFlickVelocity: 800
+    
+    // Internal model
+    model: ListModel { id: model }
+    
+    // Helper functions
     function hscale(size) {
         return Math.round(size * scaleFactorWidth)
     }
@@ -24,98 +40,205 @@ ListView {
         return Math.round(size * scaleFactorHeight)
     }
     function tscale(size) {
-        return (Math.round((hscale(size) + vscale(size)) / 2)+2)
+        return (Math.round((hscale(size) + vscale(size)) / 2) + 2)
     }
 
-    property color textcolorDefault: "#6a84a0"
-    property color listItemSelected: "#EAF0F6"
-    property color listItemUnselected: "#00000000"
-    property color listItemHovered: "#EAF0F6"
-    property color customBorderColor: "#33475b"
+    // Modern color palette
+    property color textColorDefault: "#475569"
+    property color textColorSelected: "#1e40af"
+    property color textColorHover: "#334155"
+    property color bgSelected: "#dbeafe"
+    property color bgUnselected: "transparent"
+    property color bgHover: "#f1f5f9"
+    property color accentColor: "#3b82f6"
+    property real itemBorderRadius: 6
     
-    model: ListModel{ id:model}
-    onCurrentItemChanged:{
-        selectedName = model.get(listView.currentIndex).name
-        selected = model.get(listView.currentIndex).value
-        console.log(model.get(listView.currentIndex).name + ' selected')
+    // Update model when data changes from backend
+    onDataChanged: {
+        model.clear()
+        for (var i = 0; i < data.length; i++) {
+            model.append(data[i])
+        }
     }
-
+    
+    // Update parent properties when selection changes
+    onCurrentIndexChanged: {
+        if (currentIndex >= 0 && currentIndex < model.count) {
+            // Set selectedName first before selected to ensure it's available when onSelectedChanged fires
+            selectedName = model.get(currentIndex).name
+            selected = model.get(currentIndex).value
+            console.log(model.get(currentIndex).name + ' selected')
+        }
+    }
+    
+    // Auto-scroll to current item when selection changes externally
+    onCurrentItemChanged: {
+        if (currentItem) {
+            positionViewAtIndex(currentIndex, ListView.Contain)
+        }
+    }
+    
+    Component.onCompleted: {
+        // Model is already populated by onDataChanged when data property is set
+        // Only set initial selection if valid
+        if (model.count > 0 && currentIndex >= 0 && currentIndex < model.count) {
+            listView.currentIndex = currentIndex
+        }
+    }
+    
+    // Highlight component (selection indicator)
+    highlight: Rectangle {
+        color: bgSelected
+        radius: 4
+        
+        // Left accent bar
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: 3
+            radius: 1
+            color: accentColor
+        }
+        
+        Behavior on y {
+            SmoothedAnimation { 
+                velocity: 600
+                duration: 100
+            }
+        }
+    }
+    highlightFollowsCurrentItem: true
+    highlightMoveDuration: 100
+    
+    // List item delegate
     delegate: Item {
         id: delegateItem
-        width: listView.width
-        height: vscale(27)
+        width: listView.width - listView.leftMargin - listView.rightMargin
+        height: vscale(28)
+        
+        property bool isCurrentItem: delegateItem.ListView.isCurrentItem
+        property bool isHovered: itemMouseArea.containsMouse
+        
         Rectangle {
-            id: rectangle
-            width: listView.width-4
-            height: vscale(26)
-            color: delegateItem.ListView.isCurrentItem ? listItemSelected : listItemUnselected
-            //color: listItemSelected
-            anchors.left: parent.left
-            anchors.leftMargin: hscale(4)
-            CustomBorder {
-                visible: delegateItem.ListView.isCurrentItem ? true : false
-                commonBorder: false
-                lBorderwidth: 4
-                borderColor: customBorderColor
+            id: itemBackground
+            anchors.fill: parent
+            radius: 4
+            color: {
+                if (delegateItem.isCurrentItem) return "transparent" // Highlight handles this
+                if (delegateItem.isHovered) return bgHover
+                return bgUnselected
             }
-            Rectangle {
-                id: hoverRectangle
-                width: parent.width
-                height: parent.height
-                color: listItemUnselected
-                z:-1
+            
+            Behavior on color {
+                ColorAnimation { duration: 100 }
             }
 
+            // Mouse interaction
             MouseArea {
+                id: itemMouseArea
                 anchors.fill: parent
                 hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     listView.currentIndex = index
                 }
-                onEntered: {
-                    hoverRectangle.color = listItemHovered
-                }
-                onExited: {
-                    hoverRectangle.color = listItemUnselected
-                }
-
             }
+            
+            // Content row
+            Row {
+                anchors.fill: parent
+                anchors.leftMargin: hscale(10)
+                anchors.rightMargin: hscale(8)
+                spacing: hscale(10)
+                
+                // Selection indicator dot
+                Rectangle {
+                    width: hscale(6)
+                    height: hscale(6)
+                    radius: hscale(3)
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: delegateItem.isCurrentItem ? accentColor : (delegateItem.isHovered ? "#94a3b8" : "#cbd5e1")
+                    
+                    Behavior on color {
+                        ColorAnimation { duration: 100 }
+                    }
+                }
+                
+                // Item text
+                Text {
+                    id: listText
+                    text: model.name
+                    elide: Text.ElideRight
+                    width: parent.width - hscale(26)
+                    anchors.verticalCenter: parent.verticalCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.family: "PT Sans Caption"
+                    font.pixelSize: tscale(12)
+                    font.weight: delegateItem.isCurrentItem ? Font.DemiBold : Font.Normal
+                    color: {
+                        if (delegateItem.isCurrentItem) return textColorSelected
+                        if (delegateItem.isHovered) return textColorHover
+                        return textColorDefault
+                    }
+                    
+                    Behavior on color {
+                        ColorAnimation { duration: 100 }
+                    }
+                }
+            }
+            
+            // Subtle right chevron for selected item
             Text {
-                id: listText
-                text: model.name
-                elide: Text.ElideRight
-                width: parent.width
-                height: parent.height
-                anchors.leftMargin: hscale(29)
+                visible: delegateItem.isCurrentItem
+                anchors.right: parent.right
+                anchors.rightMargin: hscale(8)
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                verticalAlignment: Text.AlignVCenter
-                minimumPixelSize: 14
-                // font.family: "PT Sans Caption"
-                font.family: appFont4.name
+                text: "›"
                 font.pixelSize: tscale(16)
-                font.bold: false
-                color: textcolorDefault
+                font.weight: Font.Bold
+                color: accentColor
+                opacity: 0.7
             }
         }
     }
-    function addColumn(val) {
-        listView.addColumn(delegateItem.createObject(listView, { name: val } ) );
-    }
-
-    Component.onCompleted: function(){
-        model.clear();
-        for (var i in data) {
-            model.append({name: data[i]['name'], value: data[i]['value']})
+    
+    // Empty state
+    Item {
+        visible: model.count === 0
+        anchors.fill: parent
+        
+        Column {
+            anchors.centerIn: parent
+            spacing: vscale(8)
+            
+            Text {
+                text: "—"
+                font.pixelSize: hscale(24)
+                color: "#94a3b8"
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+            
+            Text {
+                text: "No items"
+                font.family: "PT Sans Caption"
+                font.pixelSize: tscale(11)
+                color: "#94a3b8"
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
         }
     }
+    
+    // Custom scrollbar
+    ScrollBar.vertical: ScrollBar {
+        id: scrollBar
+        policy: ScrollBar.AlwaysOn
+        visible: listView.contentHeight > listView.height
+        width: 10
+    }
 }
 
 
 
 
-/*##^##
-Designer {
-    D{i:0;autoSize:true;height:480;width:640}
-}
-##^##*/
+

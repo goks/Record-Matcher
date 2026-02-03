@@ -1,6 +1,7 @@
-import QtQuick 2.0
-import QtGraphicalEffects 1.15
-import QtQuick.Controls 2.15
+import QtQuick 6.5
+// Qt6: QtGraphicalEffects removed - effects disabled
+
+import QtQuick.Controls 6.5
 
 /**
  * adapted from StackOverflow:
@@ -205,18 +206,7 @@ Rectangle {
         }
         onClicked: root.visible = false
     }
-    DropShadow {
-        anchors.fill: root
-        source: root
-        fast: true
-        samples: 0
-        cached: true
-        horizontalOffset: 2
-        verticalOffset: 3
-        radius: 4
-        spread: 0
-        color: "#40000000"
-    }
+    // TODO Qt6: DropShadow disabled
 
 
     SequentialAnimation on opacity {
@@ -251,3 +241,8 @@ Designer {
     D{i:0;formeditorZoom:2}D{i:2}D{i:5}
 }
 ##^##*/
+
+
+
+
+

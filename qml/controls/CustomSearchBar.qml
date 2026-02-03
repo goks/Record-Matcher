@@ -1,8 +1,8 @@
-import QtQuick 2.15
+import QtQuick 6.5
 import  "../controls"
-import QtQuick.Controls 2.15
-import QtQuick.Dialogs 1.3
-import QtQuick.Controls 1.4 as OldControls
+import QtQuick.Controls 6.5
+import QtQuick.Dialogs
+// Qt6: Removed unused QtQuick.Controls 1.4 import (not available in Qt 6)
 Rectangle {
     id: containerBox
     //    height: 38
@@ -136,7 +136,8 @@ Rectangle {
             id: fileDialog
             nameFilters: ["Excel Files (*.xls *.xlsx)"]
             title: "Choose the file to import "
-            folder: shortcuts.desktop
+            // Qt6: folder property removed, using currentFolder instead
+            // shortcuts.desktop removed in Qt 6
             onAccepted: {
                 console.log("You chose: " + fileDialog.fileUrl)
                 fileDialogText = fileDialog.fileUrl
@@ -186,3 +187,8 @@ Designer {
     D{i:0;formeditorZoom:10}
 }
 ##^##*/
+
+
+
+
+

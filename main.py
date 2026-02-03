@@ -12,9 +12,9 @@ import logging
 import traceback
 from typing import Optional, List, Tuple, Dict, Any
 
-from PySide2.QtGui import QGuiApplication, QIcon
-from PySide2.QtQml import QQmlApplicationEngine
-from PySide2.QtCore import QBitArray, QObject, SIGNAL, Slot, Signal, Property, QDate
+from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtCore import QBitArray, QObject, SIGNAL, Slot, Signal, Property, QDate, QAbstractTableModel, Qt, QModelIndex, QByteArray
 
 import core as C
 from core import TableOperations, TableSnapshot, InfiChequeStatement
@@ -169,7 +169,17 @@ class MainWindow(QObject, UIOptimizationMixin):
         # UI display state - NOW MANAGED BY STATE_SERVICE
         # Access via: state_service.get_table_data(), state_service.get_selected_rows(), etc.
         self.populate_left_menu(True)
+        # NOTE: Do NOT set default selections - user must explicitly select options
+        # Table will only populate when user selects company, bank, year, and month
         self._header = self.tableOperations.get_header()
+        
+        # Initialize UI state variables
+        self._monthYearData = ''
+        self._companyData = ''
+        self._bankData = ''
+        self._selectedRows = []
+        self._startDateCalendar = QDate.currentDate()
+        self._endDateCalendar = QDate.currentDate()
         
         # Progress indicators (not in state service - UI specific)
         self._progressBarValue = 0.0
@@ -201,6 +211,13 @@ class MainWindow(QObject, UIOptimizationMixin):
         atexit.register(self._cleanup_threads)
         
         logger.info("MainWindow initialized with service layer architecture")
+        # Table model for native Qt6 TableView (exposed to QML)
+        self.tableModel = TableModel(self)
+
+        # NOTE: Table data should only be populated when user selects options
+        # The StackView will show selectOptionsComponent as initial item
+        # Table will be shown only after user selects company, bank, year, month
+
         return
     
     def _sync_state_to_service(self) -> None:
@@ -603,6 +620,13 @@ class MainWindow(QObject, UIOptimizationMixin):
                 batch.queue_signal(self.creditBal_changed)
                 batch.queue_signal(self.debitBal_changed)
             
+            # Update native Qt TableModel used by QML TableView
+            try:
+                # self._header already set earlier; masterDisplayTableData is list of lists
+                self.tableModel.set_table_data(self._header, masterDisplayTableData)
+            except Exception as e:
+                logger.debug(f"TableModel update skipped: {e}")
+            
             logger.debug(f"Date range: {start_date} to {end_date}")
             # Update date range in state service
             self.state_service.update_date_range(start_date, end_date)
@@ -849,6 +873,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             companyname: Selected company name
             screenName: Screen name for display
         """
+        print(f"DEBUG companyChanged: companyname={companyname}, screenName={screenName}")
         # Update service layer state
         self.state_service.update_company(companyname)
         # Sync back to UI state
@@ -856,10 +881,12 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         with self._state_lock:
             self._companyData = screenName
+            print(f"DEBUG _companyData set to: {self._companyData}")
             cheque_activated = self.chequeReportActivated
             tally_activated = self.tallyExportBoxActivated
         
         self.companyData_changed.emit()
+        print(f"DEBUG companyData_changed emitted")
         
         if cheque_activated:
             status, data = self.populateChequeReports()
@@ -878,6 +905,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             bankname: Selected bank name
             screenName: Screen name for display
         """
+        print(f"DEBUG bankChanged: bankname={bankname}, screenName={screenName}")
         # Update service layer state
         self.state_service.update_bank(bankname)
         # Sync back to UI state
@@ -885,7 +913,9 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         with self._state_lock:
             self._bankData = screenName
+            print(f"DEBUG _bankData set to: {self._bankData}")
         self.bankData_changed.emit()
+        print(f"DEBUG bankData_changed emitted")
         self.populate_table()
     @Slot(str)
     def yearChanged(self, year):
@@ -946,7 +976,17 @@ class MainWindow(QObject, UIOptimizationMixin):
         self.monthYearData_changed.emit()
     @Slot(list)
     def selectedRowsChanged(self, updatedRows):
+        """Called from QML when user selection changes.
+        Synchronize selection into the StateManagementService and notify QML listeners.
+        """
         self._selectedRows = updatedRows
+        try:
+            # Update service layer so selection is globally available
+            self.state_service.update_selected_rows(updatedRows)
+        except Exception as e:
+            logger.debug(f"Failed to update selected rows in state service: {e}")
+        # Emit notify so QML bindings remain consistent
+        self.selectedRows_changed.emit()
     @Slot(bool)
     def setChequeReportActivated(self,status):
         self.chequeReportActivated = status
@@ -1087,6 +1127,67 @@ class MainWindow(QObject, UIOptimizationMixin):
     adminPassword = Property(str, get_adminPassword, notify=adminPassword_changed)
 
 
+class TableModel(QAbstractTableModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._headers = []
+        self._data = []
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._data)
+
+    def columnCount(self, parent=QModelIndex()):
+        if self._headers:
+            return len(self._headers)
+        return len(self._data[0]) if self._data else 0
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        row = index.row()
+        col = index.column()
+        if role == Qt.DisplayRole:
+            try:
+                return str(self._data[row][col])
+            except Exception:
+                return ''
+        # Named roles for QML TableViewColumns (col0, col1, ...)
+        if role >= Qt.UserRole + 1:
+            col_idx = role - (Qt.UserRole + 1)
+            try:
+                return str(self._data[row][col_idx])
+            except Exception:
+                return ''
+        return None
+
+    def roleNames(self):
+        roles = {}
+        for i in range(self.columnCount()):
+            roles[Qt.UserRole + 1 + i] = QByteArray(f"col{i}".encode())
+        return roles
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            if section < len(self._headers):
+                return self._headers[section]
+        return None
+
+    @Slot('QVariantList', 'QVariantList')
+    def set_table_data(self, headers, data):
+        self.beginResetModel()
+        self._headers = [str(h) for h in headers] if headers else []
+        normalized = []
+        for row in data:
+            if isinstance(row, (list, tuple)):
+                normalized.append([str(c) for c in row])
+            elif isinstance(row, dict):
+                normalized.append([str(v) for v in row.values()])
+            else:
+                normalized.append([str(row)])
+        self._data = normalized
+        self.endResetModel()
+
+
 class TableBackend(QObject):
     tableRowSelected = Signal(list)
 
@@ -1128,6 +1229,8 @@ if __name__ == "__main__":
 
     tableBackend = TableBackend()
     engine.rootContext().setContextProperty("tableBackend", tableBackend)
+    # Expose native QAbstractTableModel for QML TableView
+    engine.rootContext().setContextProperty("tableModel", main.tableModel)
 
 
     #Load QML File

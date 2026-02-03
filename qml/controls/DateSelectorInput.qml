@@ -1,6 +1,6 @@
-import QtQuick 2.0
-import QtQuick.Controls 2.15
-import QtQuick.Dialogs 1.3
+import QtQuick 6.5
+import QtQuick.Controls 6.5
+import QtQuick.Dialogs
 import  "../controls"
 
 Rectangle {
@@ -112,8 +112,8 @@ Rectangle {
         anchors.left: textInput.left
         anchors.right: parent.right
         visible: calendarButPressed?true:false
-        minimumDate : startDateCalendar
-        maximumDate : endDateCalendar
+        minimumDate : backend ? backend.startDateCalendar : null
+        maximumDate : backend ? backend.endDateCalendar : null
         scaleFactorWidth: window.scaleFactorWidth
         scaleFactorHeight: window.scaleFactorHeight
 
@@ -126,3 +126,8 @@ Rectangle {
         }
     }
 }
+
+
+
+
+

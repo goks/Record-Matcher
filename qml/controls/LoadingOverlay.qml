@@ -1,5 +1,5 @@
-import QtQuick 2.0
-import QtQuick.Controls 2.15
+import QtQuick 6.5
+import QtQuick.Controls 6.5
 
 Rectangle{
     id: loadingOverlay
@@ -56,3 +56,8 @@ Rectangle{
         }
     }
 }
+
+
+
+
+

@@ -1,4 +1,4 @@
-import QtQuick 2.15
+import QtQuick 6.5
 
 
 Rectangle {
@@ -37,3 +37,8 @@ Designer {
     D{i:0;autoSize:true;height:480;width:640}
 }
 ##^##*/
+
+
+
+
+

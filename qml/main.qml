@@ -1,9 +1,10 @@
-import QtQuick 2.15
-import QtQuick.Window 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Controls 1.6 as C
-import QtGraphicalEffects 1.15
-import QtQuick.Dialogs 1.3
+import QtQuick 6.5
+import QtQuick.Window
+import QtQuick.Controls 6.5
+// QtGraphicalEffects is deprecated in Qt 6 - effects disabled for now
+// TODO: Migrate to Qt6.5.Effects or Qt Multimediate Effects
+// import QtQuick.Effects
+import QtQuick.Dialogs
 
 
 import  "../qml/controls"
@@ -41,8 +42,9 @@ Window {
         return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
     //    onClosing: backend.beginWindowExitRoutine()
-    FontLoader { id: appFont; name: "PT Sans Caption"; source: "../fonts/PTSansCaption-Regular.ttf" }
-    FontLoader { id: appFont2; name: "Monoton"; source: "../fonts/Monoton-Regular.ttf" }
+    // Qt6: FontLoader 'name' property is now read-only, use 'source' only
+    FontLoader { id: appFont; source: "../fonts/PTSansCaption-Regular.ttf" }
+    FontLoader { id: appFont2; source: "../fonts/Monoton-Regular.ttf" }
     FontLoader { id: appFont3; source: "../fonts/PTSansCaption-Bold.ttf" }
     FontLoader { id: appFont4; source: "../fonts/Sen-Regular.ttf" }
     property string chequeTimeData: ""
@@ -66,9 +68,9 @@ Window {
             z:15
             scaleFactorWidth: window.scaleFactorWidth
             scaleFactorHeight: window.scaleFactorHeight
-            progressBarValue: backend.progressBarValue
-            text1: backend.fullScreenLoadingInfo1
-            text2: backend.fullScreenLoadingInfo2
+            progressBarValue: backend ? backend.progressBarValue : 0
+            text1: backend ? backend.fullScreenLoadingInfo1 : ""
+            text2: backend ? backend.fullScreenLoadingInfo2 : ""
         }
         LoadingOverlay2{
             id: fullScreenLoading2
@@ -76,9 +78,9 @@ Window {
             z:15
             scaleFactorWidth: window.scaleFactorWidth
             scaleFactorHeight: window.scaleFactorHeight
-            progressBarValue: backend.progressBarValue
-            text1: backend.fullScreenLoadingInfo1
-            text2: backend.fullScreenLoadingInfo2
+            progressBarValue: backend ? backend.progressBarValue : 0
+            text1: backend ? backend.fullScreenLoadingInfo1 : ""
+            text2: backend ? backend.fullScreenLoadingInfo2 : ""
             fromDate: "01/06/2021"
             toDate: "30/06/2021"
             daybookFileURL: "C:\\Users\\Gokul\\Documents\\Cheque Reports\\Daybook 21.xlsx"
@@ -109,7 +111,7 @@ Window {
             scaleFactorWidth: window.scaleFactorWidth
             scaleFactorHeight: window.scaleFactorHeight
             passwordFieldText: ""
-            password: backend.adminPassword
+            password: backend ? backend.adminPassword : ""
             matchStatus: false
             onClosed: {
                             if(passwordPopup.matchStatus === true){
@@ -148,15 +150,9 @@ Window {
                 anchors.bottomMargin: 0
                 anchors.topMargin: 0
                 anchors.leftMargin: hscale(40)
-                layer.enabled: true
-                layer.effect: DropShadow {
-                    id: dropShadow
-                    color: "#40000000"
-                    verticalOffset: 4
-                    radius: 4
-                    spread: 0
-                    horizontalOffset: 0
-                }
+                // TODO Qt6: DropShadow moved to different module
+                // layer.enabled: true
+                // layer.effect: // TODO Qt6: DropShadow disabled
             }
             Rectangle {
                 id: headerMenuContainer
@@ -400,8 +396,8 @@ Window {
                             textInput.searchmode = "default"
                             textInput.fileDialogText = ""
                             bodySubtitleContainer.visible = true
-                            bodySubtitleContainer.height = vscale(38)
-                            bodyHeaderBox.height=vscale(126)
+                            bodySubtitleContainer.height = vscale(52)
+                            bodyHeaderBox.height = bodyTitleContainer.height + bodySubtitleContainer.height + vscale(12) + vscale(8) + vscale(10)
                             console.log(stackView.pop())
 
                         }
@@ -424,6 +420,10 @@ Window {
                         byDateBtn.selected = false
                         byChqAmtBtn.selected = false
                         byChqNoBtn.selected = false
+                        // Ensure header and subtitle containers are visible when showing the table
+                        bodySubtitleContainer.visible = true
+                        bodySubtitleContainer.height = vscale(52)
+                        bodyHeaderBox.height = bodyTitleContainer.height + bodySubtitleContainer.height + vscale(12) + vscale(8) + vscale(10)
                         stackView.push(tableComponent)
                     }
                     function onShowUploadBankStatementPage(){
@@ -671,7 +671,7 @@ Window {
 
                 Text {
                     id: optionsText
-                    height: vscale(45)
+                    height: vscale(32)
                     text: qsTr("Options")
                     elide: Text.ElideRight
                     color: "#324254"
@@ -679,174 +679,204 @@ Window {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     font.family: appFont3.name
-                    font.pixelSize: tscale(26)
+                    font.pixelSize: tscale(20)
                     font.weight: Font.Bold
                     verticalAlignment: Text.AlignVCenter
-                    anchors.rightMargin: hscale(29)
-                    anchors.leftMargin: hscale(33)
-                    anchors.topMargin: vscale(18)
+                    anchors.rightMargin: hscale(20)
+                    anchors.leftMargin: hscale(16)
+                    anchors.topMargin: vscale(10)
                 }
 
                 Rectangle {
                     id: companyBox
-                    height: vscale(110)
+                    height: vscale(120)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: optionsText.bottom
-                    anchors.topMargin: vscale(26)
+                    anchors.topMargin: vscale(10)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
 
                     Text {
                         id: companyText
-                        height: vscale(23)
-                        color: "#2e3f51"
+                        height: vscale(22)
+                        color: "#475569"
                         text: qsTr("Company")
                         elide: Text.ElideRight
                         font.family: appFont3.name
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: tscale(18)
+                        font.pixelSize: tscale(15)
                         verticalAlignment: Text.AlignBottom
-                        font.weight: Font.Bold
-                        // minimumPointSize: 18
+                        font.weight: Font.DemiBold
+                        textFormat: Text.PlainText
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
-                        anchors.leftMargin: hscale(33)
+                        anchors.leftMargin: hscale(16)
                         z:2
+                    }
+                    
+                    // Section divider
+                    Rectangle {
+                        id: companyDivider
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: companyText.bottom
+                        anchors.leftMargin: hscale(16)
+                        anchors.rightMargin: hscale(12)
+                        anchors.topMargin: vscale(4)
+                        height: 1
+                        color: "#e2e8f0"
                     }
 
                     LeftPanelCustomList {
                         id: companyList
-                        // height: vscale(61)
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.top: companyText.bottom
+                        anchors.top: companyDivider.bottom
                         anchors.bottom: parent.bottom
-                        // boundsBehavior: Flickable.DragAndOvershootBounds
                         anchors.bottomMargin: 0
-                        anchors.topMargin: vscale(8)
+                        anchors.topMargin: vscale(6)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
-                        currentIndex:1
+                        currentIndex: -1
                         selected: ''
                         scaleFactorWidth: window.scaleFactorWidth
                         scaleFactorHeight: window.scaleFactorHeight
-                        data: backend.companyDict
+                        data: backend ? backend.companyDict : []
                         z:1
                         onSelectedChanged: {
-                            backend.companyChanged(selected, selectedName)
+                            if (backend) backend.companyChanged(selected, selectedName)
                         }
                     }
                 }
 
                 Rectangle {
                     id: bankBox
-                    // height: vscale(97)
+                    height: vscale(85)
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: companyBox.bottom
-                    anchors.topMargin: vscale(20)
-                    // anchors.topMargin: vscale(10)
+                    anchors.topMargin: vscale(6)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
 
                     Text {
                         id: bankText
-                        height: vscale(23)
-                        color: "#2e3f51"
+                        height: vscale(22)
+                        color: "#475569"
                         text: qsTr("Bank")
                         elide: Text.ElideRight
                         font.family: appFont3.name
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: tscale(18)
+                        font.pixelSize: tscale(15)
                         verticalAlignment: Text.AlignBottom
-                        font.weight: Font.Bold
-                        // minimumPointSize: 18
+                        font.weight: Font.DemiBold
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
-                        anchors.leftMargin: hscale(33)
+                        anchors.leftMargin: hscale(16)
                         z:2
+                    }
+                    
+                    // Section divider
+                    Rectangle {
+                        id: bankDivider
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: bankText.bottom
+                        anchors.leftMargin: hscale(16)
+                        anchors.rightMargin: hscale(12)
+                        anchors.topMargin: vscale(4)
+                        height: 1
+                        color: "#e2e8f0"
                     }
 
                     LeftPanelCustomList {
                         id: bankList
-                        // height: vscale(61)
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.top: bankText.bottom
+                        anchors.top: bankDivider.bottom
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 0
-                        anchors.topMargin: vscale(8)
+                        anchors.topMargin: vscale(6)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
-                        currentIndex:0
+                        currentIndex: -1
                         scaleFactorWidth: window.scaleFactorWidth
                         scaleFactorHeight: window.scaleFactorHeight
                         selected: ''
-                        data: backend.bankDict
+                        data: backend ? backend.bankDict : []
                         z:1
                         onSelectedChanged: {
-                            backend.bankChanged(selected, selectedName)
+                            if (backend) backend.bankChanged(selected, selectedName)
                         }
                     }
                 }
                 Rectangle {
                     id: yearBox
-                    height: vscale(190)
+                    height: Math.min(vscale(220), yearList.contentHeight + vscale(30))
                     color: "#00000000"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: bankBox.bottom
-                    // anchors.topMargin: vscale(15)
-                    anchors.topMargin: vscale(26)
+                    anchors.topMargin: vscale(10)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
                     
                     Text {
                         id: yearText
-                        height: vscale(23)
-                        color: "#2e3f51"
+                        height: vscale(22)
+                        color: "#475569"
                         text: qsTr("Year")
                         elide: Text.ElideRight
                         font.family: appFont3.name
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: tscale(18)
+                        font.pixelSize: tscale(15)
                         verticalAlignment: Text.AlignBottom
-                        font.weight: Font.Bold
-                        // minimumPointSize: 18
+                        font.weight: Font.DemiBold
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
-                        anchors.leftMargin: hscale(33)
+                        anchors.leftMargin: hscale(16)
                         z:1
+                    }
+                    
+                    // Section divider
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: yearText.bottom
+                        anchors.leftMargin: hscale(16)
+                        anchors.rightMargin: hscale(12)
+                        anchors.topMargin: vscale(3)
+                        height: 1
+                        color: "#e2e8f0"
                     }
 
                     LeftPanelCustomList {
                         id: yearList
-                        // height: vscale(170)
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: yearText.bottom
                         anchors.bottom: parent.bottom
-                        anchors.bottomMargin: vscale(24)
-                        anchors.topMargin: vscale(8)
+                        anchors.bottomMargin: vscale(4)
+                        anchors.topMargin: vscale(6)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
-                        currentIndex:2
+                        currentIndex: -1
                         scaleFactorWidth: window.scaleFactorWidth
                         scaleFactorHeight: window.scaleFactorHeight
                         z:2
                         onSelectedChanged: {
-                            backend.yearChanged(selected)
+                            if (backend) backend.yearChanged(selected)
                         }
-                        data: backend.yearDict
+                        data: backend ? backend.yearDict : []
                     }
                 }
                 Rectangle {
@@ -857,30 +887,40 @@ Window {
                     anchors.right: parent.right
                     anchors.top: yearBox.bottom
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 0
-                    anchors.topMargin: vscale(20)
-                    // anchors.topMargin: vscale(10)
+                    anchors.topMargin: vscale(10)
+                    anchors.bottomMargin: vscale(8)
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
 
                     Text {
                         id: monthText
-                        height: vscale(23)
-                        color: "#2e3f51"
+                        height: vscale(22)
+                        color: "#475569"
                         text: qsTr("Month")
                         elide: Text.ElideRight
                         font.family: appFont3.name
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        font.pixelSize: tscale(18)
+                        font.pixelSize: tscale(15)
                         verticalAlignment: Text.AlignBottom
-                        font.weight: Font.Bold
-                        // minimumPointSize: 18
+                        font.weight: Font.DemiBold
                         anchors.topMargin: 0
                         anchors.rightMargin: 0
-                        anchors.leftMargin: hscale(33)
+                        anchors.leftMargin: hscale(16)
                         z:2
+                    }
+                    
+                    // Section divider
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: monthText.bottom
+                        anchors.leftMargin: hscale(16)
+                        anchors.rightMargin: hscale(12)
+                        anchors.topMargin: vscale(3)
+                        height: 1
+                        color: "#e2e8f0"
                     }
 
                     LeftPanelCustomList {
@@ -893,15 +933,15 @@ Window {
                         anchors.top: monthText.bottom
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 0
-                        anchors.topMargin: vscale(8)
+                        anchors.topMargin: vscale(6)
                         anchors.rightMargin: 0
                         anchors.leftMargin: 0
-                        //                        currentIndex:2
+                        currentIndex: -1
                         z:1
                         onSelectedChanged: {
-                            backend.monthChanged(selected, selectedName)
+                            if (backend) backend.monthChanged(selected, selectedName)
                         }
-                        data: backend.monthDict
+                        data: backend ? backend.monthDict : []
                     }
                 }
             }
@@ -927,32 +967,45 @@ Window {
                     id: mainScreenBusyIndicator
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.horizontalCenter: parent.horizontalCenter
-                    running: true
+                    running: false
+                    visible: running
                     z:12
                 }
 
                 Rectangle {
                     id: bodyHeaderBox
-                    height: vscale(126)
+                    // Dynamic height based on content
+                    height: bodyTitleContainer.height + bodySubtitleContainer.height + vscale(12) + vscale(8) + vscale(10)
                     color: "#ffffff"
+                    clip: false
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    z: 2
+                    z: 10
                     anchors.rightMargin: 0
                     anchors.leftMargin: 0
                     anchors.topMargin: 0
+                    
+                    // Bottom border for visual separation
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        height: 1
+                        color: "#e2e8f0"
+                        z: 3
+                    }
 
                     Rectangle {
                         id: bodyTitleContainer
-                        height: vscale(45)
+                        height: vscale(44)
                         color: "#ffffff"
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        anchors.rightMargin: 0
-                        anchors.leftMargin: 0
-                        anchors.topMargin: vscale(18)
+                        anchors.rightMargin: hscale(20)
+                        anchors.leftMargin: hscale(35)
+                        anchors.topMargin: vscale(12)
 
                         MenuButton {
                             id: burgerButton2
@@ -960,7 +1013,7 @@ Window {
                             visible: true
                             anchors.left: parent.left
                             anchors.top: parent.top
-                            anchors.leftMargin: hscale(15)
+                            anchors.leftMargin: 0
                             anchors.topMargin: vscale(4)
                             scaleFactorWidth: window.scaleFactorWidth
                             scaleFactorHeight: window.scaleFactorHeight
@@ -972,103 +1025,252 @@ Window {
                                 headerAnimationOpen.running = true
                             }
                         }
-                        Label {
-                            id: monthYearLabel
-                            // text: qsTr("January 2021")
-                            text: backend.monthYearData
+                        
+                        // Month/Year chip - uniform style
+                        Rectangle {
+                            id: monthYearChip
+                            width: monthYearContent.width + hscale(16)
+                            height: vscale(32)
+                            radius: hscale(6)
+                            color: "#eff6ff"
+                            border.color: "#bfdbfe"
+                            border.width: 1
+                            visible: backend && backend.monthYearData !== ""
                             anchors.left: burgerButton2.right
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            verticalAlignment: Text.AlignVCenter
-                            anchors.leftMargin: hscale(35)
-                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-                            font.family: appFont3.name
-                            color: "#324254"
-                            font.pixelSize: tscale(26)
-                            font.weight: Font.Bold
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 0
+                            
+                            Row {
+                                id: monthYearContent
+                                anchors.centerIn: parent
+                                spacing: hscale(6)
+                                
+                                Rectangle {
+                                    width: hscale(20)
+                                    height: hscale(20)
+                                    radius: hscale(4)
+                                    color: "#3b82f6"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "M"
+                                        font.pixelSize: hscale(11)
+                                        font.weight: Font.Bold
+                                        color: "#ffffff"
+                                    }
+                                }
+                                
+                                Text {
+                                    id: monthYearLabel
+                                    text: backend ? backend.monthYearData : ""
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    font.family: "PT Sans Caption"
+                                    font.pixelSize: tscale(13)
+                                    font.weight: Font.DemiBold
+                                    color: "#1e40af"
+                                }
+                            }
                         }
+                        
+                        // Company chip - uniform style
+                        Rectangle {
+                            id: companyChip
+                            width: companyChipContent.width + hscale(16)
+                            height: vscale(32)
+                            radius: hscale(6)
+                            color: "#eff6ff"
+                            border.color: "#bfdbfe"
+                            border.width: 1
+                            visible: backend && backend.companyData !== ""
+                            anchors.left: monthYearChip.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: hscale(10)
+                            
+                            Row {
+                                id: companyChipContent
+                                anchors.centerIn: parent
+                                spacing: hscale(6)
+                                
+                                Rectangle {
+                                    width: hscale(20)
+                                    height: hscale(20)
+                                    radius: hscale(4)
+                                    color: "#3b82f6"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "C"
+                                        font.pixelSize: hscale(11)
+                                        font.weight: Font.Bold
+                                        color: "#ffffff"
+                                    }
+                                }
+                                
+                                Text {
+                                    id: companyChipLabel
+                                    text: backend ? backend.companyData : ""
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    font.family: "PT Sans Caption"
+                                    font.pixelSize: tscale(13)
+                                    font.weight: Font.DemiBold
+                                    color: "#1e40af"
+                                }
+                            }
+                        }
+                        
+                        // Bank chip - uniform style
+                        Rectangle {
+                            id: bankChip
+                            width: bankChipContent.width + hscale(16)
+                            height: vscale(32)
+                            radius: hscale(6)
+                            color: "#eff6ff"
+                            border.color: "#bfdbfe"
+                            border.width: 1
+                            visible: backend && backend.bankData !== ""
+                            anchors.left: companyChip.visible ? companyChip.right : monthYearChip.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: hscale(10)
+                            
+                            Row {
+                                id: bankChipContent
+                                anchors.centerIn: parent
+                                spacing: hscale(6)
+                                
+                                Rectangle {
+                                    width: hscale(20)
+                                    height: hscale(20)
+                                    radius: hscale(4)
+                                    color: "#3b82f6"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "B"
+                                        font.pixelSize: hscale(11)
+                                        font.weight: Font.Bold
+                                        color: "#ffffff"
+                                    }
+                                }
+                                
+                                Text {
+                                    id: bankChipLabel
+                                    text: backend ? backend.bankData : ""
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    font.family: "PT Sans Caption"
+                                    font.pixelSize: tscale(13)
+                                    font.weight: Font.DemiBold
+                                    color: "#1e40af"
+                                }
+                            }
+                        }
+                        
+                        // Keep old labels hidden for compatibility
                         Label {
                             id: companyLabel
-                            // text: qsTr("Gokul Agencies")
-                            text: backend.companyData
-                            anchors.left: monthYearLabel.right
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            verticalAlignment: Text.AlignVCenter
-                            anchors.leftMargin: hscale(45)
-                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-                            font.family: "PT Sans Caption"
-                            color: "#324254"
-                            font.pixelSize: tscale(26)
-                            //                            font.weight: Font.Bold
+                            visible: false
+                            text: backend ? backend.companyData : ""
                         }
                         Label {
                             id: bankLabel
-                            // text: qsTr("HDFC")
-                            text: backend.bankData
-                            anchors.left: companyLabel.right
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            verticalAlignment: Text.AlignVCenter
-                            anchors.leftMargin: hscale(45)
-                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-                            font.family: "PT Sans Caption"
-                            color: "#324254"
-                            font.pixelSize: tscale(26)
-                            //                            font.weight: Font.Bold
+                            visible: false
+                            text: backend ? backend.bankData : ""
                         }
                     }
 
                     Rectangle {
                         id: bodySubtitleContainer
-                        height: vscale(38)
+                        height: vscale(52)
                         color: "#ffffff"
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: bodyTitleContainer.bottom
-                        anchors.rightMargin: 0
-                        anchors.leftMargin: 0
-                        anchors.topMargin: vscale(25)
-
-                        CustomSearchBar {
-                            id: textInput
-                            // width: 277
-                            //                            height: 38
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            //                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: hscale(42)
-                            //                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-                            searchbyMode: "off"
-                            startDateCalendar: backend.startDateCalendar
-                            endDateCalendar: backend.endDateCalendar
-                            scaleFactorWidth: window.scaleFactorWidth
-                            scaleFactorHeight: window.scaleFactorHeight
-                            onSearchBarTextChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
-                            onSearchbyModeChanged: backend.search(textInput.searchBarText, textInput.searchbyMode)
-                        }
-                        //                         CustomDatePicker2{
-                        //                             visible: true
-                        //                             anchors.right: textInput.right
-                        //                             anchors.top: textInput.bottom
-                        //                                 anchors.rightMargin: 0
-                        //                                 anchors.topMargin: 4
-                        // //                                z: 100
-                        //                         }
+                        anchors.rightMargin: hscale(20)
+                        anchors.leftMargin: hscale(35)
+                        anchors.topMargin: vscale(8)
                         
+                        // Search bar with rounded background
+                        Rectangle {
+                            id: searchContainer
+                            width: hscale(240)
+                            height: vscale(40)
+                            radius: hscale(8)
+                            color: "#f8fafc"
+                            border.color: "#e2e8f0"
+                            border.width: 1
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            
+                            CustomSearchBar {
+                                id: textInput
+                                anchors.fill: parent
+                                anchors.margins: 2
+                                searchbyMode: "off"
+                                startDateCalendar: backend ? backend.startDateCalendar : null
+                                endDateCalendar: backend ? backend.endDateCalendar : null
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                                onSearchBarTextChanged: if (backend) backend.search(textInput.searchBarText, textInput.searchbyMode)
+                                onSearchbyModeChanged: if (backend) backend.search(textInput.searchBarText, textInput.searchbyMode)
+                            }
+                        }
+                        
+                        // Filter buttons in the center
+                        Row {
+                            id: filterButtonsRow
+                            anchors.left: searchContainer.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: hscale(20)
+                            spacing: hscale(10)
+                            visible: bodySubtitleStatementModeContainer.visible
+                            
+                            CustomSubTitleButton {
+                                id: byDateBtn
+                                text: qsTr("By Date")
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                                onClicked: if(byDateBtn.selected){
+                                               textInput.searchbyMode = "bydate"
+                                               byChqNoBtn.selected = false
+                                               byChqAmtBtn.selected = false
+                                           }
+                                           else { textInput.searchbyMode = "off" }
+                            }
+                            CustomSubTitleButton {
+                                id: byChqAmtBtn
+                                text: qsTr("By Cheque Amount")
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                                onClicked: if(byChqAmtBtn.selected){
+                                               textInput.searchbyMode = "bychqamt"
+                                               byChqNoBtn.selected = false
+                                               byDateBtn.selected = false
+                                           }
+                                           else { textInput.searchbyMode = "off" }
+                            }
+                            CustomSubTitleButton {
+                                id: byChqNoBtn
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                                text: qsTr("By Cheque Number")
+                                onClicked: if(byChqNoBtn.selected){
+                                               textInput.searchbyMode = "bychqno"
+                                               byChqAmtBtn.selected = false
+                                               byDateBtn.selected = false
+                                           }
+                                           else { textInput.searchbyMode = "off" }
+                            }
+                        }
+                        
+                        // Upload button (hidden by default)
                         CustomSubTitleButton {
                             id: uploadBtn
-                            width: hscale(177)
-                            anchors.left: textInput.right
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: hscale(23)
-                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
+                            width: hscale(100)
+                            anchors.left: searchContainer.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: hscale(20)
                             text: qsTr("Import")
                             selected: true
                             visible: false
@@ -1087,109 +1289,110 @@ Window {
                         BusyIndicator {
                             id: busyIndicator
                             anchors.left: uploadBtn.right
-                            anchors.top: parent.top
-                            //                        anchors.bottom: parent.bottom
-                            anchors.leftMargin: hscale(23)
-                            //                        anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-                            visible: false
                             anchors.verticalCenter: parent.verticalCenter
-                            // z: -1
+                            anchors.leftMargin: hscale(12)
+                            visible: false
                         }
                         
-                        Rectangle {
-                            id: bodySubtitleStatementModeContainer
-                            anchors.left: textInput.right
+                        // Balance indicators on the right
+                        Row {
+                            id: balanceIndicatorsRow
                             anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
+                            anchors.verticalCenter: parent.verticalCenter
                             anchors.rightMargin: 0
-                            anchors.leftMargin: 0
-                            anchors.bottomMargin: 0
-                            anchors.topMargin: 0
-
-                            CustomSubTitleButton {
-                                id: byDateBtn
-                                //                                width: hscale(90)
-                                anchors.left: parent.left
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                anchors.leftMargin: hscale(23)
-                                anchors.bottomMargin: 0
-                                anchors.topMargin: 0
-                                text: qsTr("By Date")
-                                scaleFactorWidth: window.scaleFactorWidth
-                                scaleFactorHeight: window.scaleFactorHeight
-                                onClicked: if(byDateBtn.selected){
-                                               textInput.searchbyMode = "bydate"
-                                               byChqNoBtn.selected = false
-                                               byChqAmtBtn.selected = false
-                                           }
-                                           else { textInput.searchbyMode = "off" }
+                            spacing: hscale(10)
+                            
+                            // Credit balance pill
+                            Rectangle {
+                                width: creditContent.width + hscale(20)
+                                height: vscale(36)
+                                radius: hscale(8)
+                                color: "#ecfdf5"
+                                border.color: "#a7f3d0"
+                                border.width: 1
+                                visible: backend && backend.creditBal !== ""
+                                
+                                Row {
+                                    id: creditContent
+                                    anchors.centerIn: parent
+                                    spacing: hscale(6)
+                                    
+                                    Rectangle {
+                                        width: hscale(8)
+                                        height: hscale(8)
+                                        radius: hscale(4)
+                                        color: "#10b981"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    
+                                    Text {
+                                        id: creditText
+                                        text: backend ? backend.creditBal : ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        font.family: "PT Sans Caption"
+                                        font.pixelSize: tscale(13)
+                                        font.weight: Font.DemiBold
+                                        color: "#047857"
+                                    }
+                                }
                             }
-                            CustomSubTitleButton {
-                                id: byChqAmtBtn
-                                // width: hscale(177)
-                                anchors.left: byDateBtn.right
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                anchors.leftMargin: hscale(23)
-                                anchors.bottomMargin: 0
-                                anchors.topMargin: 0
-                                text: qsTr("By Cheque Amount")
-                                scaleFactorWidth: window.scaleFactorWidth
-                                scaleFactorHeight: window.scaleFactorHeight
-                                onClicked: if(byChqAmtBtn.selected){
-                                               textInput.searchbyMode = "bychqamt"
-                                               byChqNoBtn.selected = false
-                                               byDateBtn.selected = false
-                                           }
-                                           else { textInput.searchbyMode = "off" }
+                            
+                            // Debit balance pill
+                            Rectangle {
+                                width: debitContent.width + hscale(20)
+                                height: vscale(36)
+                                radius: hscale(8)
+                                color: "#fef2f2"
+                                border.color: "#fecaca"
+                                border.width: 1
+                                visible: backend && backend.debitBal !== ""
+                                
+                                Row {
+                                    id: debitContent
+                                    anchors.centerIn: parent
+                                    spacing: hscale(6)
+                                    
+                                    Rectangle {
+                                        width: hscale(8)
+                                        height: hscale(8)
+                                        radius: hscale(4)
+                                        color: "#ef4444"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    
+                                    Text {
+                                        id: debitText
+                                        text: backend ? backend.debitBal : ""
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        font.family: "PT Sans Caption"
+                                        font.pixelSize: tscale(13)
+                                        font.weight: Font.DemiBold
+                                        color: "#dc2626"
+                                    }
+                                }
                             }
-                            CustomSubTitleButton {
-                                id: byChqNoBtn
-                                // width: hscale(177)
-                                anchors.left: byChqAmtBtn.right
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                anchors.leftMargin: hscale(23)
-                                anchors.bottomMargin: 0
-                                anchors.topMargin: 0
-                                scaleFactorWidth: window.scaleFactorWidth
-                                scaleFactorHeight: window.scaleFactorHeight
-                                text: qsTr("By Cheque Number")
-                                //selected: true
-                                onClicked: if(byChqNoBtn.selected){
-                                               textInput.searchbyMode = "bychqno"
-                                               byChqAmtBtn.selected = false
-                                               byDateBtn.selected = false
-                                           }
-                                           else { textInput.searchbyMode = "off" }
-                            }
+                        }
+                        
+                        // Hidden container for backward compatibility
+                        Item {
+                            id: bodySubtitleStatementModeContainer
+                            visible: true
+                            width: 0
+                            height: 0
+                            
+                            // Legacy indicators (hidden, for compatibility)
                             CustomSubTitleButton {
                                 id: debitIndicator
-                                //                                width: hscale(120)
-                                anchors.right: parent.right
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                anchors.rightMargin: hscale(69)
-                                anchors.bottomMargin: 0
-                                anchors.topMargin: 0
-                                text: backend.debitBal
+                                visible: false
+                                text: backend ? backend.debitBal : ""
                                 enabled: false
                                 scaleFactorWidth: window.scaleFactorWidth
                                 scaleFactorHeight: window.scaleFactorHeight
                             }
                             CustomSubTitleButton {
                                 id: creditIndicator
-                                //                                width: hscale(120)
-                                anchors.right: debitIndicator.left
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                anchors.rightMargin: hscale(23)
-                                anchors.bottomMargin: 0
-                                anchors.topMargin: 0
-                                text: backend.creditBal
+                                visible: false
+                                text: backend ? backend.creditBal : ""
                                 enabled: false
                                 scaleFactorWidth: window.scaleFactorWidth
                                 scaleFactorHeight: window.scaleFactorHeight
@@ -1200,10 +1403,11 @@ Window {
                 }
                 Rectangle {
                     id: bodyBodyBox
-                    width: hscale(200)
-                    height: vscale(200)
+                    // Allow anchors to control size so StackView and contents can expand
                     //                    visible: false
                     color: "#ffffff"
+                    clip: true
+                    z: 1
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: bodyHeaderBox.bottom
@@ -1216,72 +1420,93 @@ Window {
                         id: stackView
                         anchors.fill: parent
                         initialItem: selectOptionsComponent
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 0
                         z:0
                     }
                     Component {
                         id: tableComponent
-                        CustomTableView2{
-                            tableData: backend.tableData
+                        Item {
                             anchors.fill: parent
-                            columns: backend.header
-                            selectedRows : backend.selectedRows
-                            scaleFactorWidth: window.scaleFactorWidth
-                            scaleFactorHeight: window.scaleFactorHeight
-                            onSelectedRowsChanged: backend.selectedRowsChanged(selectedRows)
+                            CustomTableView2{
+                                id: customTable
+                                tableData: backend ? backend.tableData : []
+                                anchors.fill: parent
+                                columns: backend ? backend.header : []
+                                selectedRows: backend ? backend.selectedRows : []
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                            }
                         }
                     }
                     Component {
                         id: uploadStatementComponent
-                        UploadChequeStatementPage {
-                            anchors.top: parent.top
-                            anchors.topMargin: vscale(59)
-                            scaleFactorWidth: window.scaleFactorWidth
-                            scaleFactorHeight: window.scaleFactorHeight
+                        Item {
+                            width: parent.width
+                            height: parent.height
+                            UploadChequeStatementPage {
+                                anchors.fill: parent
+                                anchors.topMargin: vscale(59)
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                            }
                         }
                     }
                     Component {
                         id: chequeReportFoundComponent
-                        ChequeReportFoundPage {
-                            timeData: window.chequeTimeData
-                            anchors.top: parent.top
-                            anchors.topMargin: vscale(59)
-                            scaleFactorWidth: window.scaleFactorWidth
-                            scaleFactorHeight: window.scaleFactorHeight
+                        Item {
+                            width: parent.width
+                            height: parent.height
+                            ChequeReportFoundPage {
+                                timeData: window.chequeTimeData
+                                anchors.fill: parent
+                                anchors.topMargin: vscale(59)
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                            }
                         }
                     }
                     Component {
                         id: chequeReportNotFoundComponent
-                        ChequeReportNotFoundPage {
-                            anchors.top: parent.top
-                            anchors.topMargin: vscale(59)
-                            scaleFactorWidth: window.scaleFactorWidth
-                            scaleFactorHeight: window.scaleFactorHeight
+                        Item {
+                            width: parent.width
+                            height: parent.height
+                            ChequeReportNotFoundPage {
+                                anchors.fill: parent
+                                anchors.topMargin: vscale(59)
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                            }
                         }
                     }
                     Component {
                         id: tallyExportBoxComponent
-                        TallyExportBoxPage {
-                            anchors.top: parent.top
-                            anchors.topMargin: vscale(59)
-                            scaleFactorWidth: window.scaleFactorWidth
-                            scaleFactorHeight: window.scaleFactorHeight
-                           
-                            onCreateMasterXMLBtnClicked: {
-                            // backend.createIntermediateDaybook(fullScreenLoading2.daybookFileURL, fullScreenLoading2.fromDate, fullScreenLoading2.toDate, fullScreenLoading2.company)
-                            }
-                            onDownloadMasterXMLBtnClicked: {
+                        Item {
+                            width: parent.width
+                            height: parent.height
+                            TallyExportBoxPage {
+                                anchors.fill: parent
+                                anchors.topMargin: vscale(59)
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                               
+                                onCreateMasterXMLBtnClicked: {
+                                // backend.createIntermediateDaybook(fullScreenLoading2.daybookFileURL, fullScreenLoading2.fromDate, fullScreenLoading2.toDate, fullScreenLoading2.company)
+                                }
+                                onDownloadMasterXMLBtnClicked: {
+                                }
                             }
                         }
                     }
                     Component {
                         id: selectOptionsComponent
-                        OptionsNotSelectedPage {
-                            anchors.top: parent.top
-                            anchors.topMargin: vscale(59)
-                            scaleFactorWidth: window.scaleFactorWidth
-                            scaleFactorHeight: window.scaleFactorHeight
+                        Item {
+                            width: parent.width
+                            height: parent.height
+                            OptionsNotSelectedPage {
+                                anchors.fill: parent
+                                anchors.topMargin: vscale(59)
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                            }
                         }
                     }
                 }
@@ -1314,15 +1539,7 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 //                verticalAlignment: Text.AlignVCenter
                 anchors.horizontalCenter: parent.horizontalCenter
-                layer.enabled: true
-                layer.effect: DropShadow {
-                    id: dropShadow2
-                    color: "#40000000"
-                    verticalOffset: 4
-                    radius: 4
-                    spread: 0
-                    horizontalOffset: 0
-                }
+                // TODO Qt6: DropShadow disabled (Qt 5 GraphicalEffects deprecated)
             }
 
             Text {
@@ -1359,3 +1576,8 @@ Designer {
     D{i:0;formeditorZoom:0.5}D{i:36}
 }
 ##^##*/
+
+
+
+
+

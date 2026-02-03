@@ -1,0 +1,172 @@
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import  "../controls"
+
+// Improved ListView with scroll indicators and better accommodation
+Item {
+    id: listViewContainer
+    
+    // Public properties (same interface as before for compatibility)
+    property var data: [
+        {"name": "HDFC", "value": "hdfc"},
+        {"name": "ICICI", "value": "icici"}
+    ]
+    property string selected: ''
+    property string selectedName: ''
+    property int currentIndex: 0
+    property real scaleFactorHeight: 1
+    property real scaleFactorWidth: 1
+    
+    // Forward signals
+    signal selectedChanged()
+    
+    // Helper functions
+    function hscale(size) {
+        return Math.round(size * scaleFactorWidth)
+    }
+    function vscale(size) {
+        return Math.round(size * scaleFactorHeight)
+    }
+    function tscale(size) {
+        return (Math.round((hscale(size) + vscale(size)) / 2)+2)
+    }
+
+    // Visual properties
+    property color textcolorDefault: "#6a84a0"
+    property color listItemSelected: "#EAF0F6"
+    property color listItemUnselected: "#00000000"
+    property color listItemHovered: "#EAF0F6"
+    property color customBorderColor: "#33475b"
+    
+    // Update model when data changes
+    onDataChanged: {
+        model.clear()
+        for (var i = 0; i < data.length; i++) {
+            model.append(data[i])
+        }
+    }
+    
+    Component.onCompleted: {
+        // Initialize model
+        for (var i = 0; i < data.length; i++) {
+            model.append(data[i])
+        }
+        // Set initial selection
+        if (model.count > 0 && currentIndex >= 0 && currentIndex < model.count) {
+            listView.currentIndex = currentIndex
+        }
+    }
+    
+    // Main ListView
+    ListView {
+        id: listView
+        anchors.fill: parent
+        
+        spacing: 3
+        topMargin: 0
+        clip: true  // IMPORTANT: Clip content to avoid overflow
+        
+        // Smooth scrolling
+        boundsBehavior: Flickable.DragAndOvershootBounds
+        flickDeceleration: 3000
+        maximumFlickVelocity: 2500
+        
+        model: ListModel { id: model }
+        
+        // Update parent properties when selection changes
+        onCurrentIndexChanged: {
+            if (currentIndex >= 0 && currentIndex < model.count) {
+                listViewContainer.currentIndex = currentIndex
+                listViewContainer.selectedName = model.get(currentIndex).name
+                listViewContainer.selected = model.get(currentIndex).value
+                listViewContainer.selectedChanged()
+                console.log(model.get(currentIndex).name + ' selected')
+            }
+        }
+        
+        // Scroll to current item when index changes externally
+        onCurrentItemChanged: {
+            if (currentItem) {
+                positionViewAtIndex(currentIndex, ListView.Contain)
+            }
+        }
+
+    delegate: Item {
+        id: delegateItem
+        width: listView.width
+        height: vscale(27)
+        Rectangle {
+            id: rectangle
+            width: listView.width-4
+            height: vscale(26)
+            color: delegateItem.ListView.isCurrentItem ? listItemSelected : listItemUnselected
+            //color: listItemSelected
+            anchors.left: parent.left
+            anchors.leftMargin: hscale(4)
+            CustomBorder {
+                visible: delegateItem.ListView.isCurrentItem ? true : false
+                commonBorder: false
+                lBorderwidth: 4
+                borderColor: customBorderColor
+            }
+            Rectangle {
+                id: hoverRectangle
+                width: parent.width
+                height: parent.height
+                color: listItemUnselected
+                z:-1
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                onClicked: {
+                    listView.currentIndex = index
+                }
+                onEntered: {
+                    hoverRectangle.color = listItemHovered
+                }
+                onExited: {
+                    hoverRectangle.color = listItemUnselected
+                }
+
+            }
+            Text {
+                id: listText
+                text: model.name
+                elide: Text.ElideRight
+                width: parent.width
+                height: parent.height
+                anchors.leftMargin: hscale(29)
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                verticalAlignment: Text.AlignVCenter
+                minimumPixelSize: 14
+                // font.family: "PT Sans Caption"
+                font.family: appFont4.name
+                font.pixelSize: tscale(16)
+                font.bold: false
+                color: textcolorDefault
+            }
+        }
+    }
+    function addColumn(val) {
+        listView.addColumn(delegateItem.createObject(listView, { name: val } ) );
+    }
+
+    Component.onCompleted: function(){
+        model.clear();
+        for (var i in data) {
+            model.append({name: data[i]['name'], value: data[i]['value']})
+        }
+    }
+}
+
+
+
+
+/*##^##
+Designer {
+    D{i:0;autoSize:true;height:480;width:640}
+}
+##^##*/

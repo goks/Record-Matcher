@@ -1,6 +1,6 @@
-import QtQuick 2.15
-import QtQuick.Controls 2.15
-import QtGraphicalEffects 1.15
+import QtQuick 6.5
+import QtQuick.Controls 6.5
+// Qt6: QtGraphicalEffects removed - effects disabled
 
 Button {
     id: menuBtn
@@ -56,3 +56,8 @@ Designer {
     D{i:0;formeditorZoom:8}
 }
 ##^##*/
+
+
+
+
+

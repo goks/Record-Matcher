@@ -21,7 +21,7 @@ import logging
 import threading
 from typing import Optional, List, Tuple, Callable, Any
 from datetime import datetime
-from PySide2.QtCore import QDate
+from PySide6.QtCore import QDate
 
 from models import (
     ApplicationState,
@@ -246,11 +246,37 @@ class StateManagementService:
             credit_bal: Credit balance string
             debit_bal: Debit balance string
         """
+        # Header order for bank statement data
+        HEADER_ORDER = ['Bank Date', 'Bank Narration', 'Chq No', 'Party Name', 
+                        'Infi Date', 'Credit', 'Debit', 'Closing Balance']
+        
+        def _normalize_row(row):
+            # Normalize different row representations to a plain list of strings
+            try:
+                # If the row has a to_list method (dataclass wrappers), use it
+                if hasattr(row, 'to_list') and callable(row.to_list):
+                    normalized = row.to_list()
+                # If it's a dict, extract values in header order
+                elif isinstance(row, dict):
+                    # Use header order to ensure columns match
+                    normalized = [row.get(key, '') for key in HEADER_ORDER]
+                # If it's already a list/tuple, use it directly
+                elif isinstance(row, (list, tuple)):
+                    normalized = list(row)
+                else:
+                    # Fallback to single-element list representation
+                    normalized = [row]
+            except Exception:
+                normalized = [row]
+            # Ensure each cell is a primitive string for QML
+            return ["" if x is None else str(x) for x in normalized]
+
         with self._ui_lock:
-            self.ui_data.table_data = table_data
+            # Convert all rows to lists of strings so QML model contains primitive types
+            self.ui_data.table_data = [_normalize_row(r) for r in (table_data or [])]
             self.ui_data.credit_balance = credit_bal
             self.ui_data.debit_balance = debit_bal
-            logger.debug(f"Table data updated: {len(table_data)} rows")
+            logger.debug(f"Table data updated: {len(self.ui_data.table_data)} rows")
     
     def get_table_data(self) -> Tuple[List, str, str]:
         """Get current table display data (thread-safe).

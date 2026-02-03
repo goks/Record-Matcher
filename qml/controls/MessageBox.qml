@@ -1,6 +1,5 @@
-import QtQuick 2.15
-import QtGraphicalEffects 1.15
-
+import QtQuick 6.5
+// Qt6: QtGraphicalEffects removed - effects disabled
 
 Rectangle {
     id: rectangle
@@ -125,3 +124,8 @@ Designer {
     D{i:0;formeditorZoom:2}
 }
 ##^##*/
+
+
+
+
+

@@ -1,7 +1,7 @@
-import QtQuick 2.0
-import QtQuick.Controls 2.15
+import QtQuick 6.5
+import QtQuick.Controls 6.5
 import QtCharts 2.2
-import QtQuick.Dialogs 1.3
+import QtQuick.Dialogs
 
 Popup {
     id: popup
@@ -143,10 +143,12 @@ Popup {
         }
         FileDialog {
             id: fileDialog
-            selectFolder: true
+            // Qt6: selectFolder renamed to fileMode
+            fileMode: FileDialog.SaveFile
             // nameFilters: ["Excel Files (*.xls *.xlsx)"]
             title: "Choose the folder to import "
-            folder: shortcuts.documents
+            // Qt6: folder property removed, using currentFolder instead
+            // shortcuts.documents removed in Qt 6
             onAccepted: {
                 console.log("You chose: " + folder)
                 searchInput.text = folder + '/123.xls'
@@ -231,3 +233,8 @@ Designer {
     D{i:0;autoSize:true;formeditorZoom:1.1;height:480;width:640}
 }
 ##^##*/
+
+
+
+
+

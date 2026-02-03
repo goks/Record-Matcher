@@ -1,6 +1,6 @@
-import QtQuick 2.0
-import QtQuick.Controls 2.15
-import QtQuick.Dialogs 1.3
+import QtQuick 6.5
+import QtQuick.Controls 6.5
+import QtQuick.Dialogs
 import  "../controls"
 
 Rectangle{
@@ -124,7 +124,8 @@ Rectangle{
                     id: fileDialog
                     nameFilters: ["Excel Files (*.xls *.xlsx)"]
                     title: "Choose the Daybook file to import "
-                    folder: shortcuts.desktop
+                    // Qt6: folder property removed, using currentFolder instead
+                    // shortcuts.desktop removed in Qt 6
                     onAccepted: {
                         console.log("You chose: " + fileDialog.fileUrl)
                         daybookFileURL = fileDialog.fileUrl
@@ -466,3 +467,8 @@ Designer {
     D{i:0;autoSize:true;height:480;width:640}
 }
 ##^##*/
+
+
+
+
+

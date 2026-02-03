@@ -1,4 +1,4 @@
-import QtQuick 2.0
+import QtQuick 6.5
 
 /**
   * adapted from StackOverflow:
@@ -77,3 +77,8 @@ ListView {
 
     model: ListModel {id: model}
 }
+
+
+
+
+

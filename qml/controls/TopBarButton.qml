@@ -1,6 +1,6 @@
-import QtQuick 2.15
-import QtQuick.Controls 2.15
-import QtGraphicalEffects 1.15
+import QtQuick 6.5
+import QtQuick.Controls 6.5
+// Qt6: QtGraphicalEffects removed - effects disabled
 
 import  "../controls"
 
@@ -64,15 +64,7 @@ Button {
         font.family: "PT Sans Caption"
         //        font.pointSize: 18
         font.pixelSize: tscale(22)
-        layer.enabled: true
-        layer.effect: DropShadow {
-            id: dropShadow
-            color: "#40000000"
-            verticalOffset: 4
-            radius: 4
-            spread: 0
-            horizontalOffset: 0
-        }
+        // TODO Qt6: DropShadow disabled (Qt 5 GraphicalEffects deprecated)
     }
     background: Rectangle {
         color: internal.dynamicColor
@@ -103,3 +95,8 @@ Designer {
     D{i:0;formeditorZoom:1.5}
 }
 ##^##*/
+
+
+
+
+

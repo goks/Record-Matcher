@@ -1,5 +1,5 @@
 // Source: https://github.com/Furkanzmc/QML-Loaders/blob/master/Loaders/BlockLoader.qml
-import QtQuick 2.7
+import QtQuick 6.5
 
 /**
  * The design is taken from here: https://dribbble.com/shots/3250272-Animated-Loader-Principle-Freebie
@@ -123,3 +123,7 @@ Rectangle {
         }
     }
 }
+
+
+
+
