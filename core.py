@@ -905,14 +905,33 @@ class TableSnapshot:
         self.year = dict["year"]
         self.bank = dict["bank"]
         self.company = dict["company"]
-        self.creation_time = dict["creation_time"]
-        # self.creation_time = get_current_time()
-        self.master_selected_rows = []
-        self.master_excel_export_path = None
-        self.last_edited_time = None
+        self.creation_time = dict.get("creation_time", get_current_time())
+        # Load saved selected rows (permanent highlights) - fix for missing selected rows
+        self.master_selected_rows = dict.get("master_selected_rows", [])
+        self.master_excel_export_path = dict.get("master_excel_export_path", None)
+        self.last_edited_time = dict.get("last_edited_time", None)
         self.createSavePath()
-        self.update_last_edited_time()
+        if not self.last_edited_time:
+            self.update_last_edited_time()
         return
+
+    def to_dict(self):
+        """Convert snapshot to dictionary for serialization.
+        
+        Returns:
+            Dictionary containing all snapshot data including selected rows.
+        """
+        return {
+            "master_table": self.master_table,
+            "master_selected_rows": self.master_selected_rows,
+            "master_excel_export_path": self.master_excel_export_path,
+            "month": self.month,
+            "year": self.year,
+            "bank": self.bank,
+            "company": self.company,
+            "creation_time": self.creation_time,
+            "last_edited_time": self.last_edited_time,
+        }
 
     def get_json(self):
         dict = {}
@@ -2292,6 +2311,11 @@ class FirebaseService:
     
     Thread Safety:
         Uses FirebaseControls which is thread-safe via connection pooling.
+    
+    MIGRATION NOTICE:
+        The methods upload_all_data() and download_all_data() using StorageManager
+        are deprecated. Use upload_with_repositories() and download_with_repositories()
+        instead for SQLite-based storage.
     """
     
     def __init__(self):
@@ -2305,13 +2329,246 @@ class FirebaseService:
             base_path = os.path.abspath(".")
         self.leftMenuJsonPath = os.path.join(base_path, 'data.json')
     
+    def upload_with_repositories(
+        self,
+        snapshot_repository,
+        cheque_repository,
+        progress_callback: callable
+    ) -> dict:
+        """Upload all data to Firebase using repository pattern.
+        
+        This is the preferred method for Firebase sync, using SQLite repositories
+        instead of the deprecated StorageManager.
+        
+        Args:
+            snapshot_repository: ISnapshotRepository implementation
+            cheque_repository: IChequeReportRepository implementation
+            progress_callback: Callback function(current: int, total: int, item_name: str, status: str)
+                - current: Current item number (1-based)
+                - total: Total items to process
+                - item_name: Description of current item (e.g., "July 2025 - HDFC - Gokul Agencies")
+                - status: Status message ("uploading", "completed", "error")
+        
+        Returns:
+            dict with keys: success, snapshots_uploaded, cheque_reports_uploaded, errors
+        """
+        results = {
+            'success': True,
+            'snapshots_uploaded': 0,
+            'cheque_reports_uploaded': 0,
+            'config_uploaded': False,
+            'errors': []
+        }
+        
+        try:
+            # Step 1: Upload left menu/config
+            progress_callback(0, 1, "Configuration data", "uploading")
+            try:
+                with open(self.leftMenuJsonPath) as f:
+                    config_data = json.load(f)
+                leftmenu_future = self.firebaseControls.set_leftMenu_data_async(config_data)
+                leftmenu_future.result(timeout=30)
+                results['config_uploaded'] = True
+                progress_callback(1, 1, "Configuration data", "completed")
+            except Exception as e:
+                results['errors'].append(f"Config upload error: {e}")
+                progress_callback(1, 1, "Configuration data", "error")
+            
+            # Step 2: Upload cheque reports
+            cheque_list = cheque_repository.list_all()  # Returns List[Tuple[year, company]]
+            total_cheques = len(cheque_list)
+            
+            if total_cheques > 0:
+                cheque_upload_dict = {}
+                for i, (year, company) in enumerate(cheque_list, 1):
+                    item_name = f"Cheque Report: {year} - {company}"
+                    progress_callback(i, total_cheques, item_name, "loading")
+                    
+                    cheque_report = cheque_repository.load(year, company)
+                    if cheque_report:
+                        key = f"{year}_{company}"
+                        cheque_upload_dict[key] = cheque_report.get_json()
+                
+                # Batch upload
+                if cheque_upload_dict:
+                    def cheque_progress(current, total, key):
+                        progress_callback(current, total, f"Cheque Report: {key}", "uploading")
+                    
+                    self.firebaseControls.batch_set_chequeReports(cheque_upload_dict, cheque_progress)
+                    results['cheque_reports_uploaded'] = len(cheque_upload_dict)
+            
+            # Step 3: Upload table snapshots
+            snapshot_list = snapshot_repository.list_all()  # Returns List[Tuple[month, year, bank, company]]
+            total_snapshots = len(snapshot_list)
+            
+            if total_snapshots > 0:
+                snapshot_upload_dict = {}
+                for i, (month, year, bank, company) in enumerate(snapshot_list, 1):
+                    item_name = f"Snapshot: {month.title()} {year} - {bank.upper()} - {company.title()}"
+                    progress_callback(i, total_snapshots, item_name, "loading")
+                    
+                    snapshot = snapshot_repository.load(month, year, bank, company)
+                    if snapshot:
+                        key = f"{month}_{year}_{bank}_{company}"
+                        snapshot_upload_dict[key] = snapshot.get_json()
+                
+                # Batch upload
+                if snapshot_upload_dict:
+                    def snapshot_progress(current, total, key):
+                        parts = key.split('_')
+                        if len(parts) >= 4:
+                            item_name = f"Snapshot: {parts[0].title()} {parts[1]} - {parts[2].upper()} - {parts[3].title()}"
+                        else:
+                            item_name = f"Snapshot: {key}"
+                        progress_callback(current, total, item_name, "uploading")
+                    
+                    self.firebaseControls.batch_set_tableSnapshots(snapshot_upload_dict, snapshot_progress)
+                    results['snapshots_uploaded'] = len(snapshot_upload_dict)
+            
+            progress_callback(total_snapshots, total_snapshots, "Upload complete", "completed")
+            
+        except Exception as e:
+            results['success'] = False
+            results['errors'].append(f"Upload failed: {e}")
+            print(f"Firebase upload error: {e}")
+        
+        return results
+    
+    def download_with_repositories(
+        self,
+        snapshot_repository,
+        cheque_repository,
+        progress_callback: callable,
+        overwrite_newer: bool = False
+    ) -> dict:
+        """Download all data from Firebase using repository pattern.
+        
+        This is the preferred method for Firebase sync, using SQLite repositories
+        instead of the deprecated StorageManager.
+        
+        Args:
+            snapshot_repository: ISnapshotRepository implementation
+            cheque_repository: IChequeReportRepository implementation
+            progress_callback: Callback function(current: int, total: int, item_name: str, status: str)
+            overwrite_newer: If True, overwrite local data even if newer than cloud
+        
+        Returns:
+            dict with keys: success, snapshots_downloaded, cheque_reports_downloaded, 
+                           skipped_newer, errors
+        """
+        results = {
+            'success': True,
+            'snapshots_downloaded': 0,
+            'cheque_reports_downloaded': 0,
+            'config_downloaded': False,
+            'skipped_newer': 0,
+            'errors': []
+        }
+        
+        try:
+            # Step 1: Download left menu/config
+            progress_callback(0, 1, "Configuration data", "downloading")
+            try:
+                leftmenu_future = self.firebaseControls.get_leftMenu_data_async()
+                config_data = leftmenu_future.result(timeout=30)
+                if config_data:
+                    with open(self.leftMenuJsonPath, "w") as outfile:
+                        json.dump(config_data, outfile, indent=4)
+                    results['config_downloaded'] = True
+                progress_callback(1, 1, "Configuration data", "completed")
+            except Exception as e:
+                results['errors'].append(f"Config download error: {e}")
+                progress_callback(1, 1, "Configuration data", "error")
+            
+            # Step 2: Download cheque reports
+            progress_callback(0, 1, "Cheque reports", "downloading")
+            try:
+                cheque_future = self.firebaseControls.get_chequeReport_async()
+                incoming_cheques = cheque_future.result(timeout=60)
+                
+                if incoming_cheques:
+                    total_cheques = len(incoming_cheques)
+                    for i, (key, cheque_data) in enumerate(incoming_cheques.items(), 1):
+                        year = cheque_data.get('year', '')
+                        company = cheque_data.get('company', '')
+                        item_name = f"Cheque Report: {year} - {company}"
+                        progress_callback(i, total_cheques, item_name, "saving")
+                        
+                        # Create InfiChequeStatement from data
+                        cheque_report = InfiChequeStatement()
+                        cheque_report.set_from_json(cheque_data)
+                        
+                        # Check if local exists and is newer
+                        existing = cheque_repository.load(year, company)
+                        if existing and not overwrite_newer:
+                            # For now, always overwrite - timestamp comparison can be added later
+                            pass
+                        
+                        cheque_repository.save(cheque_report)
+                        results['cheque_reports_downloaded'] += 1
+            except Exception as e:
+                results['errors'].append(f"Cheque download error: {e}")
+            
+            # Step 3: Download table snapshots
+            progress_callback(0, 1, "Table snapshots", "downloading")
+            try:
+                snapshot_future = self.firebaseControls.get_tableSnapshot_async()
+                incoming_snapshots = snapshot_future.result(timeout=60)
+                
+                if incoming_snapshots:
+                    total_snapshots = len(incoming_snapshots)
+                    for i, (key, snapshot_data) in enumerate(incoming_snapshots.items(), 1):
+                        month = snapshot_data.get('month', '')
+                        year = snapshot_data.get('year', '')
+                        bank = snapshot_data.get('bank', '')
+                        company = snapshot_data.get('company', '')
+                        item_name = f"Snapshot: {month.title()} {year} - {bank.upper()} - {company.title()}"
+                        progress_callback(i, total_snapshots, item_name, "saving")
+                        
+                        # Create TableSnapshot from data
+                        snapshot = TableSnapshot(snapshot_data)
+                        
+                        # Check if local exists
+                        existing = snapshot_repository.load(month, year, bank, company)
+                        if existing and not overwrite_newer:
+                            # Update only the master_table data from cloud
+                            existing.set_master_table(snapshot_data.get('master_table', []))
+                            snapshot_repository.save(existing)
+                        else:
+                            snapshot_repository.save(snapshot)
+                        
+                        results['snapshots_downloaded'] += 1
+            except Exception as e:
+                results['errors'].append(f"Snapshot download error: {e}")
+            
+            progress_callback(results['snapshots_downloaded'], results['snapshots_downloaded'], 
+                            "Download complete", "completed")
+            
+        except Exception as e:
+            results['success'] = False
+            results['errors'].append(f"Download failed: {e}")
+            print(f"Firebase download error: {e}")
+        
+        return results
+    
+    # ===== DEPRECATED METHODS (kept for backward compatibility) =====
+    
     def upload_all_data(self, callbackFuncforProgress: callable, storageManager: 'StorageManager') -> None:
         """Upload all data to Firebase (left menu, snapshots, reports).
+        
+        DEPRECATED: Use upload_with_repositories() instead for SQLite-based storage.
+        This method uses the legacy StorageManager with pickle files.
         
         Args:
             callbackFuncforProgress: Callback function(text1, text2, progress)
             storageManager: StorageManager to access collections
         """
+        import warnings
+        warnings.warn(
+            "upload_all_data() is deprecated. Use upload_with_repositories() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         # Upload left menu
         print("Uploading left-menu values to db")
         callbackFuncforProgress("Processing Left Menu values", "Retrieving values to upload", 0.0)
@@ -2373,10 +2630,19 @@ class FirebaseService:
     def download_all_data(self, callbackFuncforProgress: callable, storageManager: 'StorageManager') -> None:
         """Download all data from Firebase.
         
+        DEPRECATED: Use download_with_repositories() instead for SQLite-based storage.
+        This method uses the legacy StorageManager with pickle files.
+        
         Args:
             callbackFuncforProgress: Callback function(text1, text2, progress)
             storageManager: StorageManager to save downloaded data
         """
+        import warnings
+        warnings.warn(
+            "download_all_data() is deprecated. Use download_with_repositories() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         # Download left menu
         print("Getting left-menu values from db")
         callbackFuncforProgress("Processing Left Menu values", "Downloading values from Firebase", 0.0)

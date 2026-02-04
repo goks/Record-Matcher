@@ -14,7 +14,7 @@ from typing import Optional, List, Tuple, Dict, Any
 
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtCore import QBitArray, QObject, SIGNAL, Slot, Signal, Property, QDate, QAbstractTableModel, Qt, QModelIndex, QByteArray
+from PySide6.QtCore import QBitArray, QObject, SIGNAL, Slot, Signal, Property, QDate, QAbstractTableModel, Qt, QModelIndex, QByteArray, QTimer
 
 import core as C
 from core import TableOperations, TableSnapshot, InfiChequeStatement
@@ -186,6 +186,27 @@ class MainWindow(QObject, UIOptimizationMixin):
         self._fullScreenLoadingInfo1 = ''
         self._fullScreenLoadingInfo2 = ''
         
+        # Firebase sync state (new repository-based sync)
+        self._lastSyncUpload = self._load_sync_timestamp('last_sync_upload')
+        self._lastSyncDownload = self._load_sync_timestamp('last_sync_download')
+        self._isSyncing = False
+        self._syncCancelled = False
+        
+        # Migration state
+        self._migrationStatus = "checking"  # checking, pending, in_progress, completed, error
+        self._migrationProgressText = ""
+        self._migrationCurrent = 0
+        self._migrationTotal = 0
+        self._pickleSnapshotCount = 0
+        self._pickleChequeCount = 0
+        self._databasePath = ""
+        self._totalSnapshotCount = 0
+        self._totalChequeReportCount = 0
+        self._isMigrating = False
+        
+        # Check migration status on startup
+        QTimer.singleShot(500, self._check_migration_status)
+        
         # Temporary state for backward compatibility - REMOVE these after full migration
         # These should be accessed via state_service.get_state() instead
         self.current_month = ''  # USE: state_service.get_state().current_month
@@ -315,6 +336,25 @@ class MainWindow(QObject, UIOptimizationMixin):
     showMainScreenLoadingIndicator = Signal()
     hideMainScreenLoadingIndicator = Signal()
     
+    # Firebase sync signals (new repository-based sync)
+    syncProgressUpdated = Signal(int, int, str, str, arguments=['current', 'total', 'itemName', 'status'])
+    syncCompleted = Signal(bool, str, arguments=['success', 'message'])
+    showSettingsPage = Signal()
+    lastSyncUpload_changed = Signal()
+    lastSyncDownload_changed = Signal()
+    isSyncing_changed = Signal()
+    
+    # Migration signals
+    migrationStatus_changed = Signal()
+    migrationProgressText_changed = Signal()
+    migrationCurrent_changed = Signal()
+    migrationTotal_changed = Signal()
+    pickleSnapshotCount_changed = Signal()
+    pickleChequeCount_changed = Signal()
+    databasePath_changed = Signal()
+    totalSnapshotCount_changed = Signal()
+    totalChequeReportCount_changed = Signal()
+    
     def save_snapshot(self) -> None:
         """Save current table snapshot to persistent storage.
         
@@ -327,11 +367,18 @@ class MainWindow(QObject, UIOptimizationMixin):
             selected_rows = self._selectedRows.copy() if self._selectedRows else []
         
         if snapshot:
-            logger.info(f"Saving snapshot with {len(selected_rows)} selected rows")
+            logger.info(f"Saving snapshot with {len(selected_rows)} selected rows to SQLite")
             try:
                 snapshot.set_master_selected_rows(selected_rows)
-                self.tableOperations.save_snapshot_to_table(snapshot)
-                logger.debug("Snapshot saved successfully")
+                # Save to SQLite repository
+                success, error_code = self.snapshot_repository.save(snapshot)
+                if success:
+                    logger.debug("Snapshot saved to SQLite successfully")
+                else:
+                    logger.error(f"Failed to save snapshot to SQLite: error code {error_code}")
+                    raise SnapshotError(f"Snapshot save failed with error code: {error_code}")
+            except SnapshotError:
+                raise
             except Exception as e:
                 logger.error(f"Failed to save snapshot: {e}")
                 logger.error(traceback.format_exc())
@@ -346,21 +393,27 @@ class MainWindow(QObject, UIOptimizationMixin):
                 self.snapshotDeleteFail.emit()
                 return
             self.tableSnapshot = None
-            if self.tableOperations.delete_table_from_collection(self.current_month, self.current_year, self.current_bank, self.current_company):
+            # Delete from SQLite repository
+            if self.snapshot_repository.delete(self.current_month, self.current_year, self.current_bank, self.current_company):
+                logger.info(f"Snapshot deleted from SQLite: {self.current_company}/{self.current_year}/{self.current_month}/{self.current_bank}")
                 self.snapshotDeleteSuccess.emit()
                 self.populate_table()
             else:
+                logger.error("Failed to delete snapshot from SQLite")
                 self.snapshotDeleteFail.emit()
             return
         if not self.infiChequeStatement:     
             self.chequeReportDeleteFail.emit()
             return
         self.infiChequeStatement = None  
-        if self.tableOperations.delete_chequeReport_from_collection(self.current_year, self.current_company):
+        # Delete cheque report from SQLite repository
+        if self.cheque_repository.delete(self.current_year, self.current_company):
+            logger.info(f"Cheque report deleted from SQLite: {self.current_company}/{self.current_year}")
             self.chequeReportDeleteSuccess.emit()
             status, data = self.populateChequeReports()
             self.showChequeReportPage.emit(status, data ) 
-        else: 
+        else:
+            logger.error("Failed to delete cheque report from SQLite")
             self.chequeReportDeleteFail.emit()    
     @Slot(str)
     def uploadFile(self, fileUrl: str) -> None:
@@ -411,12 +464,30 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         if cheque_activated:
             try:
-                if not self.tableOperations.save_chequeReport_to_collection(fileUrl):
+                # Parse Excel file and create InfiChequeStatement
+                cheque_stmt = InfiChequeStatement()
+                if not cheque_stmt.setPath(fileUrl):
+                    logger.error(f"Invalid cheque report file path: {fileUrl}")
+                    self.validationError.emit(2)
+                    return
+                
+                cheque_stmt.grab_data()
+                cheque_stmt.set_year(self.current_year)
+                cheque_stmt.set_company(self.current_company)
+                
+                # Save to SQLite repository
+                success, error_code = self.cheque_repository.save(
+                    self.current_year, 
+                    self.current_company, 
+                    cheque_stmt
+                )
+                
+                if not success:
                     error_msg = VALIDATION_ERRORS.get(2, "Cheque report save failed")
-                    logger.error(f"Cheque report upload failed: {error_msg}")
+                    logger.error(f"Cheque report upload failed: {error_msg} (code: {error_code})")
                     self.validationError.emit(2)
                 else:
-                    logger.info("Cheque report uploaded successfully")
+                    logger.info("Cheque report uploaded to SQLite successfully")
                     self.checkReportUploadSuccess.emit()
             except Exception as e:
                 logger.error(f"Exception during cheque report upload: {e}")
@@ -424,7 +495,7 @@ class MainWindow(QObject, UIOptimizationMixin):
                 self.validationError.emit(2)
             return
         
-        # Add snapshot to table (may modify shared state)
+        # Add snapshot to table (processes the bank statement file)
         try:
             success, status_code = self.tableOperations.add_snapshot_to_table(fileUrl)
             if not success:
@@ -432,7 +503,25 @@ class MainWindow(QObject, UIOptimizationMixin):
                 logger.error(f"File upload failed: {error_msg} (code: {status_code})")
                 self.validationError.emit(status_code)
             else:
-                logger.info(f"Bank statement uploaded successfully: {fileUrl}")
+                # Get the created snapshot from tableOperations and save to SQLite
+                with self._state_lock:
+                    month = self.current_month
+                    year = self.current_year
+                    bank = self.current_bank
+                    company = self.current_company
+                
+                # Retrieve the snapshot that was just created (stored in tableOperations.storageManager)
+                snapshot = self.tableOperations.storageManager.get_table_snapshot(month, year, bank, company)
+                if snapshot:
+                    # Save to SQLite repository
+                    sqlite_success, sqlite_error = self.snapshot_repository.save(snapshot)
+                    if sqlite_success:
+                        logger.info(f"Bank statement uploaded and saved to SQLite: {fileUrl}")
+                    else:
+                        logger.warning(f"Bank statement uploaded but SQLite save failed: {sqlite_error}")
+                else:
+                    logger.warning("Bank statement processed but snapshot not found for SQLite save")
+                
                 self.bankStatementUploadSuccess.emit()
         except Exception as e:
             logger.error(f"Exception during bank statement upload: {e}")
@@ -570,7 +659,11 @@ class MainWindow(QObject, UIOptimizationMixin):
         return 1
     
     def threadedPopulate_table(self):
-        """Thread worker for table population with lock protection."""
+        """Thread worker for table population with lock protection.
+        
+        OPTIMIZED: Uses pre-calculated values from SQLite storage when available,
+        avoiding expensive recalculations on every load.
+        """
         try:
             self.save_snapshot()
         except Exception as e:
@@ -585,13 +678,53 @@ class MainWindow(QObject, UIOptimizationMixin):
             bank = self.current_bank
             company = self.current_company
         
-        # Load data from collection (may take time, no lock needed)
+        # Load data from SQLite repository (may take time, no lock needed)
         try:
-            logger.debug(f"Loading table data: {bank}/{company}/{month}/{year}")
-            tableSnapshot, masterDisplayTableData, credit_bal, debit_bal, start_date, end_date = \
-                self.tableOperations.get_table_from_collection(month, year, bank, company)
+            logger.debug(f"Loading table data from SQLite: {bank}/{company}/{month}/{year}")
+            
+            # Load snapshot dictionary from SQLite (repository normalizes values to lowercase)
+            # Returns pre-computed values: _credit_bal, _debit_bal, _start_date, _end_date, _display_data
+            snapshot_dict = self.snapshot_repository.load(month, year, bank, company)
+            
+            if not snapshot_dict:
+                tableSnapshot = None
+                masterDisplayTableData = ''
+                credit_bal = ''
+                debit_bal = ''
+                start_date = ''
+                end_date = ''
+            else:
+                # Reconstruct TableSnapshot from dictionary
+                tableSnapshot = TableSnapshot(snapshot_dict)
+                
+                # OPTIMIZATION: Use pre-calculated values if available
+                if '_credit_bal' in snapshot_dict and '_start_date' in snapshot_dict:
+                    # Use cached values (fast path)
+                    credit_bal = snapshot_dict['_credit_bal']
+                    debit_bal = snapshot_dict['_debit_bal']
+                    start_date = snapshot_dict['_start_date']
+                    end_date = snapshot_dict['_end_date']
+                    logger.debug("Using pre-calculated balances/dates from cache")
+                else:
+                    # Fall back to calculating on the fly (legacy data)
+                    master_table = tableSnapshot.get_master_table()
+                    credit_bal, debit_bal, start_date, end_date = self.tableOperations.dataProcessor.calculate_balances_and_dates(master_table)
+                    logger.debug("Calculated balances/dates (legacy format)")
+                
+                # OPTIMIZATION: Use pre-formatted display data if available
+                if '_display_data' in snapshot_dict:
+                    masterDisplayTableData = snapshot_dict['_display_data']
+                    logger.debug("Using pre-formatted display data from cache")
+                else:
+                    # Fall back to formatting on the fly (legacy data)
+                    master_table = tableSnapshot.get_master_table()
+                    masterDisplayTableData = self.tableOperations.dataProcessor.format_table_data(master_table)
+                    logger.debug("Formatted display data (legacy format)")
+                
+                row_count = snapshot_dict.get('_row_count', len(tableSnapshot.get_master_table()) if tableSnapshot else 0)
+                logger.debug(f"Loaded snapshot from SQLite: {row_count} rows")
         except Exception as e:
-            logger.error(f"Failed to load table from collection: {e}")
+            logger.error(f"Failed to load table from SQLite: {e}")
             logger.error(traceback.format_exc())
             self.showUploadBankStatementPage.emit()
             self.hideMainScreenLoadingIndicator.emit()
@@ -690,13 +823,23 @@ class MainWindow(QObject, UIOptimizationMixin):
             # Use cheque service to load report (returns status_code, timestamp)
             status_code, timestamp = self.cheque_service.load_cheque_report(year, company)
             
-            # Also get the actual cheque entry for display
+            # Load the actual cheque report from SQLite repository
             if status_code == 1:
                 with self._snapshot_lock:
-                    self.infiChequeStatement = self.tableOperations.get_chequeReport_from_collection(year, company)
-                logger.info(f"Cheque report loaded successfully (timestamp: {timestamp})")
+                    # Load from SQLite repository
+                    report_dict = self.cheque_repository.load(year, company)
+                    if report_dict:
+                        # Reconstruct InfiChequeStatement from dictionary
+                        self.infiChequeStatement = InfiChequeStatement()
+                        self.infiChequeStatement.entry_list = report_dict.get('entry_list', [])
+                        self.infiChequeStatement.year = report_dict.get('year', year)
+                        self.infiChequeStatement.company = report_dict.get('company', company)
+                        logger.info(f"Cheque report loaded from SQLite successfully (timestamp: {timestamp})")
+                    else:
+                        self.infiChequeStatement = None
+                        logger.warning("Cheque report not found in SQLite despite status_code=1")
             elif status_code == 0:
-                logger.info("No cheque report found in collection")
+                logger.info("No cheque report found in SQLite")
             else:
                 logger.error("Failed to load cheque report")
             
@@ -859,6 +1002,380 @@ class MainWindow(QObject, UIOptimizationMixin):
         finally:
             self.fullScreenLoadingEnd.emit()
         return
+    
+    # ===== NEW REPOSITORY-BASED FIREBASE SYNC METHODS =====
+    
+    def _load_sync_timestamp(self, key: str) -> str:
+        """Load sync timestamp from config file."""
+        try:
+            config_path = os.path.join(CURRENT_DIR, "config.local.toml")
+            if os.path.exists(config_path):
+                import toml
+                with open(config_path, "r") as f:
+                    config = toml.load(f)
+                    return config.get('firebase', {}).get(key, '')
+        except Exception as e:
+            logger.debug(f"Could not load sync timestamp {key}: {e}")
+        return ''
+    
+    def _save_sync_timestamp(self, key: str, value: str) -> None:
+        """Save sync timestamp to config file."""
+        try:
+            config_path = os.path.join(CURRENT_DIR, "config.local.toml")
+            config = {}
+            if os.path.exists(config_path):
+                import toml
+                with open(config_path, "r") as f:
+                    config = toml.load(f)
+            
+            if 'firebase' not in config:
+                config['firebase'] = {}
+            config['firebase'][key] = value
+            
+            # Write back
+            import toml
+            with open(config_path, "w") as f:
+                toml.dump(config, f)
+        except Exception as e:
+            logger.error(f"Could not save sync timestamp {key}: {e}")
+    
+    def _sync_progress_callback(self, current: int, total: int, item_name: str, status: str):
+        """Progress callback for sync operations - called from background thread."""
+        if self._syncCancelled:
+            raise Exception("Sync cancelled by user")
+        self.syncProgressUpdated.emit(current, total, item_name, status)
+    
+    @Slot()
+    def syncUploadToFirebase(self):
+        """Start Firebase upload using repository pattern (called from Settings page)."""
+        if self._isSyncing:
+            logger.warning("Sync already in progress")
+            return
+        
+        logger.info("Starting repository-based Firebase upload")
+        self._isSyncing = True
+        self._syncCancelled = False
+        self.isSyncing_changed.emit()
+        
+        if not self._is_shutting_down:
+            wrapped_func = self._thread_exception_wrapper(
+                self._syncUploadToFirebaseThreaded, "Repository Firebase Upload"
+            )
+            future = self._thread_pool.submit(wrapped_func)
+            self._active_futures.add(future)
+        else:
+            logger.warning("Firebase upload rejected: application is shutting down")
+            self._isSyncing = False
+            self.isSyncing_changed.emit()
+    
+    def _syncUploadToFirebaseThreaded(self):
+        """Thread worker for repository-based Firebase upload."""
+        try:
+            firebase_service = self.tableOperations.firebaseService
+            results = firebase_service.upload_with_repositories(
+                self.snapshot_repository,
+                self.cheque_repository,
+                self._sync_progress_callback
+            )
+            
+            if results['success']:
+                # Save timestamp
+                from datetime import datetime
+                timestamp = datetime.now().isoformat()
+                self._save_sync_timestamp('last_sync_upload', timestamp)
+                self._lastSyncUpload = timestamp
+                self.lastSyncUpload_changed.emit()
+                
+                message = (f"Upload complete: {results['snapshots_uploaded']} snapshots, "
+                          f"{results['cheque_reports_uploaded']} cheque reports")
+                logger.info(message)
+                self.syncCompleted.emit(True, message)
+            else:
+                error_msg = "; ".join(results['errors']) if results['errors'] else "Unknown error"
+                logger.error(f"Upload failed: {error_msg}")
+                self.syncCompleted.emit(False, f"Upload failed: {error_msg}")
+                
+        except Exception as e:
+            if "cancelled" in str(e).lower():
+                logger.info("Upload cancelled by user")
+                self.syncCompleted.emit(False, "Upload cancelled")
+            else:
+                logger.error(f"Upload error: {e}")
+                logger.error(traceback.format_exc())
+                self.syncCompleted.emit(False, f"Upload error: {str(e)}")
+        finally:
+            self._isSyncing = False
+            self.isSyncing_changed.emit()
+    
+    @Slot()
+    def syncDownloadFromFirebase(self):
+        """Start Firebase download using repository pattern (called from Settings page)."""
+        if self._isSyncing:
+            logger.warning("Sync already in progress")
+            return
+        
+        logger.info("Starting repository-based Firebase download")
+        self._isSyncing = True
+        self._syncCancelled = False
+        self.isSyncing_changed.emit()
+        
+        if not self._is_shutting_down:
+            wrapped_func = self._thread_exception_wrapper(
+                self._syncDownloadFromFirebaseThreaded, "Repository Firebase Download"
+            )
+            future = self._thread_pool.submit(wrapped_func)
+            self._active_futures.add(future)
+        else:
+            logger.warning("Firebase download rejected: application is shutting down")
+            self._isSyncing = False
+            self.isSyncing_changed.emit()
+    
+    def _syncDownloadFromFirebaseThreaded(self):
+        """Thread worker for repository-based Firebase download."""
+        try:
+            firebase_service = self.tableOperations.firebaseService
+            results = firebase_service.download_with_repositories(
+                self.snapshot_repository,
+                self.cheque_repository,
+                self._sync_progress_callback,
+                overwrite_newer=True  # User explicitly requested download
+            )
+            
+            if results['success']:
+                # Save timestamp
+                from datetime import datetime
+                timestamp = datetime.now().isoformat()
+                self._save_sync_timestamp('last_sync_download', timestamp)
+                self._lastSyncDownload = timestamp
+                self.lastSyncDownload_changed.emit()
+                
+                message = (f"Download complete: {results['snapshots_downloaded']} snapshots, "
+                          f"{results['cheque_reports_downloaded']} cheque reports")
+                logger.info(message)
+                self.syncCompleted.emit(True, message)
+                
+                # Refresh UI after download
+                self.populate_left_menu()
+                self.populate_table()
+            else:
+                error_msg = "; ".join(results['errors']) if results['errors'] else "Unknown error"
+                logger.error(f"Download failed: {error_msg}")
+                self.syncCompleted.emit(False, f"Download failed: {error_msg}")
+                
+        except Exception as e:
+            if "cancelled" in str(e).lower():
+                logger.info("Download cancelled by user")
+                self.syncCompleted.emit(False, "Download cancelled")
+            else:
+                logger.error(f"Download error: {e}")
+                logger.error(traceback.format_exc())
+                self.syncCompleted.emit(False, f"Download error: {str(e)}")
+        finally:
+            self._isSyncing = False
+            self.isSyncing_changed.emit()
+    
+    @Slot()
+    def cancelSync(self):
+        """Cancel ongoing sync operation."""
+        if self._isSyncing:
+            logger.info("User requested sync cancellation")
+            self._syncCancelled = True
+    
+    @Slot()
+    def openSettingsPage(self):
+        """Signal to open settings page."""
+        self.showSettingsPage.emit()
+    
+    # Sync property getters
+    def get_lastSyncUpload(self):
+        return self._lastSyncUpload
+    
+    def get_lastSyncDownload(self):
+        return self._lastSyncDownload
+    
+    def get_isSyncing(self):
+        return self._isSyncing
+    
+    # Migration property getters
+    def get_migrationStatus(self):
+        return self._migrationStatus
+    
+    def get_migrationProgressText(self):
+        return self._migrationProgressText
+    
+    def get_migrationCurrent(self):
+        return self._migrationCurrent
+    
+    def get_migrationTotal(self):
+        return self._migrationTotal
+    
+    def get_pickleSnapshotCount(self):
+        return self._pickleSnapshotCount
+    
+    def get_pickleChequeCount(self):
+        return self._pickleChequeCount
+    
+    def get_databasePath(self):
+        return self._databasePath
+    
+    def get_totalSnapshotCount(self):
+        return self._totalSnapshotCount
+    
+    def get_totalChequeReportCount(self):
+        return self._totalChequeReportCount
+    
+    def _check_migration_status(self):
+        """Check if there are pickle files that need migration."""
+        try:
+            from pathlib import Path
+            import os
+            
+            # Get pickle directory
+            appdata = os.environ.get('APPDATA', '')
+            pickle_dir = Path(appdata) / 'Record Matcher'
+            
+            # Get database path from config
+            from config import get_config
+            cfg = get_config()
+            db_path = cfg.paths.database_path if hasattr(cfg, 'paths') and hasattr(cfg.paths, 'database_path') else 'recordmatcher.db'
+            self._databasePath = str(db_path)
+            self.databasePath_changed.emit()
+            
+            # Count pickle files
+            snapshot_count = 0
+            cheque_count = 0
+            
+            if pickle_dir.exists():
+                # Count snapshot files (.fil and .filv2)
+                for f in pickle_dir.glob('*.fil'):
+                    snapshot_count += 1
+                for f in pickle_dir.glob('*.filv2'):
+                    snapshot_count += 1
+                
+                # Count cheque report files
+                for f in pickle_dir.glob('*.cheque'):
+                    cheque_count += 1
+                for f in pickle_dir.glob('*.chequev2'):
+                    cheque_count += 1
+            
+            self._pickleSnapshotCount = snapshot_count
+            self._pickleChequeCount = cheque_count
+            self.pickleSnapshotCount_changed.emit()
+            self.pickleChequeCount_changed.emit()
+            
+            # Get database counts using list_all method
+            if hasattr(self, 'snapshot_repository'):
+                try:
+                    all_snapshots = self.snapshot_repository.list_all()
+                    self._totalSnapshotCount = len(all_snapshots) if all_snapshots else 0
+                except Exception as e:
+                    logger.warning(f"Could not get snapshot count: {e}")
+                    self._totalSnapshotCount = 0
+            else:
+                self._totalSnapshotCount = 0
+            
+            if hasattr(self, 'cheque_repository'):
+                try:
+                    all_reports = self.cheque_repository.list_all()
+                    self._totalChequeReportCount = len(all_reports) if all_reports else 0
+                except Exception as e:
+                    logger.warning(f"Could not get cheque report count: {e}")
+                    self._totalChequeReportCount = 0
+            else:
+                self._totalChequeReportCount = 0
+            
+            self.totalSnapshotCount_changed.emit()
+            self.totalChequeReportCount_changed.emit()
+            
+            # Determine migration status
+            if snapshot_count > 0 or cheque_count > 0:
+                self._migrationStatus = "pending"
+                self._migrationProgressText = f"{snapshot_count + cheque_count} legacy files found"
+            else:
+                self._migrationStatus = "completed"
+                self._migrationProgressText = "All data migrated to SQLite"
+            
+            self.migrationStatus_changed.emit()
+            self.migrationProgressText_changed.emit()
+            
+            logger.info(f"Migration status: {self._migrationStatus}, pickle files: {snapshot_count} snapshots, {cheque_count} cheque reports")
+            
+        except Exception as e:
+            logger.error(f"Error checking migration status: {e}")
+            self._migrationStatus = "error"
+            self._migrationProgressText = f"Error: {str(e)}"
+            self.migrationStatus_changed.emit()
+            self.migrationProgressText_changed.emit()
+    
+    @Slot()
+    def startMigration(self):
+        """Start the pickle to SQLite migration."""
+        if self._isMigrating:
+            logger.warning("Migration already in progress")
+            return
+        
+        if self._migrationStatus == "completed":
+            logger.info("Migration already completed")
+            return
+        
+        logger.info("Starting pickle to SQLite migration...")
+        self._isMigrating = True
+        self._migrationStatus = "in_progress"
+        self._migrationCurrent = 0
+        self._migrationTotal = self._pickleSnapshotCount + self._pickleChequeCount
+        self._migrationProgressText = "Starting migration..."
+        
+        self.migrationStatus_changed.emit()
+        self.migrationCurrent_changed.emit()
+        self.migrationTotal_changed.emit()
+        self.migrationProgressText_changed.emit()
+        
+        # Run migration in background thread
+        future = self._thread_pool.submit(self._run_migration)
+        self._active_futures.add(future)
+    
+    def _run_migration(self):
+        """Run the migration in a background thread."""
+        try:
+            from sqlite_storage import migrate_pickle_to_sqlite
+            
+            def progress_callback(item_type: str, item_name: str, current: int, total: int):
+                """Callback to update progress in UI."""
+                self._migrationCurrent = current
+                self._migrationTotal = total
+                self._migrationProgressText = f"Migrating {item_type}: {item_name}"
+                
+                # Use QTimer to emit signals on main thread
+                QTimer.singleShot(0, self.migrationCurrent_changed.emit)
+                QTimer.singleShot(0, self.migrationTotal_changed.emit)
+                QTimer.singleShot(0, self.migrationProgressText_changed.emit)
+            
+            # Run migration with progress callback
+            migrate_pickle_to_sqlite(progress_callback=progress_callback)
+            
+            # Migration completed successfully
+            self._migrationStatus = "completed"
+            self._migrationProgressText = "Migration completed successfully!"
+            self._pickleSnapshotCount = 0
+            self._pickleChequeCount = 0
+            
+            # Refresh database counts
+            self._check_migration_status()
+            
+            logger.info("Migration completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Migration error: {e}")
+            logger.error(traceback.format_exc())
+            self._migrationStatus = "error"
+            self._migrationProgressText = f"Error: {str(e)}"
+        finally:
+            self._isMigrating = False
+            QTimer.singleShot(0, self.migrationStatus_changed.emit)
+            QTimer.singleShot(0, self.migrationProgressText_changed.emit)
+            QTimer.singleShot(0, self.pickleSnapshotCount_changed.emit)
+            QTimer.singleShot(0, self.pickleChequeCount_changed.emit)
+
     @Slot()
     def createTallyXMLFromDaybook(self):
         self.fullScreenLoading2Start.emit()
@@ -1125,6 +1642,22 @@ class MainWindow(QObject, UIOptimizationMixin):
     fullScreenLoadingInfo1 = Property(str, get_fullScreenLoadingInfo1, notify=fullScreenLoadingInfo1_changed)
     fullScreenLoadingInfo2 = Property(str, get_fullScreenLoadingInfo2, notify=fullScreenLoadingInfo2_changed)
     adminPassword = Property(str, get_adminPassword, notify=adminPassword_changed)
+    
+    # Firebase sync properties
+    lastSyncUpload = Property(str, get_lastSyncUpload, notify=lastSyncUpload_changed)
+    lastSyncDownload = Property(str, get_lastSyncDownload, notify=lastSyncDownload_changed)
+    isSyncing = Property(bool, get_isSyncing, notify=isSyncing_changed)
+    
+    # Migration properties
+    migrationStatus = Property(str, get_migrationStatus, notify=migrationStatus_changed)
+    migrationProgressText = Property(str, get_migrationProgressText, notify=migrationProgressText_changed)
+    migrationCurrent = Property(int, get_migrationCurrent, notify=migrationCurrent_changed)
+    migrationTotal = Property(int, get_migrationTotal, notify=migrationTotal_changed)
+    pickleSnapshotCount = Property(int, get_pickleSnapshotCount, notify=pickleSnapshotCount_changed)
+    pickleChequeCount = Property(int, get_pickleChequeCount, notify=pickleChequeCount_changed)
+    databasePath = Property(str, get_databasePath, notify=databasePath_changed)
+    totalSnapshotCount = Property(int, get_totalSnapshotCount, notify=totalSnapshotCount_changed)
+    totalChequeReportCount = Property(int, get_totalChequeReportCount, notify=totalChequeReportCount_changed)
 
 
 class TableModel(QAbstractTableModel):

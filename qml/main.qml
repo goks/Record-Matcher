@@ -100,6 +100,21 @@ Window {
                     scaleFactorHeight: window.scaleFactorHeight
                 }
         }
+        
+        // Firebase sync progress overlay
+        SyncProgressOverlay {
+            id: syncProgressOverlay
+            scaleFactorWidth: window.scaleFactorWidth
+            scaleFactorHeight: window.scaleFactorHeight
+            
+            onCancelRequested: {
+                backend.cancelSync()
+            }
+            onCompleted: {
+                // Optionally refresh data after sync
+            }
+        }
+        
         CustomPopup{
             id: popup
             scaleFactorWidth: window.scaleFactorWidth
@@ -258,12 +273,12 @@ Window {
             }
             SettingsButton {
                 id: settingsBtn
-                width: tscale(43)
+                width: tscale(48)
                 height: width
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
-                z: 1
-                anchors.rightMargin: hscale(99)
+                z: 10
+                anchors.rightMargin: hscale(20)
                 scaleFactorWidth: window.scaleFactorWidth
                 scaleFactorHeight: window.scaleFactorHeight
                 btnIconSource: "../images/svg_images/settings_gear.svg"
@@ -274,6 +289,7 @@ Window {
                                     passwordPopup.open()
                                     }
                 onCreateTallyXMLFromDaybookClicked: backend.createTallyXMLFromDaybook()
+                onOpenSettingsClicked: backend.openSettingsPage()
             }
         }
         Rectangle {
@@ -559,6 +575,30 @@ Window {
                     }
                     function onHideMainScreenLoadingIndicator() {
                         mainScreenBusyIndicator.running = false
+                    }
+                    
+                    // Firebase sync handlers (new repository-based)
+                    function onSyncProgressUpdated(current, total, itemName, status) {
+                        syncProgressOverlay.updateProgress(current, total, itemName, status)
+                    }
+                    function onSyncCompleted(success, message) {
+                        if (success) {
+                            syncProgressOverlay.updateProgress(1, 1, message, "completed")
+                            toast.show(message, "success")
+                        } else {
+                            syncProgressOverlay.updateProgress(1, 1, message, "error")
+                            toast.show(message, "error")
+                        }
+                    }
+                    function onShowSettingsPage() {
+                        // Hide left panel elements for full-page settings view
+                        bodySubtitleStatementModeContainer.visible = false
+                        chequereport_button.selected = false
+                        export_button.selected = false
+                        tallyexport_button.selected = false
+                        help_button.selected = false
+                        uploadBtn.visible = false
+                        stackView.push(settingsPageComponent)
                     }
                 }
 
@@ -1506,6 +1546,49 @@ Window {
                                 anchors.topMargin: vscale(59)
                                 scaleFactorWidth: window.scaleFactorWidth
                                 scaleFactorHeight: window.scaleFactorHeight
+                            }
+                        }
+                    }
+                    
+                    // Settings page component
+                    Component {
+                        id: settingsPageComponent
+                        Item {
+                            width: parent.width
+                            height: parent.height
+                            SettingsPage {
+                                anchors.fill: parent
+                                scaleFactorWidth: window.scaleFactorWidth
+                                scaleFactorHeight: window.scaleFactorHeight
+                                lastUploadTime: backend ? backend.lastSyncUpload : "Never"
+                                lastDownloadTime: backend ? backend.lastSyncDownload : "Never"
+                                isSyncing: backend ? backend.isSyncing : false
+                                
+                                // Migration properties
+                                migrationStatus: backend ? backend.migrationStatus : "checking"
+                                migrationProgressText: backend ? backend.migrationProgressText : ""
+                                migrationCurrent: backend ? backend.migrationCurrent : 0
+                                migrationTotal: backend ? backend.migrationTotal : 0
+                                pickleSnapshotCount: backend ? backend.pickleSnapshotCount : 0
+                                pickleChequeCount: backend ? backend.pickleChequeCount : 0
+                                databasePath: backend ? backend.databasePath : ""
+                                totalSnapshotCount: backend ? backend.totalSnapshotCount : 0
+                                totalChequeReportCount: backend ? backend.totalChequeReportCount : 0
+                                
+                                onUploadRequested: {
+                                    syncProgressOverlay.show("upload")
+                                    backend.syncUploadToFirebase()
+                                }
+                                onDownloadRequested: {
+                                    syncProgressOverlay.show("download")
+                                    backend.syncDownloadFromFirebase()
+                                }
+                                onMigrationRequested: {
+                                    backend.startMigration()
+                                }
+                                onCloseRequested: {
+                                    stackView.pop()
+                                }
                             }
                         }
                     }

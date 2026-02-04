@@ -39,3 +39,7 @@ credentials_file = "service-account/recordmatcher-firebase-adminsdk-mfcn7-d0ee2c
 database_url = ""  # Leave empty to use default from credentials
 batch_size = 500
 timeout_seconds = 30
+# Sync tracking (automatically updated by the application)
+last_sync_upload = ""  # ISO timestamp of last upload
+last_sync_download = ""  # ISO timestamp of last download
+sync_enabled = true  # Set to false to disable Firebase sync

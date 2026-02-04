@@ -140,6 +140,18 @@ class FirebaseConfig(BaseModel):
         le=300,
         description="Timeout for Firebase operations in seconds"
     )
+    last_sync_upload: Optional[str] = Field(
+        default=None,
+        description="Timestamp of last successful upload to Firebase (ISO format)"
+    )
+    last_sync_download: Optional[str] = Field(
+        default=None,
+        description="Timestamp of last successful download from Firebase (ISO format)"
+    )
+    sync_enabled: bool = Field(
+        default=True,
+        description="Whether Firebase sync is enabled"
+    )
     
     class Config:
         frozen = False

@@ -9,6 +9,7 @@ Button {
     signal uploadtoDbClicked
     signal createTallyXMLFromDaybookClicked
     signal deleteButtonClicked
+    signal openSettingsClicked
     property url btnIconSource: "../../images/svg_images/menu.svg"
     property color bgcolorDefault: "#ffffff"
     property color bgcolorMouseOver: "#e5e5e5"
@@ -39,14 +40,19 @@ Button {
     implicitHeight: vscale(43)
     background: Rectangle {
         color: internal.dynamicColor
+        border.color: "#e0e0e0"
+        border.width: 1
+        radius: 4
+        
         Image {
             id: btnImg
             visible: true
             anchors.fill: parent
+            anchors.margins: 8
             source: btnIconSource
-            fillMode: Image.PreserveAspectCrop
-            sourceSize.width: parent.width
-            sourceSize.height: parent.height
+            fillMode: Image.PreserveAspectFit
+            sourceSize.width: 32
+            sourceSize.height: 32
             // TODO Qt6: DropShadow disabled (Qt 5 GraphicalEffects deprecated)
         }
 
@@ -220,6 +226,44 @@ Button {
             text: "Delete report"
             onTriggered: menuBtn.deleteButtonClicked()
             // signal downloadFromDbClicked()
+        }
+        
+        MenuSeparator {
+            contentItem: Rectangle {
+                implicitWidth: hscale(280)
+                implicitHeight: 1
+                color: "#e0e0e0"
+            }
+        }
+        
+        MenuItem {
+            id: menuControlSettings
+            background:  Item {
+                implicitWidth: hscale(280)
+                implicitHeight: vscale(40)
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    color: menuControlSettings.hovered ? "#003366" : "transparent"
+                }
+            }
+            contentItem: Text {
+                text: menuControlSettings.text
+                anchors.fill: parent
+                verticalAlignment: Text.AlignVCenter
+                anchors.topMargin: vscale(4)
+                anchors.bottomMargin: vscale(4)
+                anchors.rightMargin: hscale(4)
+                anchors.leftMargin: hscale(4)
+                padding: 10
+                minimumPixelSize: 14
+                font.pixelSize: tscale(18)
+                font.family: appFont4.name
+                color: menuControlSettings.hovered ? "#ffffff" : "#003366"
+            }
+            text: "⚙ Settings"
+            onTriggered: menuBtn.openSettingsClicked()
         }
         
     }

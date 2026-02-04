@@ -46,6 +46,7 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Dict, Any
 
 # Configure logging
 logging.basicConfig(
@@ -53,9 +54,15 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(f'migration_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+        logging.FileHandler(f'migration_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log', encoding='utf-8')
     ]
 )
+# Fix Windows console Unicode issues
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,7 +251,7 @@ Examples:
     parser.add_argument(
         '--app-name',
         help='Application name for auto-detected paths',
-        default='RecordMatcher'
+        default='Record Matcher'
     )
     
     parser.add_argument(

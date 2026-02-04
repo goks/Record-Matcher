@@ -739,7 +739,7 @@ except ImportError as e:
 def get_snapshot_repository(
     use_sqlite: bool = True,
     db_path: Optional[str] = None,
-    app_name: str = "RecordMatcher"
+    app_name: str = "Record Matcher"
 ) -> ISnapshotRepository:
     """Factory function to get snapshot repository.
     
@@ -782,7 +782,7 @@ def get_snapshot_repository(
 def get_cheque_report_repository(
     use_sqlite: bool = True,
     db_path: Optional[str] = None,
-    app_name: str = "RecordMatcher"
+    app_name: str = "Record Matcher"
 ) -> IChequeReportRepository:
     """Factory function to get cheque report repository.
     
