@@ -1081,7 +1081,42 @@ Window {
                     anchors.horizontalCenter: parent.horizontalCenter
                     running: false
                     visible: running
+                    width: hscale(40)
+                    height: vscale(40)
+                    palette.dark: "#003366"
+                    palette.mid: "#003366"
+                    palette.highlight: "#003366"
                     z:12
+                    contentItem: Item {
+                        implicitWidth: mainScreenBusyIndicator.width
+                        implicitHeight: mainScreenBusyIndicator.height
+                        RotationAnimator on rotation {
+                            running: mainScreenBusyIndicator.running
+                            loops: Animation.Infinite
+                            duration: 900
+                            from: 0
+                            to: 360
+                        }
+                        Repeater {
+                            model: 10
+                            Item {
+                                width: parent.width
+                                height: parent.height
+                                rotation: index * 36
+                                transformOrigin: Item.Center
+                                Rectangle {
+                                    width: Math.max(2, hscale(4))
+                                    height: Math.max(6, vscale(8))
+                                    radius: width / 2
+                                    color: "#003366"
+                                    antialiasing: true
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    y: 2
+                                    opacity: (index + 1) / 10
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Rectangle {
@@ -1411,12 +1446,61 @@ Window {
                                 backend.uploadFile(textInput.fileDialogText)
                             }
                         }
-                        BusyIndicator {
-                            id: busyIndicator
+                        Rectangle {
+                            id: busyIndicatorBg
                             anchors.left: uploadBtn.right
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: hscale(12)
+                            width: hscale(34)
+                            height: vscale(34)
+                            radius: hscale(17)
+                            color: "#dbeafe"
+                            border.color: "#003366"
+                            border.width: 1
+                            visible: busyIndicator.visible
+                        }
+                        BusyIndicator {
+                            id: busyIndicator
+                            anchors.centerIn: busyIndicatorBg
+                            width: hscale(22)
+                            height: vscale(22)
                             visible: false
+                            running: visible
+                            palette.dark: "#003366"
+                            palette.mid: "#003366"
+                            palette.highlight: "#003366"
+
+                            contentItem: Item {
+                                implicitWidth: busyIndicator.width
+                                implicitHeight: busyIndicator.height
+                                RotationAnimator on rotation {
+                                    running: busyIndicator.running
+                                    loops: Animation.Infinite
+                                    duration: 900
+                                    from: 0
+                                    to: 360
+                                }
+
+                                Repeater {
+                                    model: 10
+                                    Item {
+                                        width: parent.width
+                                        height: parent.height
+                                        rotation: index * 36
+                                        transformOrigin: Item.Center
+                                        Rectangle {
+                                            width: Math.max(2, hscale(3))
+                                            height: Math.max(5, vscale(7))
+                                            radius: width / 2
+                                            color: "#003366"
+                                            antialiasing: true
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            y: 1
+                                            opacity: (index + 1) / 10
+                                        }
+                                    }
+                                }
+                            }
                         }
                         
                         // Balance indicators on the right
@@ -1609,8 +1693,7 @@ Window {
                     Component {
                         id: uploadStatementComponent
                         Item {
-                            width: parent.width
-                            height: parent.height
+                            anchors.fill: parent
                             UploadChequeStatementPage {
                                 anchors.fill: parent
                                 anchors.topMargin: vscale(59)
@@ -1622,8 +1705,7 @@ Window {
                     Component {
                         id: chequeReportFoundComponent
                         Item {
-                            width: parent.width
-                            height: parent.height
+                            anchors.fill: parent
                             ChequeReportFoundPage {
                                 timeData: window.chequeTimeData
                                 anchors.fill: parent
@@ -1636,8 +1718,7 @@ Window {
                     Component {
                         id: chequeReportNotFoundComponent
                         Item {
-                            width: parent.width
-                            height: parent.height
+                            anchors.fill: parent
                             ChequeReportNotFoundPage {
                                 anchors.fill: parent
                                 anchors.topMargin: vscale(59)
@@ -1649,8 +1730,7 @@ Window {
                     Component {
                         id: tallyExportBoxComponent
                         Item {
-                            width: parent.width
-                            height: parent.height
+                            anchors.fill: parent
                             TallyExportBoxPage {
                                 anchors.fill: parent
                                 anchors.topMargin: vscale(59)
@@ -1668,8 +1748,7 @@ Window {
                     Component {
                         id: selectOptionsComponent
                         Item {
-                            width: parent.width
-                            height: parent.height
+                            anchors.fill: parent
                             OptionsNotSelectedPage {
                                 anchors.fill: parent
                                 anchors.topMargin: vscale(59)
@@ -1683,8 +1762,7 @@ Window {
                     Component {
                         id: settingsPageComponent
                         Item {
-                            width: parent.width
-                            height: parent.height
+                            anchors.fill: parent
                             SettingsPage {
                                 anchors.fill: parent
                                 scaleFactorWidth: window.scaleFactorWidth

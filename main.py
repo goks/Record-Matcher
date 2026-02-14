@@ -590,7 +590,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         - company + year + bank: selected bank, all months in FY
         - company + year + bank + month: selected bank + selected month
         """
-        print("[RECON DEBUG] runReconciliation() called from UI")
+        logger.debug("runReconciliation() called from UI")
         self.showMainScreenLoadingIndicator.emit()
         self._sync_state_to_service()
         with self._state_lock:
@@ -598,9 +598,12 @@ class MainWindow(QObject, UIOptimizationMixin):
             year = self.current_year
             bank = self.current_bank
             company = self.current_company
-            print(
-                "[RECON DEBUG] Current selection:",
-                f"company={company}, year={year}, month={month}, bank={bank}"
+            logger.debug(
+                "Current reconciliation selection: company=%s, year=%s, month=%s, bank=%s",
+                company,
+                year,
+                month,
+                bank,
             )
 
         if not company or not year:
@@ -631,7 +634,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         )
 
         if not self._is_shutting_down:
-            print("[RECON DEBUG] Submitting reconciliation job to thread pool")
+            logger.debug("Submitting reconciliation job to thread pool")
             wrapped_func = self._thread_exception_wrapper(
                 lambda: self.threadedRunReconciliation(targets),
                 "Run Reconciliation"
@@ -640,12 +643,12 @@ class MainWindow(QObject, UIOptimizationMixin):
             self._active_futures.add(future)
         else:
             logger.warning("Reconciliation rejected: application is shutting down")
-            print("[RECON DEBUG] Reconciliation blocked: application shutting down")
+            logger.debug("Reconciliation blocked: application shutting down")
             self.hideMainScreenLoadingIndicator.emit()
 
     def threadedRunReconciliation(self, targets: List[Tuple[str, str, str, str]]) -> None:
         """Thread worker for scope-based reconciliation."""
-        print(f"[RECON DEBUG] threadedRunReconciliation() started with {len(targets)} targets")
+        logger.debug("threadedRunReconciliation() started with %s targets", len(targets))
         try:
             bank_mapping = self._get_erp_bank_mapping_by_company()
             output_dir = os.path.join(CURRENT_DIR, "output")
@@ -723,7 +726,7 @@ class MainWindow(QObject, UIOptimizationMixin):
                 cheque_activated = self.chequeReportActivated
 
             if all([current_company, current_year, current_bank, current_month]) and not cheque_activated:
-                print("[RECON DEBUG] Triggering table reload to show reconciled data")
+                logger.debug("Triggering table reload to show reconciled data")
                 self.populate_table()
 
             last_reconciled = datetime.now().strftime("%d %b %Y, %H:%M")
@@ -743,7 +746,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         except Exception as e:
             logger.error(f"Reconciliation failed: {e}")
             logger.error(traceback.format_exc())
-            print(f"[RECON DEBUG] Reconciliation exception: {e}")
+            logger.debug("Reconciliation exception: %s", e)
             self.reconciliationFailed.emit(str(e))
         finally:
             self.hideMainScreenLoadingIndicator.emit()
@@ -1918,7 +1921,7 @@ class MainWindow(QObject, UIOptimizationMixin):
     @Slot()
     def createTallyXMLFromDaybook(self):
         self.fullScreenLoading2Start.emit()
-        print("Create TALLY XML here")
+        logger.debug("createTallyXMLFromDaybook invoked")
 
 
     @Slot(str, str)
@@ -2328,4 +2331,4 @@ if __name__ == "__main__":
     engine.load(os.fspath(Path(__file__).resolve().parent / "qml/main.qml"))
     if not engine.rootObjects():
         sys.exit(-1)
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

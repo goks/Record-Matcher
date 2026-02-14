@@ -220,6 +220,42 @@ Popup {
             anchors.rightMargin: 15
             anchors.topMargin: 15
             visible: false
+            running: visible
+            width: 28
+            height: 28
+            palette.dark: "#003366"
+            palette.mid: "#003366"
+            palette.highlight: "#003366"
+            contentItem: Item {
+                implicitWidth: busyIndicator.width
+                implicitHeight: busyIndicator.height
+                RotationAnimator on rotation {
+                    running: busyIndicator.running
+                    loops: Animation.Infinite
+                    duration: 900
+                    from: 0
+                    to: 360
+                }
+                Repeater {
+                    model: 10
+                    Item {
+                        width: parent.width
+                        height: parent.height
+                        rotation: index * 36
+                        transformOrigin: Item.Center
+                        Rectangle {
+                            width: 3
+                            height: 7
+                            radius: width / 2
+                            color: "#003366"
+                            antialiasing: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            y: 1
+                            opacity: (index + 1) / 10
+                        }
+                    }
+                }
+            }
         }
     }
 }
