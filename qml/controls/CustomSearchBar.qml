@@ -59,7 +59,6 @@ Rectangle {
                                // changed_date = Date.fromLocaleString(Qt.locale(), "2018-10-25", "yyyy-mm-dd")
                                changed_date = Date.fromLocaleString(Qt.locale(), searchBarText, "dd/mm/yyyy")
                                if (!changed_date){ return }
-                               console.log("Changing calendar to "+ changed_date )
                                previous_date = searchBarText
                                calendar.selectedDate = Date.fromLocaleString(Qt.locale(), searchBarText, "dd/MM/yyyy")
                            }
@@ -108,7 +107,6 @@ Rectangle {
                 if(calendarBut.down) {
                     calendarButPressed = calendarButPressed?false:true
                 }
-                console.log("calendarButPressed: " + calendarButPressed)
             }
 
             QtObject {
@@ -139,12 +137,10 @@ Rectangle {
             // Qt6: folder property removed, using currentFolder instead
             // shortcuts.desktop removed in Qt 6
             onAccepted: {
-                console.log("You chose: " + fileDialog.fileUrl)
                 fileDialogText = fileDialog.fileUrl
                 browseBut.selected = false
             }
             onRejected: {
-                console.log("Canceled")
                 browseBut.selected = false
             }
         }
@@ -169,7 +165,6 @@ Rectangle {
             const day = selectedDate.getDate();
             const month = selectedDate.getMonth() + 1;
             const year = selectedDate.getFullYear();
-            console.log(day,month,year)
         }
     }
 }

@@ -16,11 +16,14 @@ except ImportError:
     fuzz = _FuzzFallback()
 import numpy as np
 import re
+import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 def normalize_reference(value):
     text = str(value).strip()
@@ -262,9 +265,11 @@ def _fetch_busy_ledger_for_context(context: ReconciliationContext) -> pd.DataFra
     selected = _resolve_company_year_db(context.company, fy_start, options_df)
 
     year_db = str(selected["YearDb"])
-    print(
-        "[RECON DEBUG] ERP DB resolved:",
-        f"company={selected.get('CompanyName')} ({selected.get('CompanyDb')}), year_db={year_db}"
+    logger.debug(
+        "ERP DB resolved: company=%s (%s), year_db=%s",
+        selected.get("CompanyName"),
+        selected.get("CompanyDb"),
+        year_db,
     )
 
     banks = load_bank_accounts(DB_SERVER, year_db)
@@ -285,19 +290,19 @@ def _fetch_busy_ledger_for_context(context: ReconciliationContext) -> pd.DataFra
         raise ValueError(f"No ERP bank account matched app bank '{target_bank}' in DB {year_db}")
 
     from_date, to_date = get_financial_year_dates(fy_start)
-    print("[RECON DEBUG] Loading Busy ledger:", f"from={from_date}, to={to_date}")
+    logger.debug("Loading Busy ledger: from=%s, to=%s", from_date, to_date)
 
     # If multiple bank masters match (common for ICICI), select by best reconciliation score.
     if len(bank_matches) == 1:
         selected_bank = bank_matches.iloc[0]
         bank_code = int(selected_bank["Code"])
         bank_display_name = str(selected_bank["DisplayName"])
-        print("[RECON DEBUG] ERP bank account selected:", f"{bank_display_name} (Code={bank_code})")
+        logger.debug("ERP bank account selected: %s (Code=%s)", bank_display_name, bank_code)
         ledger_df = load_bank_ledger(DB_SERVER, year_db, bank_code, from_date, to_date)
-        print(f"[RECON DEBUG] Busy ledger rows loaded from ERP: {len(ledger_df)}")
+        logger.debug("Busy ledger rows loaded from ERP: %s", len(ledger_df))
         return ledger_df
 
-    print(f"[RECON DEBUG] Multiple ERP bank accounts matched for {target_bank}: {len(bank_matches)}")
+    logger.warning("Multiple ERP bank accounts matched for %s: %s", target_bank, len(bank_matches))
     raise ValueError("Internal error: ambiguous ERP bank selection requires bank_df scoring")
 
 
@@ -350,13 +355,16 @@ def _fetch_busy_ledger_for_context_with_mapping(
 
     selected_bank = bank_matches[bank_matches["Code"].astype(int) == configured_code_int].iloc[0]
     selected_name = str(selected_bank["DisplayName"])
-    print(
-        "[RECON DEBUG] Using explicit ERP bank mapping:",
-        f"company={context.company}, bank={target_bank}, code={configured_code_int}, name={selected_name}"
+    logger.debug(
+        "Using explicit ERP bank mapping: company=%s, bank=%s, code=%s, name=%s",
+        context.company,
+        target_bank,
+        configured_code_int,
+        selected_name,
     )
 
     ledger_df = load_bank_ledger(DB_SERVER, year_db, configured_code_int, from_date, to_date)
-    print(f"[RECON DEBUG] Busy ledger rows loaded from ERP: {len(ledger_df)}")
+    logger.debug("Busy ledger rows loaded from ERP: %s", len(ledger_df))
     return ledger_df
 
 
@@ -374,7 +382,7 @@ def run_reconciliation_from_snapshot(
     """
     if not snapshot_data:
         raise ValueError("Snapshot data is empty")
-    print("[RECON DEBUG] run_reconciliation_from_snapshot() invoked")
+    logger.debug("run_reconciliation_from_snapshot() invoked")
 
     company = snapshot_data.get("company", "")
     bank = snapshot_data.get("bank", "")
@@ -382,21 +390,24 @@ def run_reconciliation_from_snapshot(
     month = snapshot_data.get("month", "")
     statement_path = snapshot_data.get("source_statement_path", "")
     context = _build_context(company, bank, year, month, statement_path)
-    print(
-        "[RECON DEBUG] Context:",
-        f"company={context.company}, bank={context.bank}, year={context.year}, "
-        f"month={context.month}, financial_year={context.financial_year}"
+    logger.debug(
+        "Context: company=%s, bank=%s, year=%s, month=%s, financial_year=%s",
+        context.company,
+        context.bank,
+        context.year,
+        context.month,
+        context.financial_year,
     )
 
     master_table = snapshot_data.get("master_table", [])
-    print(f"[RECON DEBUG] Snapshot master_table rows: {len(master_table)}")
+    logger.debug("Snapshot master_table rows: %s", len(master_table))
     table_df = _normalize_snapshot_table(master_table)
     if table_df.empty:
         raise ValueError("Snapshot has no statement rows")
 
-    print("[RECON DEBUG] Preparing bank statement dataframe from snapshot...")
+    logger.debug("Preparing bank statement dataframe from snapshot...")
     bank_df = _build_bank_df_from_snapshot(table_df, context.bank)
-    print(f"[RECON DEBUG] Prepared bank rows for matching: {len(bank_df)}")
+    logger.debug("Prepared bank rows for matching: %s", len(bank_df))
     if bank_df.empty:
         raise ValueError("No valid bank statement rows found in snapshot")
 
@@ -404,12 +415,14 @@ def run_reconciliation_from_snapshot(
     if ledger_df.empty:
         raise ValueError("ERP Busy ledger returned 0 rows for selected company/FY/bank")
 
-    print("[RECON DEBUG] Running reconcile(bank_df, ledger_df)...")
+    logger.debug("Running reconcile(bank_df, ledger_df)...")
     matched_df, unmatched_bank, unmatched_ledger, ignored_bank = reconcile(bank_df, ledger_df)
-    print(
-        "[RECON DEBUG] Reconcile output:",
-        f"matched={len(matched_df)}, unmatched_bank={len(unmatched_bank)}, "
-        f"unmatched_ledger={len(unmatched_ledger)}, ignored={len(ignored_bank)}"
+    logger.debug(
+        "Reconcile output: matched=%s, unmatched_bank=%s, unmatched_ledger=%s, ignored=%s",
+        len(matched_df),
+        len(unmatched_bank),
+        len(unmatched_ledger),
+        len(ignored_bank),
     )
 
     matched_df = matched_df.sort_values(by="BankDate", na_position="last")
@@ -513,7 +526,7 @@ def run_reconciliation_from_snapshot(
         output_file = output_path / (
             f"Reconciliation_{context.company}_{context.bank}_{context.month}_{context.year}_{timestamp}.xlsx"
         )
-        print(f"[RECON DEBUG] Writing reconciliation workbook: {output_file}")
+        logger.info("Writing reconciliation workbook: %s", output_file)
 
         with pd.ExcelWriter(output_file) as writer:
             matched_export_df.to_excel(

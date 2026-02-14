@@ -48,6 +48,51 @@ Window {
     FontLoader { id: appFont3; source: "../fonts/PTSansCaption-Bold.ttf" }
     FontLoader { id: appFont4; source: "../fonts/Sen-Regular.ttf" }
     property string chequeTimeData: ""
+    property string currentScreenKey: "selectOptions"
+    property string previousScreenKey: "selectOptions"
+    property string pendingSearchText: ""
+    property string pendingSearchMode: "off"
+
+    function componentForScreen(screenKey) {
+        switch (screenKey) {
+        case "table": return tableComponent
+        case "upload": return uploadStatementComponent
+        case "chequeFound": return chequeReportFoundComponent
+        case "chequeNotFound": return chequeReportNotFoundComponent
+        case "tallyExport": return tallyExportBoxComponent
+        case "settings": return settingsPageComponent
+        default: return selectOptionsComponent
+        }
+    }
+
+    function navigateTo(screenKey) {
+        var component = componentForScreen(screenKey)
+        if (!component) return
+        if (currentScreenKey === screenKey && stackView.currentItem) return
+        if (screenKey === "settings") {
+            previousScreenKey = currentScreenKey
+        }
+        if (stackView.depth <= 0) {
+            stackView.push(component)
+        } else {
+            stackView.replace(component)
+        }
+        currentScreenKey = screenKey
+    }
+
+    function closeSettingsPage() {
+        navigateTo(previousScreenKey || "selectOptions")
+    }
+
+    Timer {
+        id: searchDebounceTimer
+        interval: 250
+        repeat: false
+        onTriggered: {
+            if (backend) backend.search(window.pendingSearchText, window.pendingSearchMode)
+        }
+    }
+
     Rectangle {
         z:0
         id:backgroundBox
@@ -207,7 +252,6 @@ Window {
                             chequereport_button.selected = false
                             backend.showChequeReportsSelection(chequereport_button.selected)
                         }
-                        console.log("export_button.selected: " + export_button.selected)
                         if (export_button.selected == true){
                             popup.open();
                         }
@@ -269,7 +313,9 @@ Window {
                     anchors.leftMargin: 1
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
+                    enabled: !(mainScreenBusyIndicator.running || busyIndicator.visible || fullScreenLoading.visible || fullScreenLoading2.visible || syncProgressOverlay.visible)
                     onPressed: {
+                        if (!help_button.enabled) return
                         if (backend) backend.runReconciliation()
                     }
                 }
@@ -330,7 +376,6 @@ Window {
                     target: backend
                     function onChequeReportsButtonClicked(selected, status, time){
                         if(selected){
-                            console.log("Pushing Cheque Report " + selected + "status" + status)
                             monthBox.visible = false
                             bankBox.visible = false
                             bankBox.height = 0
@@ -344,16 +389,15 @@ Window {
                             textInput.fileDialogText = ""
                             if(status===1) {
                                 window.chequeTimeData = time
-                                stackView.push(chequeReportFoundComponent)
+                                navigateTo("chequeFound")
                             }
-                            else if(status===0) stackView.push(chequeReportNotFoundComponent)
+                            else if(status===0) navigateTo("chequeNotFound")
                             else {
-                                stackView.clear()
+                                navigateTo("selectOptions")
                                 toast.show("No company or year selected", "warning")
                             }
                         }
                         else{
-                            console.log("popping Cheque Report ")
                             monthBox.visible = true
                             bankBox.visible = true
                             bankLabel.visible = true
@@ -365,20 +409,19 @@ Window {
                             uploadBtn.visible = false
                             textInput.searchmode = "default"
                             textInput.fileDialogText = ""
-                            console.log(stackView.pop())
+                            navigateTo("selectOptions")
                         }
                     }
                     function onShowChequeReportPage(status, time){
                         if(status===1) {
                             window.chequeTimeData = time
-                            stackView.push(chequeReportFoundComponent)
+                            navigateTo("chequeFound")
                         }
-                        else if(status===0) stackView.push(chequeReportNotFoundComponent)
-                        else stackView.clear()
+                        else if(status===0) navigateTo("chequeNotFound")
+                        else navigateTo("selectOptions")
                     }
                     function onTallyExportButtonClicked(selected){
                         if(selected){
-                            console.log("Pushing Tally Export Box")
                             monthBox.visible = false
                             bankBox.visible = false
                             yearBox.visible = false
@@ -394,14 +437,13 @@ Window {
                             bodySubtitleContainer.visible = false
                             bodySubtitleContainer.height = 0
                             bodyHeaderBox.height=0
-                            stackView.push(tallyExportBoxComponent)
+                            navigateTo("tallyExport")
                             // else {
                             //     stackView.clear()
                             //     toast.show("No company or year selected", "warning")
                             // }
                         }
                         else{
-                            console.log("popping Tally Export Box ")
                             monthBox.visible = true
                             yearBox.visible = true
                             bankBox.visible = true
@@ -417,12 +459,12 @@ Window {
                             bodySubtitleContainer.visible = true
                             bodySubtitleContainer.height = vscale(52)
                             bodyHeaderBox.height = bodyTitleContainer.height + bodySubtitleContainer.height + vscale(12) + vscale(8) + vscale(10)
-                            console.log(stackView.pop())
+                            navigateTo("selectOptions")
 
                         }
                     }
                     function onShowTallyExportPage(){
-                        stackView.push(tallyExportBox)
+                        navigateTo("tallyExport")
                     }
                     function onShowTablePage(){
                         // console.log("Showing table")
@@ -443,7 +485,7 @@ Window {
                         bodySubtitleContainer.visible = true
                         bodySubtitleContainer.height = vscale(52)
                         bodyHeaderBox.height = bodyTitleContainer.height + bodySubtitleContainer.height + vscale(12) + vscale(8) + vscale(10)
-                        stackView.push(tableComponent)
+                        navigateTo("table")
                     }
                     function onShowUploadBankStatementPage(){
                         // console.log("Showing upload Cheque Statement")
@@ -457,7 +499,7 @@ Window {
                         help_button.selected = false
                         uploadBtn.visible = true
                         textInput.searchmode = "stmt"
-                        stackView.push(uploadStatementComponent)
+                        navigateTo("upload")
                     }
                     function onShowChooseOptionsPage(){
                         // console.log("Showing select options component")
@@ -474,7 +516,7 @@ Window {
                         byDateBtn.selected = false
                         byChqAmtBtn.selected = false
                         byChqNoBtn.selected = false
-                        stackView.push(selectOptionsComponent)
+                        navigateTo("selectOptions")
 
                     }
                     function onValidationError(type){
@@ -617,7 +659,7 @@ Window {
                         tallyexport_button.selected = false
                         help_button.selected = false
                         uploadBtn.visible = false
-                        stackView.push(settingsPageComponent)
+                        navigateTo("settings")
                     }
                 }
 
@@ -1273,8 +1315,16 @@ Window {
                                 endDateCalendar: backend ? backend.endDateCalendar : null
                                 scaleFactorWidth: window.scaleFactorWidth
                                 scaleFactorHeight: window.scaleFactorHeight
-                                onSearchBarTextChanged: if (backend) backend.search(textInput.searchBarText, textInput.searchbyMode)
-                                onSearchbyModeChanged: if (backend) backend.search(textInput.searchBarText, textInput.searchbyMode)
+                                onSearchBarTextChanged: {
+                                    window.pendingSearchText = textInput.searchBarText
+                                    window.pendingSearchMode = textInput.searchbyMode
+                                    searchDebounceTimer.restart()
+                                }
+                                onSearchbyModeChanged: {
+                                    window.pendingSearchText = textInput.searchBarText
+                                    window.pendingSearchMode = textInput.searchbyMode
+                                    searchDebounceTimer.restart()
+                                }
                             }
                         }
                         
@@ -1335,7 +1385,10 @@ Window {
                             text: qsTr("Import")
                             selected: true
                             visible: false
+                            enabled: !(mainScreenBusyIndicator.running || busyIndicator.visible || syncProgressOverlay.visible)
+                            opacity: enabled ? 1.0 : 0.6
                             onClicked : {
+                                if (!uploadBtn.enabled) return
                                 uploadBtn.selected = false
                                 busyIndicator.visible = true
                                 if (textInput.fileDialogText == ""){
@@ -1664,7 +1717,7 @@ Window {
                                     backend.setReconciliationOutputEnabled(enabled)
                                 }
                                 onCloseRequested: {
-                                    stackView.pop()
+                                    closeSettingsPage()
                                 }
                             }
                         }

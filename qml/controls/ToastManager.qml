@@ -64,6 +64,12 @@ ListView {
     delegate: Toast {
         scaleFactorHeight: root.scaleFactorHeight
         scaleFactorWidth: root.scaleFactorWidth
+        selfDestroying: true
+        onDismissed: {
+            if (index >= 0 && index < model.count) {
+                model.remove(index)
+            }
+        }
 
         Component.onCompleted: {
             if (typeof status === "undefined") {

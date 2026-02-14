@@ -67,11 +67,9 @@ ListView {
             // Set selectedName first before selected to ensure it's available when onSelectedChanged fires
             selectedName = model.get(currentIndex).name
             selected = model.get(currentIndex).value
-            console.log(model.get(currentIndex).name + ' selected')
         } else {
             selectedName = ''
             selected = ''
-            console.log('selection cleared')
         }
     }
     

@@ -608,7 +608,6 @@ Rectangle {
     }
 
     onTableDataChanged: {
-        console.log("CustomTableView2: tableData changed:", tableData ? tableData.length : 0, "columns:", columns ? columns.length : 0)
         if (tableFlick) {
             tableFlick.contentY = 0
         }

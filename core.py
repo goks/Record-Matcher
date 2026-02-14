@@ -21,10 +21,13 @@ from dateutil.relativedelta import relativedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import time
+import logging
 
 # Import centralized date handler
 from date_handler import DateHandler, get_date_handler, validate_date_range
 import random
+
+logger = logging.getLogger(__name__)
 
 # Import memory optimization utilities
 from memory_optimizer import (
@@ -446,7 +449,7 @@ class JsonDataLoader:
             }
             self._cache_timestamp = os.path.getmtime(self.json_path)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"Error loading JSON file: {e}")
+            logger.warning("Error loading JSON file %s: %s", self.json_path, e)
             
     def get_years(self):
         return self.years
@@ -601,7 +604,7 @@ class InfiChequeStatement:
         try:
             bank_date = dateutil.parser.parse(bank_date, dayfirst=True)
         except :
-            print(bank_date)
+            logger.exception("Failed to parse bank date: %s", bank_date)
             raise
         infiChqStmtDate = datetime.datetime.strptime(infiChqStmtDate, "%d/%m/%Y")
         if infiChqStmtDate>bank_date:
@@ -734,7 +737,7 @@ class HDFCBankChequeStatement:
             try:
                 val=self.worksheet.cell(i,0).value
             except IndexError:
-                print("Cannot find startRow in HDfc statement.")
+                logger.warning("Cannot find startRow in HDFC statement.")
                 return  
             if val == "Date":
                 if self.worksheet.cell(i+1,0).value[0]=='*':
@@ -755,7 +758,7 @@ class HDFCBankChequeStatement:
             except IndexError:
                 break     
             if(len(val.split('/'))!=3):
-                print("Reached end of hdfc statement")
+                logger.debug("Reached end of HDFC statement")
                 break
             for j in range(0,7):
                 val = None
@@ -805,17 +808,17 @@ class ICICIBankChequeStatement:
         try:
             val=self.worksheet.cell(i,0).value
         except IndexError:
-            print("Cannot find startRow in ICICI statement.")
+            logger.warning("Cannot find startRow in ICICI statement.")
             return  
         try: 
             val2 = self.worksheet.cell(i-1,0).value.split('-')[2]
         except:
-            print("Invalid ICICI statement.")
+            logger.warning("Invalid ICICI statement.")
             return
         if val == "No.":
             self.start_row=i+1
         else:
-            print("Invalid ICICI statement.")
+            logger.warning("Invalid ICICI statement.")
         return    
     
     def process_narration(self, entry):
@@ -837,7 +840,7 @@ class ICICIBankChequeStatement:
             parsed_date = handler.parse(str(date), dayfirst=True)
             entry[2] = handler.format(parsed_date, handler.TALLY_OUTPUT_FORMAT)
         except Exception:
-            print(date)
+            logger.exception("Failed to process ICICI statement date: %s", date)
             raise
         return entry        
 
@@ -850,7 +853,7 @@ class ICICIBankChequeStatement:
             try:
                 val = self.worksheet.cell(i,0).value
             except IndexError:
-                print("Reached end of Icici statement")
+                logger.debug("Reached end of ICICI statement")
                 break
             for j in range(0,9):
                 val = None
@@ -1009,11 +1012,11 @@ class ChequeReportCollection:
             
             if not os.path.exists(target_dir):
                 os.makedirs(target_dir)
-                print(f"Directory created: {target_dir}")
+                logger.info("Directory created: %s", target_dir)
             else:
-                print(f"Directory already exists: {target_dir}")
+                logger.debug("Directory already exists: %s", target_dir)
         else:
-            print("APPDATA environment variable is not set.")
+            logger.error("APPDATA environment variable is not set.")
             return
         try:
             # raise FileNotFoundError
@@ -1022,12 +1025,12 @@ class ChequeReportCollection:
                 self.cheque_report_dict = data_loaded
         except FileNotFoundError:
             return False
-        print('LOAD OK')    
+        logger.info("ChequeReportCollection loaded")
         self.print_cheque_report()    
         return
     def save_cheque_report_collection(self):
         if not self.cheque_report_dict:
-            print('Empty dict, save skip')
+            logger.debug("ChequeReportCollection save skipped: empty dictionary")
             return(True, 0)
         try:
             # print(self.cheque_report_dict)
@@ -1038,13 +1041,13 @@ class ChequeReportCollection:
             return None,-1
         except FileNotFoundError:    
             return None,-2
-        print('SAVE OK')     
+        logger.info("ChequeReportCollection saved")
         # self.print_cheque_report()    
         return True, 0        
     def print_cheque_report(self):
-        print("*******ChequeReportCollection*******")
+        logger.debug("*******ChequeReportCollection*******")
         for key,val in self.cheque_report_dict.items():
-            print(key,':',val)
+            logger.debug("%s: %s", key, val)
         return                        
     def get_dict_reference(self, year,  company):
         company = company.lower()
@@ -1054,15 +1057,15 @@ class ChequeReportCollection:
     def delete_cheque_report_from_collection(self,  year,  company):
         ref = self.get_dict_reference(year,company)
         if not ref:
-            print('FAIL: No reference for key in tabledict generated')
+            logger.error("Delete cheque report failed: no reference generated for %s/%s", company, year)
             return False
-        print('deleting table of ',company,year,'from table list with ref',ref)    
+        logger.info("Deleting cheque report %s/%s with ref %s", company, year, ref)
         self.cheque_report_dict[ref] = None
         status, code = self.save_cheque_report_collection()
         if status:
-            print('ChequeReportCollection save success!!')
+            logger.info("ChequeReportCollection delete persisted successfully")
         else:
-            print('ChequeReportCollection save fail with code ',code)   
+            logger.error("ChequeReportCollection delete persist failed with code %s", code)
         return True   
     def add_cheque_report_to_collection(self, chequeReport,ref=None):
         if not ref:
@@ -1070,15 +1073,15 @@ class ChequeReportCollection:
             company = chequeReport.get_company()
             ref = self.get_dict_reference(year,company)
         if not ref:
-            print('FAIL: No reference for key in tabledict generated')
+            logger.error("Add cheque report failed: no reference generated")
             return False
-        print('adding chequeReport to chequeReportCollection with ref',ref)    
+        logger.info("Adding cheque report to collection with ref %s", ref)
         self.cheque_report_dict[ref] = chequeReport
         status, code = self.save_cheque_report_collection()
         if status:
-            print('ChequeReportCollection save success!!')
+            logger.info("ChequeReportCollection add persisted successfully")
         else:
-            print('ChequeReportCollection save fail with code ',code)   
+            logger.error("ChequeReportCollection add persist failed with code %s", code)
         return True   
     def get_cheque_report_from_collection(self,  year, company):
         ref = self.get_dict_reference(year,company)
@@ -1112,26 +1115,26 @@ class TableSnapshotCollection:
     def rename_old_save_path(self):
         os.rename(self.save_path_old,self.save_path_old+'_000')        
     def load_table(self):
-        print(self.save_path)
+        logger.debug("Loading table collection from %s", self.save_path)
         try:
             with open(self.save_path, 'rb') as f:
                 data_loaded = pickle.load(f)
                 self.table_list = data_loaded
         except FileNotFoundError:
-            print("Load Failed. New installation?.")
+            logger.info("Table collection load skipped: file not found (new installation?)")
             return False
-        print('LOAD OK')    
+        logger.info("Table collection loaded")
         # self.print_table()    
         return True
     def load_old_table(self):
-        print(self.save_path_old)
+        logger.debug("Loading old table collection from %s", self.save_path_old)
         try:
             with open(self.save_path_old, 'rb') as f:
                 data_loaded = pickle.load(f)
                 self.table_list = data_loaded
         except FileNotFoundError:
             return False
-        print('Old file loaded')    
+        logger.info("Old table collection loaded")
         self.print_table(old = True)    
         return True  
     def get_table_list(self):
@@ -1145,16 +1148,16 @@ class TableSnapshotCollection:
             return None,-1
         except FileNotFoundError:    
             return None,-2
-        print('SAVE OK')     
+        logger.info("Table collection saved")
         # self.print_table()    
         return True, 0        
     def print_table(self, old=False):
         if old:
-            print("*******OLDTableSnapshotCollection*******")    
+            logger.debug("*******OLDTableSnapshotCollection*******")
         else:    
-            print("*******TableSnapshotCollection*******")
+            logger.debug("*******TableSnapshotCollection*******")
         for key,val in self.table_list.items():
-            print(key,':',val)
+            logger.debug("%s: %s", key, val)
         return                        
     def get_dict_reference(self, month, year, bank, company):
         month = month.lower()  
@@ -1167,35 +1170,43 @@ class TableSnapshotCollection:
     def delete_table_from_collection(self, month, year, bank, company):
         ref = self.get_dict_reference(month,year,bank,company)
         if not ref:
-            print('FAIL: No reference for key in tabledict generated')
+            logger.error("Delete table failed: no reference generated for %s/%s/%s/%s", company, month, year, bank)
             return False
-        print('deleting table of ',company,month,year,bank,'from table list with ref',ref)    
+        logger.info("Deleting table %s/%s/%s/%s with ref %s", company, month, year, bank, ref)
         self.table_list[ref] = None
         status, code = self.save_table()
         if status:
-            print('TableCollection save success!!')
+            logger.info("TableCollection delete persisted successfully")
         else:
-            print('TableCollection save fail with code ',code)   
+            logger.error("TableCollection delete persist failed with code %s", code)
         return True   
     def add_table_to_colection(self, tableSnapshot, save=True):
         month = tableSnapshot.get_month()
         year = tableSnapshot.get_year()
         company = tableSnapshot.get_company()
         bank = tableSnapshot.get_bank()     
-        print(month, year,company,bank, tableSnapshot.get_master_excel_export_path(), tableSnapshot.get_save_path())       
+        logger.debug(
+            "Adding table snapshot month=%s year=%s company=%s bank=%s export_path=%s save_path=%s",
+            month,
+            year,
+            company,
+            bank,
+            tableSnapshot.get_master_excel_export_path(),
+            tableSnapshot.get_save_path(),
+        )
         ref = self.get_dict_reference(month,year,bank,company)
         if not ref:
-            print('FAIL: No reference for key in tabledict generated')
+            logger.error("Add table failed: no reference generated for %s/%s/%s/%s", company, month, year, bank)
             return False
-        print('adding table to ',month,year,bank,company,'to table list with ref',ref,'.')    
+        logger.info("Adding table %s/%s/%s/%s with ref %s", month, year, bank, company, ref)
         self.table_list[ref] = tableSnapshot
         if not save: 
             return
         status, code = self.save_table()
         if status:
-            print('TableCollection save success!!')
+            logger.info("TableCollection add persisted successfully")
         else:
-            print('TableCollection save fail with code ',code)   
+            logger.error("TableCollection add persist failed with code %s", code)
         return True   
     def get_table_from_collection(self, month, year, bank,company):
         ref = self.get_dict_reference(month,year,bank,company)
@@ -1232,10 +1243,10 @@ class StorageManager:
         self.chequeReportCollection = ChequeReportCollection()
         
         if self.chequeReportCollection.load_cheque_report_collection():
-            print('StorageManager: ChequeReportCollection loaded successfully')
+            logger.info("StorageManager: ChequeReportCollection loaded successfully")
         
         if self.tableSnapshotCollection.load_table():
-            print('StorageManager: TableSnapshotCollection loaded successfully')
+            logger.info("StorageManager: TableSnapshotCollection loaded successfully")
     
     def get_table_snapshot(self, month: str, year: str, bank: str, company: str) -> Optional['TableSnapshot']:
         """Retrieve a table snapshot from the collection.
@@ -1505,7 +1516,7 @@ class ExcelProcessor:
         except PermissionError:
             return False, -5
         except Exception as e:
-            print(f"Error exporting to Excel: {e}")
+            logger.exception("Error exporting to Excel: %s", e)
             return False, 99
 
 
@@ -1968,7 +1979,7 @@ class DataProcessor:
                     each['Bank Narration'] = "Double Match"
                     continue
                 else:
-                    print(f"Error at entry: {each}")
+                    logger.exception("Error parsing bank date for entry: %s", each)
                     raise
             
             if start_date == "" or start_date > bank_date:
@@ -2059,7 +2070,7 @@ class DataProcessor:
                         }
                     else:
                         # Additional matches - show as separate rows
-                        print("Double match found.")
+                        logger.debug("Double match found for HDFC cheque number: %s", bank_entry[2])
                         table_row = {
                             'Bank Date': "",
                             'Bank Narration': "",
@@ -2135,7 +2146,7 @@ class DataProcessor:
                             'meta': "" if len(match_list) == 1 else "double"
                         }
                     else:
-                        print("Double match found.")
+                        logger.debug("Double match found for ICICI cheque number: %s", bank_entry[4])
                         table_row = {
                             'Bank Date': "",
                             'Bank Narration': "",
@@ -2192,7 +2203,7 @@ class DataProcessor:
             financial_year = year
         
         previous_financial_year = str(int(financial_year) - 1)
-        print(f"FINANCIAL YEAR = {financial_year}")
+        logger.debug("Financial year resolved for snapshot creation: %s", financial_year)
         
         # Get cheque reports
         infiChequeStatement = storageManager.get_cheque_report(financial_year, company)
@@ -2230,7 +2241,7 @@ class DataProcessor:
             return True, 1
             
         except Exception as e:
-            print(f"Error creating snapshot: {e}")
+            logger.exception("Error creating snapshot: %s", e)
             return False, -99
 
 
@@ -2291,7 +2302,7 @@ class DaybookService:
                 break
             tempDate = tempDate + relativedelta(months=+1)
         
-        print(list_of_months)
+        logger.debug("Daybook month range resolved: %s", list_of_months)
         
         # Collect snapshots for all required months/banks
         snapshot_list = []
@@ -2303,7 +2314,7 @@ class DaybookService:
             for [month, year] in list_of_months:
                 snapshot = storageManager.get_table_snapshot(month, str(year), bank, company)
                 if not snapshot:
-                    print(f"No snapshot for {month} {year} {bank} {company}")
+                    logger.warning("No snapshot for %s %s %s %s", month, year, bank, company)
                     return False, -7, f"{month} {year} {bank}"
                 snapshot_list.append(snapshot)
         
@@ -2459,7 +2470,7 @@ class FirebaseService:
         except Exception as e:
             results['success'] = False
             results['errors'].append(f"Upload failed: {e}")
-            print(f"Firebase upload error: {e}")
+            logger.exception("Firebase upload error: %s", e)
         
         return results
     
@@ -2576,7 +2587,7 @@ class FirebaseService:
         except Exception as e:
             results['success'] = False
             results['errors'].append(f"Download failed: {e}")
-            print(f"Firebase download error: {e}")
+            logger.exception("Firebase download error: %s", e)
         
         return results
     
@@ -2599,27 +2610,27 @@ class FirebaseService:
             stacklevel=2
         )
         # Upload left menu
-        print("Uploading left-menu values to db")
+        logger.info("Uploading left-menu values to Firebase")
         callbackFuncforProgress("Processing Left Menu values", "Retrieving values to upload", 0.0)
         
         with open(self.leftMenuJsonPath) as f:
             data = json.load(f)
         leftmenu_future = self.firebaseControls.set_leftMenu_data_async(data)
         
-        print("Uploading tableSnapshot values to db")
+        logger.info("Uploading table snapshots to Firebase")
         callbackFuncforProgress("Processing Left Menu values", "Uploading...", 0.5)
         
         try:
             leftmenu_future.result(timeout=30)
             callbackFuncforProgress("Processing Left Menu values", "Finished uploading", 1.0)
         except Exception as e:
-            print(f"Error uploading left menu: {e}")
+            logger.exception("Error uploading left menu: %s", e)
             callbackFuncforProgress("Processing Left Menu values", "Error occurred", 1.0)
         
         # Upload cheque reports
         callbackFuncforProgress("Processing cheque reports", "Retrieving snapshots to upload", 0.0)
         collection_dict = storageManager.get_all_cheque_reports()
-        print(f"Found {len(collection_dict)} cheque reports to upload")
+        logger.info("Found %s cheque reports to upload", len(collection_dict))
         
         cheque_upload_dict = {}
         for key, obj in collection_dict.items():
@@ -2630,7 +2641,7 @@ class FirebaseService:
             def cheque_progress(current, total, key):
                 progress = round(current * 8 / total) / 10
                 callbackFuncforProgress("Processing cheque reports", f"Uploading {key}", progress)
-                print(f"Uploaded chequeReport: {key} ({current}/{total})")
+                logger.debug("Uploaded chequeReport: %s (%s/%s)", key, current, total)
             
             self.firebaseControls.batch_set_chequeReports(cheque_upload_dict, cheque_progress)
         
@@ -2639,7 +2650,7 @@ class FirebaseService:
         # Upload table snapshots
         callbackFuncforProgress("Processing table snapshots", "Retrieving values to upload", 0.0)
         table_list = storageManager.get_all_table_snapshots()
-        print(f"Found {len(table_list)} table snapshots to upload")
+        logger.info("Found %s table snapshots to upload", len(table_list))
         
         snapshot_upload_dict = {}
         for key, obj in table_list.items():
@@ -2650,7 +2661,7 @@ class FirebaseService:
             def snapshot_progress(current, total, key):
                 progress = round(current * 8 / total) / 10
                 callbackFuncforProgress("Processing table snapshots", f"Uploading {key}", progress)
-                print(f"Uploaded tablesnapshot: {key} ({current}/{total})")
+                logger.debug("Uploaded tablesnapshot: %s (%s/%s)", key, current, total)
             
             self.firebaseControls.batch_set_tableSnapshots(snapshot_upload_dict, snapshot_progress)
         
@@ -2673,7 +2684,7 @@ class FirebaseService:
             stacklevel=2
         )
         # Download left menu
-        print("Getting left-menu values from db")
+        logger.info("Downloading left-menu values from Firebase")
         callbackFuncforProgress("Processing Left Menu values", "Downloading values from Firebase", 0.0)
         
         leftmenu_future = self.firebaseControls.get_leftMenu_data_async()
@@ -2686,13 +2697,13 @@ class FirebaseService:
                 outfile.write(data)
             callbackFuncforProgress("Processing Left Menu values", "Finished", 1.0)
         except Exception as e:
-            print(f"Error downloading left menu: {e}")
+            logger.exception("Error downloading left menu: %s", e)
             callbackFuncforProgress("Processing Left Menu values", "Error occurred", 1.0)
         
         callbackFuncforProgress("Processing cheque reports", "Downloading values from Firebase", 0.0)
         
         # Download table snapshots
-        print("Downloading tableSnapshot values from db")
+        logger.info("Downloading table snapshots from Firebase")
         callbackFuncforProgress("Processing table snapshots", "Downloading values from Firebase", 0.0)
         
         snapshot_future = self.firebaseControls.get_tableSnapshot_async()
@@ -2717,20 +2728,20 @@ class FirebaseService:
                     )
                     
                     if not tableSnapshot:
-                        print(f"New tableSnapshot for {key}")
+                        logger.debug("New tableSnapshot for %s", key)
                         tableSnapshot = TableSnapshot(incomingTableSnapshotData[key])
                         storageManager.save_table_snapshot(tableSnapshot)
                     else:
-                        print(f"Existing tableSnapshot found for {key}, replacing master table data")
+                        logger.debug("Existing tableSnapshot found for %s, replacing master table data", key)
                         tableSnapshot.set_master_table(incomingTableSnapshotData[key]['master_table'])
                 
                 callbackFuncforProgress("Processing table snapshots", "Finalizing", 0.9)
             else:
-                print("No table snapshots found in Firebase")
+                logger.info("No table snapshots found in Firebase")
             
             callbackFuncforProgress("Processing table snapshots", "Finished", 1.0)
         except Exception as e:
-            print(f"Error downloading table snapshots: {e}")
+            logger.exception("Error downloading table snapshots: %s", e)
             callbackFuncforProgress("Processing table snapshots", "Error occurred", 1.0)
 
 
@@ -2775,7 +2786,7 @@ class  TableOperations:
         self.bank = None
         self.company = None
         
-        print("TableOperations initialized with service-oriented architecture")
+        logger.info("TableOperations initialized with service-oriented architecture")
 
     # ===== Firebase Operations (delegate to FirebaseService) =====
     
@@ -3062,14 +3073,14 @@ class FirebaseControls:
             # Initialize Firebase app only if not already initialized
             try:
                 FirebaseControls._app = firebase_admin.get_app()
-                print("Firebase app already initialized - reusing connection")
+                logger.debug("Firebase app already initialized - reusing connection")
             except ValueError:
                 # App doesn't exist, initialize it
                 cred = credentials.Certificate(certificate_path)
                 FirebaseControls._app = firebase_admin.initialize_app(cred, {
                     'databaseURL': 'https://recordmatcher-default-rtdb.firebaseio.com/'
                 })
-                print("Firebase app initialized successfully")
+                logger.info("Firebase app initialized successfully")
             
             # Create database references (reusable across all instances)
             FirebaseControls._tableSnapshot_ref = db.reference("/tableSnapshot/")
@@ -3081,7 +3092,7 @@ class FirebaseControls:
             self._lock = threading.Lock()
             
             FirebaseControls._initialized = True
-            print(f"Firebase connection pool initialized with {max_workers} workers")
+            logger.info("Firebase connection pool initialized with %s workers", max_workers)
     
     @property
     def tableSnapshot_ref(self):
@@ -3134,14 +3145,19 @@ class FirebaseControls:
             try:
                 result = operation()
                 if attempt > 0:
-                    print(f"✓ {operation_name} succeeded on attempt {attempt + 1}")
+                    logger.info("%s succeeded on attempt %s", operation_name, attempt + 1)
                 return result
             except Exception as e:
                 last_exception = e
                 
                 # Don't retry on final attempt
                 if attempt >= max_retries:
-                    print(f"✗ {operation_name} failed after {max_retries + 1} attempts: {e}")
+                    logger.error(
+                        "%s failed after %s attempts: %s",
+                        operation_name,
+                        max_retries + 1,
+                        e,
+                    )
                     break
                 
                 # Calculate exponential backoff with jitter
@@ -3149,8 +3165,14 @@ class FirebaseControls:
                 jitter = random.uniform(0, delay * 0.1)  # Add 10% jitter
                 sleep_time = delay + jitter
                 
-                print(f"⚠ {operation_name} failed (attempt {attempt + 1}/{max_retries + 1}): {e}")
-                print(f"  Retrying in {sleep_time:.2f}s...")
+                logger.warning(
+                    "%s failed (attempt %s/%s): %s",
+                    operation_name,
+                    attempt + 1,
+                    max_retries + 1,
+                    e,
+                )
+                logger.info("Retrying in %.2fs...", sleep_time)
                 time.sleep(sleep_time)
         
         raise last_exception
@@ -3305,7 +3327,7 @@ class FirebaseControls:
                     progress_callback(idx, total, key)
             except Exception as e:
                 results.append((key, False, str(e)))
-                print(f"Error uploading {key}: {e}")
+                logger.error("Error uploading %s: %s", key, e)
         
         return results
     
@@ -3336,7 +3358,7 @@ class FirebaseControls:
                     progress_callback(idx, total, key)
             except Exception as e:
                 results.append((key, False, str(e)))
-                print(f"Error uploading {key}: {e}")
+                logger.error("Error uploading %s: %s", key, e)
         
         return results
 
@@ -3506,7 +3528,7 @@ class IntermediateDaybook:
         return output_df  
     def prepare_receipt_voucher_with_cheques_daybook_entries(self, consolidated_df):
         if consolidated_df.empty:
-            print("Empty consolidatedChequeReceiptVouchers")
+            logger.warning("Empty consolidatedChequeReceiptVouchers")
             return pd.DataFrame()
         consolidated_df['Narration'] = consolidated_df.apply(lambda x: x['Cheque No.'] if x['Bank Name']==HDFC_TALLY_LEDGERNAME else x['Narration'], axis=1 )
         row_1_df = pd.DataFrame()
@@ -3608,17 +3630,17 @@ class ConsolidatedReceiptVouchers:
         if mode == "matched_cheques":
             self.main_df.to_excel('./temp/receipt cheque voucher consolidated.xlsx')
             self.receipt_with_cheques = self.main_df    
-            print('Prepared consolidated Receipt Vouchers df')
+            logger.info("Prepared consolidated Receipt Vouchers dataframe")
         else:
             self.main_df.to_excel('./temp/receipt voucher without cheques daybook.xlsx') 
             self.receipt_without_cheques = self.main_df   
-            print('Prepared consolidated Receipt Vouchers without cheques df')
+            logger.info("Prepared consolidated Receipt Vouchers without cheques dataframe")
 
     def process_date(self, val):
         try:
             return dateutil.parser.parse(val, dayfirst=True)
         except :
-            print("Cannot process invalid date value: '", val, "'. Skipping")
+            logger.warning("Cannot process invalid date value '%s'. Skipping", val)
             return np.NaN
     def get_receipts_without_cheque_entries(self):
         self.main_df = self.main_df.replace(r'^\s*$', np.NaN, regex=True)

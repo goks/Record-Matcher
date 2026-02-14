@@ -16,6 +16,7 @@ import QtQuick.Controls 6.5
   * @brief An Android-like timed message text in a box that self-destroys when finished if desired
   */
 Rectangle {
+    signal dismissed()
 
     /**
       * Public
@@ -220,6 +221,7 @@ Rectangle {
             animation.stop()
             root.opacity = 0
             root.visible = false
+            root.dismissed()
         }
     }
     Button {
@@ -235,6 +237,7 @@ Rectangle {
             animation.stop()
             root.opacity = 0
             root.visible = false
+            root.dismissed()
         }
     }
     // TODO Qt6: DropShadow disabled
@@ -261,6 +264,7 @@ Rectangle {
 
         onRunningChanged: {
             if (!running && selfDestroying) {
+                root.dismissed()
                 root.destroy();
             }
         }

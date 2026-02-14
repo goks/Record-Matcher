@@ -1856,7 +1856,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             companyname: Selected company name
             screenName: Screen name for display
         """
-        print(f"DEBUG companyChanged: companyname={companyname}, screenName={screenName}")
+        logger.debug(f"companyChanged: companyname={companyname}, screenName={screenName}")
         # Update service layer state
         self.state_service.update_company(companyname)
         # Sync back to UI state
@@ -1864,12 +1864,12 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         with self._state_lock:
             self._companyData = screenName
-            print(f"DEBUG _companyData set to: {self._companyData}")
+            logger.debug(f"_companyData set to: {self._companyData}")
             cheque_activated = self.chequeReportActivated
             tally_activated = self.tallyExportBoxActivated
         
         self.companyData_changed.emit()
-        print(f"DEBUG companyData_changed emitted")
+        logger.debug("companyData_changed emitted")
         
         if cheque_activated:
             status, data = self.populateChequeReports()
@@ -1888,7 +1888,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             bankname: Selected bank name
             screenName: Screen name for display
         """
-        print(f"DEBUG bankChanged: bankname={bankname}, screenName={screenName}")
+        logger.debug(f"bankChanged: bankname={bankname}, screenName={screenName}")
         # Update service layer state
         self.state_service.update_bank(bankname)
         # Sync back to UI state
@@ -1896,9 +1896,9 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         with self._state_lock:
             self._bankData = screenName
-            print(f"DEBUG _bankData set to: {self._bankData}")
+            logger.debug(f"_bankData set to: {self._bankData}")
         self.bankData_changed.emit()
-        print(f"DEBUG bankData_changed emitted")
+        logger.debug("bankData_changed emitted")
         self._set_table_available(False, clear_ui_data=True)
         self.populate_table()
     @Slot(str)
@@ -1976,11 +1976,11 @@ class MainWindow(QObject, UIOptimizationMixin):
     def setChequeReportActivated(self,status):
         self.chequeReportActivated = status
         self.update_monthYearData()
-        print("STATUS: ",status)
+        logger.debug(f"Cheque report mode status: {status}")
     @Slot(bool)
     def setTallyExportBoxActivated(self,status):
         self.tallyExportBoxActivated = status
-        print("STATUS: ",status)    
+        logger.debug(f"Tally export mode status: {status}")
     @Slot()
     def call_populate_table(self):
         self.populate_table()    
@@ -2008,7 +2008,6 @@ class MainWindow(QObject, UIOptimizationMixin):
         return self._companyDict
     @Signal
     def table_data_changed(self):
-        print('table_data_changed')
         return
     def get_table_data(self):
         """Get table data from state service."""
@@ -2016,7 +2015,6 @@ class MainWindow(QObject, UIOptimizationMixin):
         return table_data 
     @Signal
     def creditBal_changed(self):
-        print('creditBal_changed')
         return
     def get_creditBal(self):
         """Get credit balance from state service."""
@@ -2024,7 +2022,6 @@ class MainWindow(QObject, UIOptimizationMixin):
         return credit_bal
     @Signal
     def debitBal_changed(self):
-        print('debitBal_changed')
         return
     def get_debitBal(self):
         """Get debit balance from state service."""
@@ -2032,31 +2029,26 @@ class MainWindow(QObject, UIOptimizationMixin):
         return debit_bal         
     @Signal
     def header_changed(self):
-        print('header_changed')
         return
     def get_header(self):
         return self._header    
     @Signal
     def monthYearData_changed(self):
-        print('monthYearData_changed')
         return
     def get_monthYearData(self):
         return self._monthYearData
     @Signal
     def companyData_changed(self):
-        print('companyData_changed')
         return
     def get_companyData(self):
         return self._companyData 
     @Signal
     def bankData_changed(self):
-        print('bankData_changed')
         return
     def get_bankData(self):
         return self._bankData
     @Signal
     def selectedRows_changed(self):
-        print('selectedRows_changed')
         return
     def get_selectedRows(self):
         return self._selectedRows  
@@ -2227,15 +2219,11 @@ class TableBackend(QObject):
     @Slot(int, list)
     def tableRowSelectedNotify(self, currentRow, selectedRows):
         self.checkedRows = selectedRows
-        print("currentRow " , currentRow)
-        print('Before: ',self.checkedRows)
         if currentRow in self.checkedRows:
             self.checkedRows.remove(currentRow)
-            print('After: ',self.checkedRows)
             self.tableRowSelected.emit(self.checkedRows)
         else:
             self.checkedRows.append(currentRow)
-            print('After: ',self.checkedRows)
             self.tableRowSelected.emit(self.checkedRows)
 
 if __name__ == "__main__":
