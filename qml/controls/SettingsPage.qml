@@ -33,12 +33,18 @@ Rectangle {
     property string databasePath: ""
     property int totalSnapshotCount: 0
     property int totalChequeReportCount: 0
+    property var erpBankMapping: []
+    property var erpBankOptions: ({})
+    property bool reconciliationOutputEnabled: true
     
     // Signals to trigger operations
     signal uploadRequested()
     signal downloadRequested()
     signal closeRequested()
     signal migrationRequested()
+    signal erpBankMappingUpdated(string company, string bank, string bankCode)
+    signal saveErpBankMappingRequested()
+    signal reconciliationOutputToggleRequested(bool enabled)
     
     // Helper functions
     function hscale(size) {
@@ -62,6 +68,34 @@ Rectangle {
         } catch (e) {
             return timestamp
         }
+    }
+
+    function getBankOptions(company, bank) {
+        var c = (company || "").toString()
+        var b = (bank || "").toString()
+        if (!erpBankOptions || !erpBankOptions[c] || !erpBankOptions[c][b]) {
+            return []
+        }
+        return erpBankOptions[c][b]
+    }
+
+    function getFinancialYearLabel(company) {
+        var c = (company || "").toString()
+        if (!erpBankOptions || !erpBankOptions[c]) {
+            return ""
+        }
+        return erpBankOptions[c]["financial_year"] || ""
+    }
+
+    function findOptionIndex(company, bank, code) {
+        var options = getBankOptions(company, bank)
+        var target = (code || "").toString()
+        for (var i = 0; i < options.length; i++) {
+            if ((options[i].code || "").toString() === target) {
+                return i
+            }
+        }
+        return -1
     }
     
     color: "#f8fafc"
@@ -115,6 +149,61 @@ Rectangle {
                 Item { Layout.fillWidth: true }
             }
             
+            // Firebase Sync Section
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: reconcileOutputContent.height + vscale(26)
+                radius: hscale(12)
+                color: "#ffffff"
+                border.color: "#e2e8f0"
+                border.width: 1
+
+                RowLayout {
+                    id: reconcileOutputContent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: hscale(20)
+                    spacing: hscale(14)
+
+                    Rectangle {
+                        width: hscale(40)
+                        height: hscale(40)
+                        radius: hscale(8)
+                        color: "#fef9c3"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "📄"
+                            font.pixelSize: hscale(18)
+                        }
+                    }
+
+                    Column {
+                        Layout.fillWidth: true
+                        spacing: vscale(2)
+                        Text {
+                            text: "Reconciliation Excel Output"
+                            font.family: "PT Sans Caption"
+                            font.pixelSize: tscale(14)
+                            font.weight: Font.DemiBold
+                            color: "#1e293b"
+                        }
+                        Text {
+                            text: "When off, reconciliation updates data but does not create Excel files."
+                            font.family: "PT Sans Caption"
+                            font.pixelSize: tscale(10)
+                            color: "#64748b"
+                        }
+                    }
+
+                    Switch {
+                        id: reconOutputSwitch
+                        checked: reconciliationOutputEnabled
+                        onToggled: settingsPage.reconciliationOutputToggleRequested(checked)
+                    }
+                }
+            }
+
             // Firebase Sync Section
             Rectangle {
                 Layout.fillWidth: true
@@ -761,6 +850,191 @@ Rectangle {
                 }
             }
             
+            // About Section
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: mappingSectionContent.height + vscale(32)
+                radius: hscale(12)
+                color: "#ffffff"
+                border.color: "#e2e8f0"
+                border.width: 1
+
+                ColumnLayout {
+                    id: mappingSectionContent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: hscale(20)
+                    spacing: vscale(16)
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: hscale(12)
+
+                        Rectangle {
+                            width: hscale(40)
+                            height: hscale(40)
+                            radius: hscale(8)
+                            color: "#e0f2fe"
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "🏦"
+                                font.pixelSize: hscale(20)
+                            }
+                        }
+
+                        Column {
+                            Layout.fillWidth: true
+                            spacing: vscale(2)
+
+                            Text {
+                                text: "ERP Bank Mapping"
+                                font.family: "PT Sans Caption"
+                                font.pixelSize: tscale(16)
+                                font.weight: Font.DemiBold
+                                color: "#1e293b"
+                            }
+
+                            Text {
+                                text: "Set exact ERP bank Code per company for ICICI/HDFC reconciliation"
+                                font.family: "PT Sans Caption"
+                                font.pixelSize: tscale(11)
+                                color: "#64748b"
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: "#e2e8f0"
+                    }
+
+                    Repeater {
+                        model: erpBankMapping
+
+                        delegate: Rectangle {
+                            Layout.fillWidth: true
+                            height: vscale(84)
+                            color: "#f8fafc"
+                            radius: hscale(8)
+                            border.color: "#e2e8f0"
+                            border.width: 1
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: hscale(10)
+                                spacing: hscale(12)
+
+                                Column {
+                                    Layout.preferredWidth: hscale(210)
+                                    spacing: vscale(2)
+
+                                    Text {
+                                        text: modelData.company_name
+                                        font.family: "PT Sans Caption"
+                                        font.pixelSize: tscale(12)
+                                        font.weight: Font.DemiBold
+                                        color: "#1e293b"
+                                        elide: Text.ElideRight
+                                        width: hscale(200)
+                                    }
+
+                                    Text {
+                                        text: {
+                                            var fy = settingsPage.getFinancialYearLabel(modelData.company)
+                                            return fy ? ("Ledger source FY: " + fy) : "Ledger source FY: N/A"
+                                        }
+                                        font.family: "PT Sans Caption"
+                                        font.pixelSize: tscale(10)
+                                        color: "#64748b"
+                                    }
+                                }
+
+                                Text {
+                                    text: "ICICI"
+                                    font.family: "PT Sans Caption"
+                                    font.pixelSize: tscale(11)
+                                    color: "#64748b"
+                                }
+
+                                ComboBox {
+                                    id: iciciCombo
+                                    Layout.preferredWidth: hscale(280)
+                                    model: settingsPage.getBankOptions(modelData.company, "icici")
+                                    textRole: "name"
+                                    valueRole: "code"
+                                    enabled: model.length > 0
+                                    onActivated: {
+                                        settingsPage.erpBankMappingUpdated(modelData.company, "icici", currentValue)
+                                    }
+                                    Component.onCompleted: {
+                                        currentIndex = settingsPage.findOptionIndex(modelData.company, "icici", modelData.icici_code)
+                                    }
+                                    onCountChanged: {
+                                        if (currentIndex < 0) {
+                                            currentIndex = settingsPage.findOptionIndex(modelData.company, "icici", modelData.icici_code)
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    text: "HDFC"
+                                    font.family: "PT Sans Caption"
+                                    font.pixelSize: tscale(11)
+                                    color: "#64748b"
+                                }
+
+                                ComboBox {
+                                    id: hdfcCombo
+                                    Layout.preferredWidth: hscale(280)
+                                    model: settingsPage.getBankOptions(modelData.company, "hdfc")
+                                    textRole: "name"
+                                    valueRole: "code"
+                                    enabled: model.length > 0
+                                    onActivated: {
+                                        settingsPage.erpBankMappingUpdated(modelData.company, "hdfc", currentValue)
+                                    }
+                                    Component.onCompleted: {
+                                        currentIndex = settingsPage.findOptionIndex(modelData.company, "hdfc", modelData.hdfc_code)
+                                    }
+                                    onCountChanged: {
+                                        if (currentIndex < 0) {
+                                            currentIndex = settingsPage.findOptionIndex(modelData.company, "hdfc", modelData.hdfc_code)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: vscale(46)
+                        radius: hscale(8)
+                        color: saveMapMouseArea.containsMouse ? "#1d4ed8" : "#2563eb"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Save ERP Mapping"
+                            font.family: "PT Sans Caption"
+                            font.pixelSize: tscale(13)
+                            font.weight: Font.DemiBold
+                            color: "#ffffff"
+                        }
+
+                        MouseArea {
+                            id: saveMapMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: settingsPage.saveErpBankMappingRequested()
+                        }
+                    }
+                }
+            }
+
             // About Section
             Rectangle {
                 Layout.fillWidth: true

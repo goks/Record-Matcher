@@ -43,3 +43,7 @@ timeout_seconds = 30
 last_sync_upload = ""  # ISO timestamp of last upload
 last_sync_download = ""  # ISO timestamp of last download
 sync_enabled = true  # Set to false to disable Firebase sync
+
+[reconciliation]
+# Reconciliation output behavior
+output_excel_enabled = true

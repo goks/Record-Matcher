@@ -158,6 +158,19 @@ class FirebaseConfig(BaseModel):
         extra = "forbid"
 
 
+class ReconciliationConfig(BaseModel):
+    """Reconciliation behavior configuration."""
+
+    output_excel_enabled: bool = Field(
+        default=True,
+        description="Whether reconciliation should write Excel output files"
+    )
+
+    class Config:
+        frozen = False
+        extra = "forbid"
+
+
 class ApplicationConfig(BaseModel):
     """Application-level configuration."""
     
@@ -207,6 +220,7 @@ class AppConfig(BaseModel):
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     paths: PathConfig = Field(default_factory=PathConfig)
     firebase: FirebaseConfig = Field(default_factory=FirebaseConfig)
+    reconciliation: ReconciliationConfig = Field(default_factory=ReconciliationConfig)
     erp_bank_mapping: Dict[str, Dict[str, str]] = Field(
         default_factory=dict,
         description="Explicit company+bank to ERP bank-code mappings used by reconciliation"
@@ -413,6 +427,12 @@ class ConfigManager:
         """Get Firebase configuration."""
         self._check_reload()
         return self._config.firebase
+
+    @property
+    def reconciliation(self) -> ReconciliationConfig:
+        """Get reconciliation configuration."""
+        self._check_reload()
+        return self._config.reconciliation
     
     def get_config_dict(self) -> Dict[str, Any]:
         """Get entire configuration as dictionary.

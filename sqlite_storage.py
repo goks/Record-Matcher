@@ -312,6 +312,21 @@ def _format_table_data_for_cache(table_data: List[Dict]) -> List[Dict]:
     for row in table_data:
         # Shallow copy the row
         new_row = dict(row)
+
+        # Normalize empty-like placeholders for UI display.
+        for key, value in list(new_row.items()):
+            if value is None:
+                new_row[key] = ''
+                continue
+            try:
+                if value != value:  # NaN/NaT-like
+                    new_row[key] = ''
+                    continue
+            except Exception:
+                pass
+            text = str(value).strip().lower()
+            if text in {'nan', 'nat', 'none'}:
+                new_row[key] = ''
         
         # Format number fields
         for field in format_fields:
@@ -326,6 +341,44 @@ def _format_table_data_for_cache(table_data: List[Dict]) -> List[Dict]:
         result.append(new_row)
     
     return result
+
+
+def _normalize_reconciliation_columns(master_table: List[Dict]) -> List[Dict]:
+    """Ensure reconciliation alias columns exist in every row.
+
+    Adds/aligns:
+    - `Ledger Name` <-> `Party Name`
+    - `Busy Date` <-> `Infi Date`
+
+    This keeps old and new code paths compatible while persisting both names.
+    """
+    normalized_rows: List[Dict] = []
+    for row in master_table or []:
+        new_row = dict(row)
+
+        party_name = str(new_row.get('Party Name', '') or '').strip()
+        ledger_name = str(new_row.get('Ledger Name', '') or '').strip()
+        infi_date = str(new_row.get('Infi Date', '') or '').strip()
+        busy_date = str(new_row.get('Busy Date', '') or '').strip()
+
+        # Prefer explicit ledger/busy values when available.
+        if not ledger_name:
+            ledger_name = party_name
+        if not party_name:
+            party_name = ledger_name
+        if not busy_date:
+            busy_date = infi_date
+        if not infi_date:
+            infi_date = busy_date
+
+        new_row['Ledger Name'] = ledger_name
+        new_row['Party Name'] = party_name
+        new_row['Busy Date'] = busy_date
+        new_row['Infi Date'] = infi_date
+
+        normalized_rows.append(new_row)
+
+    return normalized_rows
 
 
 # ============================================================================
@@ -680,8 +733,11 @@ class SQLiteSnapshotRepository(SQLiteRepository):
                 logger.error(f"Failed to convert snapshot to dict: {e}")
                 return False, -1
             
-            # Get master_table for pre-calculations
+            # Get master_table for pre-calculations.
+            # Normalize reconciliation aliases so both old/new column names persist.
             master_table = snapshot_dict.get('master_table', [])
+            master_table = _normalize_reconciliation_columns(master_table)
+            snapshot_dict['master_table'] = master_table
             row_count = len(master_table)
             
             # Pre-calculate balances and dates (OPTIMIZATION)
@@ -850,6 +906,11 @@ class SQLiteSnapshotRepository(SQLiteRepository):
                 logger.error(f"No data found for snapshot: {company}/{year}/{month}/{bank}")
                 return None
             
+            # Ensure loaded snapshots expose both legacy and new reconciliation column names.
+            snapshot_dict['master_table'] = _normalize_reconciliation_columns(
+                snapshot_dict.get('master_table', [])
+            )
+
             # Inject pre-calculated values into result (OPTIMIZATION)
             # These start with _ to indicate they're cached values
             if credit_bal is not None:

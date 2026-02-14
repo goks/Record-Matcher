@@ -68,6 +68,10 @@ ListView {
             selectedName = model.get(currentIndex).name
             selected = model.get(currentIndex).value
             console.log(model.get(currentIndex).name + ' selected')
+        } else {
+            selectedName = ''
+            selected = ''
+            console.log('selection cleared')
         }
     }
     
@@ -142,6 +146,11 @@ ListView {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     listView.currentIndex = index
+                }
+                onDoubleClicked: {
+                    if (listView.currentIndex === index) {
+                        listView.currentIndex = -1
+                    }
                 }
             }
             
@@ -232,9 +241,18 @@ ListView {
     // Custom scrollbar
     ScrollBar.vertical: ScrollBar {
         id: scrollBar
-        policy: ScrollBar.AlwaysOn
+        policy: ScrollBar.AsNeeded
         visible: listView.contentHeight > listView.height
-        width: 10
+        width: 8
+        background: Rectangle {
+            color: "transparent"
+        }
+        contentItem: Rectangle {
+            implicitWidth: 4
+            radius: 2
+            color: "#cbd5e1"
+            opacity: 0.8
+        }
     }
 }
 

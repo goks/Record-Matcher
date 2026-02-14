@@ -362,7 +362,8 @@ def _fetch_busy_ledger_for_context_with_mapping(
 def run_reconciliation_from_snapshot(
     snapshot_data: Dict[str, Any],
     output_dir: str = "output",
-    bank_mapping: Optional[Dict[str, Dict[str, str]]] = None
+    bank_mapping: Optional[Dict[str, Dict[str, str]]] = None,
+    write_output: bool = True
 ) -> Dict[str, Any]:
     """Run reconciliation output generation using already stored snapshot data.
 
@@ -491,40 +492,42 @@ def run_reconciliation_from_snapshot(
         ]
     })
 
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = output_path / (
-        f"Reconciliation_{context.company}_{context.bank}_{context.month}_{context.year}_{timestamp}.xlsx"
-    )
-    print(f"[RECON DEBUG] Writing reconciliation workbook: {output_file}")
+    output_file = ""
+    if write_output:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = output_path / (
+            f"Reconciliation_{context.company}_{context.bank}_{context.month}_{context.year}_{timestamp}.xlsx"
+        )
+        print(f"[RECON DEBUG] Writing reconciliation workbook: {output_file}")
 
-    with pd.ExcelWriter(output_file) as writer:
-        matched_export_df.to_excel(
-            writer, sheet_name="Matched", index=False
-        )
-        reconciled_statement_df.drop(columns=["Bank Date Parsed"], errors="ignore").to_excel(
-            writer, sheet_name="Reconciled_Statement", index=False
-        )
-        unmatched_bank.drop(columns=["matched"], errors="ignore").to_excel(
-            writer, sheet_name="Unmatched_Bank", index=False
-        )
-        unmatched_ledger.drop(columns=["matched"], errors="ignore").to_excel(
-            writer, sheet_name="Unmatched_Ledger", index=False
-        )
-        bank_df.drop(columns=["matched"], errors="ignore").to_excel(
-            writer, sheet_name="Bank_Statement_Debug", index=False
-        )
-        ledger_df.drop(columns=["matched"], errors="ignore").to_excel(
-            writer, sheet_name="Busy_Ledger", index=False
-        )
-        ignored_bank.drop(columns=["matched"], errors="ignore").to_excel(
-            writer, sheet_name="Ignored_Bank", index=False
-        )
-        summary_df.to_excel(writer, sheet_name="Summary", index=False)
+        with pd.ExcelWriter(output_file) as writer:
+            matched_export_df.to_excel(
+                writer, sheet_name="Matched", index=False
+            )
+            reconciled_statement_df.drop(columns=["Bank Date Parsed"], errors="ignore").to_excel(
+                writer, sheet_name="Reconciled_Statement", index=False
+            )
+            unmatched_bank.drop(columns=["matched"], errors="ignore").to_excel(
+                writer, sheet_name="Unmatched_Bank", index=False
+            )
+            unmatched_ledger.drop(columns=["matched"], errors="ignore").to_excel(
+                writer, sheet_name="Unmatched_Ledger", index=False
+            )
+            bank_df.drop(columns=["matched"], errors="ignore").to_excel(
+                writer, sheet_name="Bank_Statement_Debug", index=False
+            )
+            ledger_df.drop(columns=["matched"], errors="ignore").to_excel(
+                writer, sheet_name="Busy_Ledger", index=False
+            )
+            ignored_bank.drop(columns=["matched"], errors="ignore").to_excel(
+                writer, sheet_name="Ignored_Bank", index=False
+            )
+            summary_df.to_excel(writer, sheet_name="Summary", index=False)
 
     return {
-        "output_file": str(output_file),
+        "output_file": str(output_file) if output_file else "",
         "total_rows": len(bank_df),
         "matched_rows": len(matched_df),
         "unmatched_rows": len(unmatched_bank),

@@ -12,6 +12,7 @@ import weakref
 import logging
 import traceback
 from typing import Optional, List, Tuple, Dict, Any
+from datetime import datetime
 
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
@@ -189,10 +190,12 @@ class MainWindow(QObject, UIOptimizationMixin):
         self._progressBarValue = 0.0
         self._fullScreenLoadingInfo1 = ''
         self._fullScreenLoadingInfo2 = ''
+        self._tableAvailable = False
         
         # Firebase sync state (new repository-based sync)
         self._lastSyncUpload = self._load_sync_timestamp('last_sync_upload')
         self._lastSyncDownload = self._load_sync_timestamp('last_sync_download')
+        self._reconciliationOutputEnabled = self._load_reconciliation_output_enabled()
         self._isSyncing = False
         self._syncCancelled = False
         
@@ -352,6 +355,7 @@ class MainWindow(QObject, UIOptimizationMixin):
     showSettingsPage = Signal()
     erpBankMappingSaved = Signal(str, arguments=['message'])
     erpBankMappingSaveFailed = Signal(str, arguments=['error'])
+    reconciliationOutputEnabled_changed = Signal()
     lastSyncUpload_changed = Signal()
     lastSyncDownload_changed = Signal()
     isSyncing_changed = Signal()
@@ -543,31 +547,59 @@ class MainWindow(QObject, UIOptimizationMixin):
 
     @Slot()
     def runReconciliation(self) -> None:
-        """Run reconciliation using the currently selected snapshot context."""
+        """Run reconciliation based on selected scope.
+
+        Scope resolution:
+        - company + year only: all banks, all months in FY
+        - company + year + bank: selected bank, all months in FY
+        - company + year + bank + month: selected bank + selected month
+        """
         print("[RECON DEBUG] runReconciliation() called from UI")
         self.showMainScreenLoadingIndicator.emit()
         self._sync_state_to_service()
         with self._state_lock:
+            month = self.current_month
+            year = self.current_year
+            bank = self.current_bank
+            company = self.current_company
             print(
                 "[RECON DEBUG] Current selection:",
-                f"company={self.current_company}, year={self.current_year}, "
-                f"month={self.current_month}, bank={self.current_bank}"
+                f"company={company}, year={year}, month={month}, bank={bank}"
             )
-        validation_result = self.state_service.validate_for_populate_table()
-        if not validation_result.is_valid:
-            error_code = validation_result.error_code or 3
-            logger.warning(f"Reconciliation validation failed: {validation_result.error_message}")
-            print(
-                "[RECON DEBUG] Validation failed:",
-                f"error_code={error_code}, message={validation_result.error_message}"
-            )
-            self.validationError.emit(error_code)
+
+        if not company or not year:
+            logger.warning("Reconciliation validation failed: company/year not selected")
+            self.validationError.emit(1)
             self.hideMainScreenLoadingIndicator.emit()
             return
 
+        if month and not bank:
+            msg = "Select a bank before reconciling a specific month."
+            logger.warning(msg)
+            self.reconciliationFailed.emit(msg)
+            self.hideMainScreenLoadingIndicator.emit()
+            return
+
+        targets = self._get_reconciliation_targets(company, year, bank, month)
+        if not targets:
+            msg = f"No saved bank statements found for selected scope ({company}/{year})."
+            logger.warning(msg)
+            self.reconciliationFailed.emit(msg)
+            self.hideMainScreenLoadingIndicator.emit()
+            return
+
+        self._set_reconciliation_progress(
+            0.01,
+            "Reconciliation started",
+            f"Queued 0/{len(targets)} batches",
+        )
+
         if not self._is_shutting_down:
             print("[RECON DEBUG] Submitting reconciliation job to thread pool")
-            wrapped_func = self._thread_exception_wrapper(self.threadedRunReconciliation, "Run Reconciliation")
+            wrapped_func = self._thread_exception_wrapper(
+                lambda: self.threadedRunReconciliation(targets),
+                "Run Reconciliation"
+            )
             future = self._thread_pool.submit(wrapped_func)
             self._active_futures.add(future)
         else:
@@ -575,101 +607,103 @@ class MainWindow(QObject, UIOptimizationMixin):
             print("[RECON DEBUG] Reconciliation blocked: application shutting down")
             self.hideMainScreenLoadingIndicator.emit()
 
-    def threadedRunReconciliation(self) -> None:
-        """Thread worker for snapshot-based reconciliation."""
-        with self._state_lock:
-            month = self.current_month
-            year = self.current_year
-            bank = self.current_bank
-            company = self.current_company
-        print(
-            "[RECON DEBUG] threadedRunReconciliation() started with:",
-            f"company={company}, year={year}, month={month}, bank={bank}"
-        )
-
+    def threadedRunReconciliation(self, targets: List[Tuple[str, str, str, str]]) -> None:
+        """Thread worker for scope-based reconciliation."""
+        print(f"[RECON DEBUG] threadedRunReconciliation() started with {len(targets)} targets")
         try:
-            print("[RECON DEBUG] Loading snapshot from repository...")
-            snapshot_dict = self.snapshot_repository.load(month, year, bank, company)
-            if not snapshot_dict:
-                msg = (
-                    "No saved bank statement found for "
-                    f"{company}/{year}/{month}/{bank}. Upload statement first."
+            bank_mapping = self._get_erp_bank_mapping_by_company()
+            output_dir = os.path.join(CURRENT_DIR, "output")
+            total_batches = len(targets)
+            success_batches = 0
+            failed_batches: List[str] = []
+            total_rows = 0
+            matched_rows = 0
+            unmatched_rows = 0
+            last_output_file = ""
+            last_updated_snapshot_obj = None
+
+            for idx, (month, year, bank, company) in enumerate(targets, start=1):
+                self._set_reconciliation_progress(
+                    (idx - 1) / total_batches,
+                    "Reconciling statements",
+                    f"{idx}/{total_batches} | {company.upper()} | {bank.upper()} | {month.title()} {year}",
                 )
-                logger.warning(msg)
-                print("[RECON DEBUG] Snapshot not found")
+
+                snapshot_dict = self.snapshot_repository.load(month, year, bank, company)
+                if not snapshot_dict:
+                    failed_batches.append(f"{company}/{year}/{month}/{bank}: snapshot missing")
+                    continue
+
+                try:
+                    result = RM.run_reconciliation_from_snapshot(
+                        snapshot_dict,
+                        output_dir=output_dir,
+                        bank_mapping=bank_mapping,
+                        write_output=self._reconciliationOutputEnabled
+                    )
+                    updated_snapshot_data = result.get("updated_snapshot_data", snapshot_dict)
+                    updated_snapshot_obj = TableSnapshot(updated_snapshot_data)
+                    save_ok, save_code = self.snapshot_repository.save(updated_snapshot_obj)
+                    if not save_ok:
+                        failed_batches.append(f"{company}/{year}/{month}/{bank}: save failed ({save_code})")
+                        continue
+
+                    success_batches += 1
+                    total_rows += int(result.get("total_rows", 0) or 0)
+                    matched_rows += int(result.get("matched_rows", 0) or 0)
+                    unmatched_rows += int(result.get("unmatched_rows", 0) or 0)
+                    last_output_file = result.get("output_file", "") or last_output_file
+                    last_updated_snapshot_obj = updated_snapshot_obj
+                except Exception as batch_ex:
+                    failed_batches.append(f"{company}/{year}/{month}/{bank}: {batch_ex}")
+                    logger.error(f"Reconciliation batch failed for {company}/{year}/{month}/{bank}: {batch_ex}")
+                    logger.error(traceback.format_exc())
+                    continue
+
+                self._set_reconciliation_progress(
+                    idx / total_batches,
+                    "Reconciling statements",
+                    f"Completed {idx}/{total_batches} batches",
+                )
+
+            if success_batches == 0:
+                msg = "Reconciliation failed for all selected statements."
+                if failed_batches:
+                    msg += f" First error: {failed_batches[0]}"
                 self.reconciliationFailed.emit(msg)
                 return
 
-            master_table = snapshot_dict.get("master_table", []) if isinstance(snapshot_dict, dict) else []
-            print(
-                "[RECON DEBUG] Snapshot loaded:",
-                f"keys={list(snapshot_dict.keys()) if isinstance(snapshot_dict, dict) else 'NA'}, "
-                f"rows={len(master_table)}"
+            # Keep in-memory snapshot aligned with latest persisted item.
+            if last_updated_snapshot_obj is not None:
+                with self._snapshot_lock:
+                    self.tableSnapshot = last_updated_snapshot_obj
+                    self._skip_snapshot_presave_once = True
+
+            with self._state_lock:
+                current_company = self.current_company
+                current_year = self.current_year
+                current_bank = self.current_bank
+                current_month = self.current_month
+                cheque_activated = self.chequeReportActivated
+
+            if all([current_company, current_year, current_bank, current_month]) and not cheque_activated:
+                print("[RECON DEBUG] Triggering table reload to show reconciled data")
+                self.populate_table()
+
+            last_reconciled = datetime.now().strftime("%d %b %Y, %H:%M")
+            summary = (
+                f"Reconciliation complete. Last reconciled: {last_reconciled}. "
+                f"Batches: {success_batches}/{total_batches}, Matched: {matched_rows}, "
+                f"Unmatched: {unmatched_rows}."
             )
-            output_dir = os.path.join(CURRENT_DIR, "output")
-            print(f"[RECON DEBUG] Running reconciliation module (output_dir={output_dir})")
-            result = RM.run_reconciliation_from_snapshot(
-                snapshot_dict,
-                output_dir=output_dir,
-                bank_mapping=self._get_erp_bank_mapping_by_company()
-            )
-            updated_snapshot_data = result.get("updated_snapshot_data", snapshot_dict)
-            try:
-                db_path = getattr(self.snapshot_repository, "db_path", "unknown")
-                print(f"[RECON DEBUG] Persisting updated snapshot to repository db_path={db_path}")
-                updated_snapshot_obj = TableSnapshot(updated_snapshot_data)
-                save_ok, save_code = self.snapshot_repository.save(updated_snapshot_obj)
-                if save_ok:
-                    print("[RECON DEBUG] Updated snapshot persisted to SQLite (Ledger Name/Busy Date overwritten)")
-                    # Verify write by reloading same key and checking updated fields.
-                    verify_snapshot = self.snapshot_repository.load(month, year, bank, company)
-                    if not verify_snapshot:
-                        msg = "Snapshot save reported success, but verification load failed."
-                        print(f"[RECON DEBUG] {msg}")
-                        self.reconciliationFailed.emit(msg)
-                        return
-                    verify_rows = verify_snapshot.get("master_table", []) if isinstance(verify_snapshot, dict) else []
-                    populated_count = 0
-                    for row in verify_rows:
-                        if str(row.get("Ledger Name", "")).strip() or str(row.get("Busy Date", "")).strip():
-                            populated_count += 1
-                    print(
-                        "[RECON DEBUG] Verification after save:",
-                        f"rows={len(verify_rows)}, rows_with_ledger_or_busy={populated_count}"
-                    )
-                    with self._state_lock:
-                        cheque_activated = self.chequeReportActivated
-                    with self._snapshot_lock:
-                        # Keep in-memory snapshot aligned with what was persisted.
-                        self.tableSnapshot = updated_snapshot_obj
-                        # Prevent immediate populate_table() from saving stale state over reconciled data.
-                        self._skip_snapshot_presave_once = True
-                    if not cheque_activated:
-                        print("[RECON DEBUG] Triggering table reload to show reconciled data")
-                        self.populate_table()
-                else:
-                    msg = f"Failed to persist updated snapshot: code={save_code}"
-                    print(f"[RECON DEBUG] {msg}")
-                    self.reconciliationFailed.emit(msg)
-                    return
-            except Exception as save_ex:
-                msg = f"Exception while persisting updated snapshot: {save_ex}"
-                print(f"[RECON DEBUG] {msg}")
-                self.reconciliationFailed.emit(msg)
-                return
-            logger.info(
-                "Reconciliation completed: %s (total=%s, matched=%s, unmatched=%s)",
-                result.get("output_file"),
-                result.get("total_rows"),
-                result.get("matched_rows"),
-                result.get("unmatched_rows"),
-            )
-            print(
-                "[RECON DEBUG] Reconciliation completed:",
-                f"output={result.get('output_file')}, total={result.get('total_rows')}, "
-                f"matched={result.get('matched_rows')}, unmatched={result.get('unmatched_rows')}"
-            )
-            self.reconciliationSuccess.emit(result.get("output_file", ""))
+            if failed_batches:
+                summary += f" Failed batches: {len(failed_batches)}."
+            if self._reconciliationOutputEnabled and last_output_file:
+                summary += f" Output: {last_output_file}"
+            elif not self._reconciliationOutputEnabled:
+                summary += " Excel output: disabled in Settings."
+            self._set_reconciliation_progress(1.0, "Reconciliation completed", f"{success_batches}/{total_batches} done")
+            self.reconciliationSuccess.emit(summary)
         except Exception as e:
             logger.error(f"Reconciliation failed: {e}")
             logger.error(traceback.format_exc())
@@ -677,6 +711,63 @@ class MainWindow(QObject, UIOptimizationMixin):
             self.reconciliationFailed.emit(str(e))
         finally:
             self.hideMainScreenLoadingIndicator.emit()
+            self._set_reconciliation_progress(0.0, "", "")
+
+    def _get_reconciliation_targets(
+        self,
+        company: str,
+        year: str,
+        bank: str = "",
+        month: str = "",
+    ) -> List[Tuple[str, str, str, str]]:
+        """Resolve reconciliation targets from saved snapshots."""
+        all_snapshots = self.snapshot_repository.list_all()
+        company_l = company.lower().strip()
+        year_s = str(year).strip()
+        bank_l = bank.lower().strip()
+        month_l = month.lower().strip()
+
+        targets: List[Tuple[str, str, str, str]] = []
+        for item in all_snapshots:
+            if len(item) != 4:
+                continue
+            item_month, item_year, item_bank, item_company = item
+            if str(item_company).lower().strip() != company_l:
+                continue
+            if str(item_year).strip() != year_s:
+                continue
+            if bank_l and str(item_bank).lower().strip() != bank_l:
+                continue
+            if month_l and str(item_month).lower().strip() != month_l:
+                continue
+            targets.append((str(item_month), str(item_year), str(item_bank), str(item_company)))
+
+        month_order = {
+            "april": 1, "may": 2, "june": 3, "july": 4, "august": 5, "september": 6,
+            "october": 7, "november": 8, "december": 9, "january": 10, "february": 11, "march": 12,
+        }
+        targets.sort(key=lambda t: (t[2], month_order.get(str(t[0]).lower(), 99), t[0]))
+        return targets
+
+    def _set_reconciliation_progress(self, progress: float, text1: str, text2: str) -> None:
+        """Update shared progress fields used by QML progress UI."""
+        progress = max(0.0, min(1.0, float(progress)))
+        self._progressBarValue = progress
+        self._fullScreenLoadingInfo1 = text1
+        self._fullScreenLoadingInfo2 = text2
+        QTimer.singleShot(0, self.progressBarValue_changed.emit)
+        QTimer.singleShot(0, self.fullScreenLoadingInfo1_changed.emit)
+        QTimer.singleShot(0, self.fullScreenLoadingInfo2_changed.emit)
+
+    def _set_table_available(self, available: bool, clear_ui_data: bool = False) -> None:
+        """Track whether current selection has a table to display."""
+        self._tableAvailable = bool(available)
+        if clear_ui_data:
+            self.state_service.update_table_data([], '', '')
+            QTimer.singleShot(0, self.table_data_changed.emit)
+            QTimer.singleShot(0, self.creditBal_changed.emit)
+            QTimer.singleShot(0, self.debitBal_changed.emit)
+        QTimer.singleShot(0, self.tableAvailable_changed.emit)
 
     @Slot(str)
     def exportFile(self, fileURL: str) -> None:
@@ -791,6 +882,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         if not validation_result.is_valid:
             logger.warning(f"Cannot populate table: {validation_result.error_message}")
+            self._set_table_available(False, clear_ui_data=True)
             self.showChooseOptionsPage.emit()
             self.hideMainScreenLoadingIndicator.emit()
             return -1
@@ -884,11 +976,13 @@ class MainWindow(QObject, UIOptimizationMixin):
         except Exception as e:
             logger.error(f"Failed to load table from SQLite: {e}")
             logger.error(traceback.format_exc())
+            self._set_table_available(False, clear_ui_data=True)
             self.showUploadBankStatementPage.emit()
             self.hideMainScreenLoadingIndicator.emit()
             return 0
         
         if not tableSnapshot:
+            self._set_table_available(False, clear_ui_data=True)
             self.showUploadBankStatementPage.emit()
             logger.info("No table snapshot found in collection")
             self.hideMainScreenLoadingIndicator.emit()
@@ -936,12 +1030,14 @@ class MainWindow(QObject, UIOptimizationMixin):
             self.selectedRows_changed.emit()
             
             self.showTablePage.emit()
+            self._set_table_available(True)
             self.hideMainScreenLoadingIndicator.emit()
             logger.info("Table population completed successfully")
             return 1
         except Exception as e:
             logger.error(f"Failed to update UI state: {e}")
             logger.error(traceback.format_exc())
+            self._set_table_available(False, clear_ui_data=True)
             self.hideMainScreenLoadingIndicator.emit()
             raise
 
@@ -1175,6 +1271,37 @@ class MainWindow(QObject, UIOptimizationMixin):
         except Exception as e:
             logger.debug(f"Could not load sync timestamp {key}: {e}")
         return ''
+
+    def _load_reconciliation_output_enabled(self) -> bool:
+        """Load reconciliation Excel output toggle from config."""
+        try:
+            config_path = os.path.join(CURRENT_DIR, "config.local.toml")
+            if os.path.exists(config_path):
+                import toml
+                with open(config_path, "r") as f:
+                    config = toml.load(f)
+                return bool(config.get('reconciliation', {}).get('output_excel_enabled', True))
+        except Exception as e:
+            logger.debug(f"Could not load reconciliation output setting: {e}")
+        return True
+
+    def _save_reconciliation_output_enabled(self, enabled: bool) -> None:
+        """Save reconciliation Excel output toggle to config."""
+        try:
+            config_path = os.path.join(CURRENT_DIR, "config.local.toml")
+            config = {}
+            if os.path.exists(config_path):
+                import toml
+                with open(config_path, "r") as f:
+                    config = toml.load(f)
+            if 'reconciliation' not in config:
+                config['reconciliation'] = {}
+            config['reconciliation']['output_excel_enabled'] = bool(enabled)
+            import toml
+            with open(config_path, "w") as f:
+                toml.dump(config, f)
+        except Exception as e:
+            logger.error(f"Could not save reconciliation output setting: {e}")
 
     def _default_erp_bank_mapping(self) -> List[Dict[str, str]]:
         mapping_rows = []
@@ -1515,6 +1642,12 @@ class MainWindow(QObject, UIOptimizationMixin):
         """Signal to open settings page."""
         self.refreshErpBankOptions()
         self.showSettingsPage.emit()
+
+    @Slot(bool)
+    def setReconciliationOutputEnabled(self, enabled: bool):
+        self._reconciliationOutputEnabled = bool(enabled)
+        self._save_reconciliation_output_enabled(self._reconciliationOutputEnabled)
+        self.reconciliationOutputEnabled_changed.emit()
     
     # Sync property getters
     def get_lastSyncUpload(self):
@@ -1525,6 +1658,9 @@ class MainWindow(QObject, UIOptimizationMixin):
     
     def get_isSyncing(self):
         return self._isSyncing
+    
+    def get_reconciliationOutputEnabled(self):
+        return self._reconciliationOutputEnabled
     
     # Migration property getters
     def get_migrationStatus(self):
@@ -1742,7 +1878,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         elif tally_activated:
             self.showTallyExportBox.emit()
             return
-        
+        self._set_table_available(False, clear_ui_data=True)
         self.populate_table()
     @Slot(str, str)
     def bankChanged(self, bankname, screenName):
@@ -1763,6 +1899,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             print(f"DEBUG _bankData set to: {self._bankData}")
         self.bankData_changed.emit()
         print(f"DEBUG bankData_changed emitted")
+        self._set_table_available(False, clear_ui_data=True)
         self.populate_table()
     @Slot(str)
     def yearChanged(self, year):
@@ -1789,7 +1926,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         elif tally_activated:
             self.showTallyExportBox.emit()
             return
-        
+        self._set_table_available(False, clear_ui_data=True)
         self.populate_table()
     @Slot(str, str)
     def monthChanged(self, month, screenNane):
@@ -1805,6 +1942,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         self._sync_state_from_service()
         
         self.update_monthYearData()
+        self._set_table_available(False, clear_ui_data=True)
         self.populate_table()
     def update_monthYearData(self):
         with self._state_lock:
@@ -1923,6 +2061,11 @@ class MainWindow(QObject, UIOptimizationMixin):
     def get_selectedRows(self):
         return self._selectedRows  
     @Signal
+    def tableAvailable_changed(self):
+        return
+    def get_tableAvailable(self):
+        return self._tableAvailable
+    @Signal
     def startDateCalendar_changed(self):
         return
     def get_startDateCalendar(self):
@@ -1981,11 +2124,13 @@ class MainWindow(QObject, UIOptimizationMixin):
     progressBarValue = Property(float, get_progressBarValue, notify=progressBarValue_changed)
     fullScreenLoadingInfo1 = Property(str, get_fullScreenLoadingInfo1, notify=fullScreenLoadingInfo1_changed)
     fullScreenLoadingInfo2 = Property(str, get_fullScreenLoadingInfo2, notify=fullScreenLoadingInfo2_changed)
+    tableAvailable = Property(bool, get_tableAvailable, notify=tableAvailable_changed)
     adminPassword = Property(str, get_adminPassword, notify=adminPassword_changed)
     erpBankMapping = Property('QVariantList', get_erpBankMapping, notify=erpBankMapping_changed)
     erpBankOptions = Property('QVariantMap', get_erpBankOptions, notify=erpBankOptions_changed)
     
     # Firebase sync properties
+    reconciliationOutputEnabled = Property(bool, get_reconciliationOutputEnabled, notify=reconciliationOutputEnabled_changed)
     lastSyncUpload = Property(str, get_lastSyncUpload, notify=lastSyncUpload_changed)
     lastSyncDownload = Property(str, get_lastSyncDownload, notify=lastSyncDownload_changed)
     isSyncing = Property(bool, get_isSyncing, notify=isSyncing_changed)

@@ -10,7 +10,7 @@ Button {
     signal createTallyXMLFromDaybookClicked
     signal deleteButtonClicked
     signal openSettingsClicked
-    property url btnIconSource: "../../images/svg_images/menu.svg"
+    property url btnIconSource: "../../images/svg_images/settings_gear.svg"
     property color bgcolorDefault: "#ffffff"
     property color bgcolorMouseOver: "#e5e5e5"
     property color bgcolorPressed: "#c4c4c4"
@@ -44,16 +44,13 @@ Button {
         border.width: 1
         radius: 4
         
-        Image {
-            id: btnImg
+        Text {
             visible: true
-            anchors.fill: parent
-            anchors.margins: 8
-            source: btnIconSource
-            fillMode: Image.PreserveAspectFit
-            sourceSize.width: 32
-            sourceSize.height: 32
-            // TODO Qt6: DropShadow disabled (Qt 5 GraphicalEffects deprecated)
+            anchors.centerIn: parent
+            text: "\u2699"
+            font.family: "Segoe UI Symbol"
+            font.pixelSize: tscale(20)
+            color: menuBtn.down ? "#0f172a" : (menuBtn.hovered ? "#111827" : "#33475B")
         }
 
     }

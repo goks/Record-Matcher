@@ -261,7 +261,7 @@ Window {
                     scaleFactorWidth: window.scaleFactorWidth
                     scaleFactorHeight: window.scaleFactorHeight
                     // width: 88
-                    text: qsTr("Help")
+                    text: qsTr("Reconcile")
                     anchors.left: tallyexport_button.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
@@ -269,6 +269,9 @@ Window {
                     anchors.leftMargin: 1
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
+                    onPressed: {
+                        if (backend) backend.runReconciliation()
+                    }
                 }
             }
             SettingsButton {
@@ -281,7 +284,7 @@ Window {
                 anchors.rightMargin: hscale(20)
                 scaleFactorWidth: window.scaleFactorWidth
                 scaleFactorHeight: window.scaleFactorHeight
-                btnIconSource: "../images/svg_images/settings_gear.svg"
+                btnIconSource: Qt.resolvedUrl("../images/svg_images/settings_gear.svg")
                 // onConvertSchemaClicked: backend.convertSchema()
                 onDeleteButtonClicked: backend.delete_table()
                 onDownloadFromDbClicked: backend.downloadfromDb()
@@ -546,6 +549,18 @@ Window {
                         popup.close()
                         toast.show("Bank statement export success.", "success");
                     }
+                    function onErpBankMappingSaved(message) {
+                        toast.show(message, "success")
+                    }
+                    function onErpBankMappingSaveFailed(error) {
+                        toast.show("Failed to save ERP mapping: " + error, "error")
+                    }
+                    function onReconciliationSuccess(outputPath) {
+                        toast.show(outputPath, "success")
+                    }
+                    function onReconciliationFailed(error) {
+                        toast.show("Reconciliation failed: " + error, "error")
+                    }
                     function onSnapshotDeleteSuccess() {
                         toast.show("Deleted table successfully.", "success");
                     }
@@ -572,9 +587,13 @@ Window {
                     }
                     function onShowMainScreenLoadingIndicator() {
                         mainScreenBusyIndicator.running = true
+                        if (backend && backend.fullScreenLoadingInfo1 !== "") {
+                            fullScreenLoading.visible = true
+                        }
                     }
                     function onHideMainScreenLoadingIndicator() {
                         mainScreenBusyIndicator.running = false
+                        fullScreenLoading.visible = false
                     }
                     
                     // Firebase sync handlers (new repository-based)
@@ -1038,6 +1057,7 @@ Window {
 
                     Rectangle {
                         id: bodyTitleContainer
+                        readonly property bool hasTableData: backend && backend.tableData && backend.tableData.length > 0
                         height: vscale(44)
                         color: "#ffffff"
                         anchors.left: parent.left
@@ -1069,13 +1089,13 @@ Window {
                         // Month/Year chip - uniform style
                         Rectangle {
                             id: monthYearChip
-                            width: monthYearContent.width + hscale(16)
+                            width: Math.max(hscale(74), monthYearContent.width + hscale(16))
                             height: vscale(32)
                             radius: hscale(6)
                             color: "#eff6ff"
                             border.color: "#bfdbfe"
                             border.width: 1
-                            visible: backend && backend.monthYearData !== ""
+                            visible: backend
                             anchors.left: burgerButton2.right
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 0
@@ -1116,13 +1136,13 @@ Window {
                         // Company chip - uniform style
                         Rectangle {
                             id: companyChip
-                            width: companyChipContent.width + hscale(16)
+                            width: Math.max(hscale(74), companyChipContent.width + hscale(16))
                             height: vscale(32)
                             radius: hscale(6)
                             color: "#eff6ff"
                             border.color: "#bfdbfe"
                             border.width: 1
-                            visible: backend && backend.companyData !== ""
+                            visible: backend
                             anchors.left: monthYearChip.right
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: hscale(10)
@@ -1163,14 +1183,14 @@ Window {
                         // Bank chip - uniform style
                         Rectangle {
                             id: bankChip
-                            width: bankChipContent.width + hscale(16)
+                            width: Math.max(hscale(74), bankChipContent.width + hscale(16))
                             height: vscale(32)
                             radius: hscale(6)
                             color: "#eff6ff"
                             border.color: "#bfdbfe"
                             border.width: 1
-                            visible: backend && backend.bankData !== ""
-                            anchors.left: companyChip.visible ? companyChip.right : monthYearChip.right
+                            visible: backend
+                            anchors.left: companyChip.right
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: hscale(10)
                             
@@ -1222,7 +1242,8 @@ Window {
 
                     Rectangle {
                         id: bodySubtitleContainer
-                        height: vscale(52)
+                        readonly property bool reconciliationInProgress: backend && backend.progressBarValue > 0 && backend.fullScreenLoadingInfo2 !== ""
+                        height: reconciliationInProgress ? vscale(84) : vscale(52)
                         color: "#ffffff"
                         anchors.left: parent.left
                         anchors.right: parent.right
@@ -1350,7 +1371,7 @@ Window {
                                 color: "#ecfdf5"
                                 border.color: "#a7f3d0"
                                 border.width: 1
-                                visible: backend && backend.creditBal !== ""
+                                visible: backend && backend.tableData && backend.tableData.length > 0 && backend.creditBal !== ""
                                 
                                 Row {
                                     id: creditContent
@@ -1385,7 +1406,7 @@ Window {
                                 color: "#fef2f2"
                                 border.color: "#fecaca"
                                 border.width: 1
-                                visible: backend && backend.debitBal !== ""
+                                visible: backend && backend.tableData && backend.tableData.length > 0 && backend.debitBal !== ""
                                 
                                 Row {
                                     id: debitContent
@@ -1436,6 +1457,50 @@ Window {
                                 enabled: false
                                 scaleFactorWidth: window.scaleFactorWidth
                                 scaleFactorHeight: window.scaleFactorHeight
+                            }
+                        }
+
+                        Rectangle {
+                            id: reconciliationProgressContainer
+                            visible: bodySubtitleContainer.reconciliationInProgress
+                            color: "#f8fafc"
+                            border.color: "#dbeafe"
+                            border.width: 1
+                            radius: hscale(8)
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 0
+                            anchors.rightMargin: 0
+                            anchors.bottomMargin: 0
+                            height: vscale(30)
+
+                            Row {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: hscale(10)
+                                anchors.rightMargin: hscale(10)
+                                spacing: hscale(10)
+
+                                ProgressBar {
+                                    id: reconciliationProgressBar
+                                    value: backend ? backend.progressBarValue : 0
+                                    from: 0
+                                    to: 1
+                                    width: Math.max(hscale(180), parent.width - hscale(320))
+                                    height: vscale(14)
+                                }
+
+                                Text {
+                                    width: hscale(300)
+                                    text: backend ? (backend.fullScreenLoadingInfo2 + " (" + Math.round(backend.progressBarValue * 100) + "%)") : ""
+                                    elide: Text.ElideRight
+                                    font.family: "PT Sans Caption"
+                                    font.pixelSize: tscale(11)
+                                    color: "#1e3a8a"
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
 
@@ -1574,6 +1639,9 @@ Window {
                                 databasePath: backend ? backend.databasePath : ""
                                 totalSnapshotCount: backend ? backend.totalSnapshotCount : 0
                                 totalChequeReportCount: backend ? backend.totalChequeReportCount : 0
+                                erpBankMapping: backend ? backend.erpBankMapping : []
+                                erpBankOptions: backend ? backend.erpBankOptions : ({})
+                                reconciliationOutputEnabled: backend ? backend.reconciliationOutputEnabled : true
                                 
                                 onUploadRequested: {
                                     syncProgressOverlay.show("upload")
@@ -1585,6 +1653,15 @@ Window {
                                 }
                                 onMigrationRequested: {
                                     backend.startMigration()
+                                }
+                                onErpBankMappingUpdated: {
+                                    backend.updateErpBankMapping(company, bank, bankCode)
+                                }
+                                onSaveErpBankMappingRequested: {
+                                    backend.saveErpBankMapping()
+                                }
+                                onReconciliationOutputToggleRequested: {
+                                    backend.setReconciliationOutputEnabled(enabled)
                                 }
                                 onCloseRequested: {
                                     stackView.pop()
