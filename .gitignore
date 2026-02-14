@@ -6,6 +6,7 @@ output/
 .venv/
 service-account/
 RecordMatcher_env/
+*.log
 
 # Configuration files
 config.local.toml

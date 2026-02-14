@@ -877,6 +877,7 @@ class TableSnapshot:
     year = None
     bank = None
     company = None
+    source_statement_path = None
     save_path = None
 
     def __init__(self, *inp):
@@ -896,6 +897,7 @@ class TableSnapshot:
         self.company = company.lower()
         self.creation_time = get_current_time()
         self.last_edited_time = None
+        self.source_statement_path = None
         self.createSavePath()
         self.update_last_edited_time()
         return
@@ -910,6 +912,7 @@ class TableSnapshot:
         self.master_selected_rows = dict.get("master_selected_rows", [])
         self.master_excel_export_path = dict.get("master_excel_export_path", None)
         self.last_edited_time = dict.get("last_edited_time", None)
+        self.source_statement_path = dict.get("source_statement_path", None)
         self.createSavePath()
         if not self.last_edited_time:
             self.update_last_edited_time()
@@ -931,6 +934,7 @@ class TableSnapshot:
             "company": self.company,
             "creation_time": self.creation_time,
             "last_edited_time": self.last_edited_time,
+            "source_statement_path": self.source_statement_path,
         }
 
     def get_json(self):
@@ -973,6 +977,11 @@ class TableSnapshot:
         self.update_last_edited_time()
     def set_master_excel_export_path(self, val):
         self.master_excel_export_path = val    
+        self.update_last_edited_time()
+    def get_source_statement_path(self):
+        return self.source_statement_path
+    def set_source_statement_path(self, val):
+        self.source_statement_path = val
         self.update_last_edited_time()
     def createSavePath(self):
         self.save_path = os.getenv('APPDATA')+'\\'+APP_NAME+"\\Snapshot_"+self.month+'_'+self.year+'_'+self.bank
@@ -1346,8 +1355,26 @@ class ExcelProcessor:
         Not safe if same file is written by multiple threads simultaneously.
     """
     
-    TABLE_HEADER = ['Bank Date', 'Bank Narration', 'Chq No', 'Party Name', 
-                    'Infi Date', 'Credit', 'Debit', 'Closing Balance']
+    TABLE_HEADER = [
+        'Bank Date',
+        'Bank Narration',
+        'Cheque No.',
+        'Party Name (BUSY)',
+        'Date (BUSY)',
+        'Credit',
+        'Debit',
+        'Closing Balance'
+    ]
+
+    HEADER_KEY_MAP = {
+        'Cheque No.': 'Chq No',
+        'Party Name (BUSY)': 'Party Name',
+        'Date (BUSY)': 'Infi Date',
+    }
+
+    def _get_data_key_for_header(self, header_item: str) -> str:
+        """Map UI/export header labels to underlying row dictionary keys."""
+        return self.HEADER_KEY_MAP.get(header_item, header_item)
     
     def get_header(self) -> List[str]:
         """Get the standard table header.
@@ -1443,7 +1470,8 @@ class ExcelProcessor:
             
             # Write cells for this row
             for j, header_item in enumerate(self.get_header()):
-                cell = each[header_item]
+                data_key = self._get_data_key_for_header(header_item)
+                cell = each.get(data_key, '')
                 
                 # Main sheet (with highlighting)
                 if is_selected:
@@ -2196,6 +2224,7 @@ class DataProcessor:
             
             # Create and save snapshot
             tableSnapshot = TableSnapshot(company, month, year, bank, master_table, [], None)
+            tableSnapshot.set_source_statement_path(statement_path)
             storageManager.save_table_snapshot(tableSnapshot)
             
             return True, 1

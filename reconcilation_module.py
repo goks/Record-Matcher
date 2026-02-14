@@ -1,8 +1,25 @@
-import pyodbc
+try:
+    import pyodbc
+except ImportError:
+    pyodbc = None
 import pandas as pd
-from rapidfuzz import fuzz
+try:
+    from rapidfuzz import fuzz
+except ImportError:
+    from difflib import SequenceMatcher
+
+    class _FuzzFallback:
+        @staticmethod
+        def partial_ratio(a, b):
+            return int(100 * SequenceMatcher(None, str(a), str(b)).ratio())
+
+    fuzz = _FuzzFallback()
 import numpy as np
 import re
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 def normalize_reference(value):
     text = str(value).strip()
@@ -69,10 +86,6 @@ def has_common_narration_word(ledger_text, bank_text):
 # ==============================
 
 DB_SERVER = r"GASERVER\BUSYSTDSQL"
-DB_NAME = "BusyComp0004_db12025"
-
-FROM_DATE = "2025-04-01"
-TO_DATE = "2026-03-31"
 
 AMOUNT_TOLERANCE = 0.50
 MIN_NARRATION_SCORE = 50
@@ -87,19 +100,563 @@ MATCHED_COLUMNS = [
     "Reason",
     "DateDiff",
     "TextScore",
+    "_LedgerRowIndex",
+    "_BankRowIndex",
+    "_SourceRowIndex",
 ]
+
+
+@dataclass(frozen=True)
+class ReconciliationContext:
+    """Context used when running reconciliation from a stored snapshot."""
+    company: str
+    bank: str
+    year: str
+    month: str
+    financial_year: str
+    statement_path: str = ""
+    year_db: str = ""
+    company_db: str = ""
+
+
+def _derive_financial_year(month: str, year: str) -> str:
+    month = (month or "").strip().lower()
+    year_int = int(str(year).strip())
+    if month in {"january", "february", "march"}:
+        return f"{year_int - 1}-{year_int}"
+    return f"{year_int}-{year_int + 1}"
+
+
+def _build_context(
+    company: str,
+    bank: str,
+    year: str,
+    month: str,
+    statement_path: Optional[str] = None
+) -> ReconciliationContext:
+    return ReconciliationContext(
+        company=(company or "").strip().lower(),
+        bank=(bank or "").strip().lower(),
+        year=str(year).strip(),
+        month=(month or "").strip().lower(),
+        financial_year=_derive_financial_year(month, year),
+        statement_path=(statement_path or "").strip(),
+    )
+
+
+def _normalize_snapshot_table(master_table: List[Dict[str, Any]]) -> pd.DataFrame:
+    df = pd.DataFrame(master_table or [])
+    if df.empty:
+        return df
+    # Backward compatibility: old snapshots may have "Infi Date".
+    if "Busy Date" not in df.columns and "Infi Date" in df.columns:
+        df["Busy Date"] = df["Infi Date"]
+    if "Infi Date" in df.columns:
+        df = df.drop(columns=["Infi Date"])
+    required_cols = [
+        "Bank Date",
+        "Bank Narration",
+        "Chq No",
+        "Party Name",
+        "Busy Date",
+        "Credit",
+        "Debit",
+        "Closing Balance",
+    ]
+    for col in required_cols:
+        if col not in df.columns:
+            df[col] = ""
+    df["Bank Date Parsed"] = pd.to_datetime(df["Bank Date"], dayfirst=True, errors="coerce")
+    return df
+
+
+def _to_numeric_amount(series: pd.Series) -> pd.Series:
+    return pd.to_numeric(
+        series.astype(str).str.replace(",", "", regex=False).str.strip(),
+        errors="coerce"
+    ).fillna(0.0)
+
+
+def _build_bank_df_from_snapshot(table_df: pd.DataFrame, bank: str) -> pd.DataFrame:
+    if table_df.empty:
+        return table_df
+
+    bank_df = pd.DataFrame()
+    bank_df["SourceRowIndex"] = table_df.index
+    bank_df["Date"] = pd.to_datetime(table_df["Bank Date"], dayfirst=True, errors="coerce")
+    bank_df["Description"] = table_df["Bank Narration"].astype(str).fillna("").str.strip()
+    bank_df["CHEQUE_NO"] = table_df["Chq No"].apply(normalize_reference)
+
+    credit = _to_numeric_amount(table_df["Credit"])
+    debit = _to_numeric_amount(table_df["Debit"])
+    bank_df["Amount"] = (credit - debit).round(2)
+
+    bank_lower = (bank or "").strip().lower()
+    if bank_lower == "icici":
+        bank_df["IS_CHEQUE_DEPOSIT"] = bank_df["Description"].str.upper().str.startswith("CLG/")
+        bank_df["SKIP_MATCH"] = bank_df["Description"].str.upper().str.startswith("UPI")
+        bank_df["BANK_TYPE"] = "ICICI"
+    else:
+        bank_df["IS_CHEQUE_DEPOSIT"] = bank_df["Description"].str.upper().str.startswith("CHQ DEP")
+        bank_df["SKIP_MATCH"] = False
+        bank_df["BANK_TYPE"] = "HDFC"
+
+    bank_df = bank_df.dropna(subset=["Date"]).reset_index(drop=True)
+    return bank_df
+
+
+def _normalize_text(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+
+
+def _resolve_company_year_db(app_company: str, fy_start: int, options_df: pd.DataFrame) -> Dict[str, Any]:
+    if options_df.empty:
+        raise ValueError("No company/year options available from ERP SQL")
+
+    year_candidates = options_df[options_df["FYStart"] == int(fy_start)].copy()
+    if year_candidates.empty:
+        raise ValueError(f"No ERP database found for financial year start: {fy_start}")
+
+    alias_map = {
+        "gokul": ["gokul", "gokulagencies"],
+        "universal": ["universal", "universalenterprises"],
+        "gawel1": ["gawel1", "gawel", "1249"],
+        "gawel2": ["gawel2", "gawel", "1153", "impex"],
+        "focus": ["focus", "gandh"],
+    }
+    keys = alias_map.get((app_company or "").strip().lower(), [app_company])
+    keys_norm = [_normalize_text(k) for k in keys if str(k).strip()]
+
+    def score_row(row: pd.Series) -> int:
+        name_norm = _normalize_text(row.get("CompanyName", ""))
+        db_norm = _normalize_text(row.get("CompanyDb", ""))
+        score = 0
+        for token in keys_norm:
+            if token and token in name_norm:
+                score += 2
+            if token and token in db_norm:
+                score += 1
+        return score
+
+    year_candidates["match_score"] = year_candidates.apply(score_row, axis=1)
+    year_candidates = year_candidates.sort_values(by=["match_score", "CompanyName"], ascending=[False, True])
+    top = year_candidates.iloc[0].to_dict()
+    if int(top.get("match_score", 0)) <= 0:
+        raise ValueError(
+            f"Could not map app company '{app_company}' to ERP company DB for FY {fy_start}-{fy_start + 1}"
+        )
+    return top
+
+
+def _derive_fy_start_from_context(context: ReconciliationContext) -> int:
+    year_int = int(context.year)
+    if context.month in {"january", "february", "march"}:
+        return year_int - 1
+    return year_int
+
+
+def _fetch_busy_ledger_for_context(context: ReconciliationContext) -> pd.DataFrame:
+    fy_start = _derive_fy_start_from_context(context)
+    options_df = load_company_year_options(DB_SERVER)
+    selected = _resolve_company_year_db(context.company, fy_start, options_df)
+
+    year_db = str(selected["YearDb"])
+    print(
+        "[RECON DEBUG] ERP DB resolved:",
+        f"company={selected.get('CompanyName')} ({selected.get('CompanyDb')}), year_db={year_db}"
+    )
+
+    banks = load_bank_accounts(DB_SERVER, year_db)
+    if banks.empty:
+        raise ValueError(f"No bank accounts found in ERP DB: {year_db}")
+
+    target_bank = (context.bank or "").strip().lower()
+    def _safe_bank_type(display_name: str) -> str:
+        try:
+            return detect_bank_type(display_name).lower()
+        except Exception:
+            return ""
+
+    bank_matches = banks[
+        banks["DisplayName"].apply(lambda x: _safe_bank_type(x) == target_bank)
+    ]
+    if bank_matches.empty:
+        raise ValueError(f"No ERP bank account matched app bank '{target_bank}' in DB {year_db}")
+
+    from_date, to_date = get_financial_year_dates(fy_start)
+    print("[RECON DEBUG] Loading Busy ledger:", f"from={from_date}, to={to_date}")
+
+    # If multiple bank masters match (common for ICICI), select by best reconciliation score.
+    if len(bank_matches) == 1:
+        selected_bank = bank_matches.iloc[0]
+        bank_code = int(selected_bank["Code"])
+        bank_display_name = str(selected_bank["DisplayName"])
+        print("[RECON DEBUG] ERP bank account selected:", f"{bank_display_name} (Code={bank_code})")
+        ledger_df = load_bank_ledger(DB_SERVER, year_db, bank_code, from_date, to_date)
+        print(f"[RECON DEBUG] Busy ledger rows loaded from ERP: {len(ledger_df)}")
+        return ledger_df
+
+    print(f"[RECON DEBUG] Multiple ERP bank accounts matched for {target_bank}: {len(bank_matches)}")
+    raise ValueError("Internal error: ambiguous ERP bank selection requires bank_df scoring")
+
+
+def _fetch_busy_ledger_for_context_with_mapping(
+    context: ReconciliationContext,
+    bank_mapping: Optional[Dict[str, Dict[str, str]]] = None
+) -> pd.DataFrame:
+    """Fetch Busy ledger using explicit company+bank -> ERP bank code mapping from settings."""
+    fy_start = _derive_fy_start_from_context(context)
+    options_df = load_company_year_options(DB_SERVER)
+    selected = _resolve_company_year_db(context.company, fy_start, options_df)
+
+    year_db = str(selected["YearDb"])
+    banks = load_bank_accounts(DB_SERVER, year_db)
+    target_bank = (context.bank or "").strip().lower()
+
+    def _safe_bank_type(display_name: str) -> str:
+        try:
+            return detect_bank_type(display_name).lower()
+        except Exception:
+            return ""
+
+    bank_matches = banks[banks["DisplayName"].apply(lambda x: _safe_bank_type(x) == target_bank)]
+    if bank_matches.empty:
+        raise ValueError(f"No ERP bank account matched app bank '{target_bank}' in DB {year_db}")
+
+    from_date, to_date = get_financial_year_dates(fy_start)
+    company_mapping = (bank_mapping or {}).get(context.company, {})
+    bank_key = f"{target_bank}_code"
+    configured_code = str(company_mapping.get(bank_key, "")).strip()
+    if not configured_code:
+        raise ValueError(
+            f"No ERP mapping configured for {context.company}/{target_bank}. "
+            "Open Settings and set ERP bank code."
+        )
+    if not configured_code.isdigit():
+        raise ValueError(
+            f"Invalid ERP bank code '{configured_code}' for {context.company}/{target_bank}. "
+            "Use numeric Code from ERP bank master."
+        )
+
+    configured_code_int = int(configured_code)
+    candidate_codes = set(bank_matches["Code"].astype(int).tolist())
+    if configured_code_int not in candidate_codes:
+        candidates_text = ", ".join(str(x) for x in sorted(candidate_codes))
+        raise ValueError(
+            f"Configured ERP bank code {configured_code_int} not found for {context.company}/{target_bank}. "
+            f"Available ERP codes: {candidates_text}"
+        )
+
+    selected_bank = bank_matches[bank_matches["Code"].astype(int) == configured_code_int].iloc[0]
+    selected_name = str(selected_bank["DisplayName"])
+    print(
+        "[RECON DEBUG] Using explicit ERP bank mapping:",
+        f"company={context.company}, bank={target_bank}, code={configured_code_int}, name={selected_name}"
+    )
+
+    ledger_df = load_bank_ledger(DB_SERVER, year_db, configured_code_int, from_date, to_date)
+    print(f"[RECON DEBUG] Busy ledger rows loaded from ERP: {len(ledger_df)}")
+    return ledger_df
+
+
+def run_reconciliation_from_snapshot(
+    snapshot_data: Dict[str, Any],
+    output_dir: str = "output",
+    bank_mapping: Optional[Dict[str, Dict[str, str]]] = None
+) -> Dict[str, Any]:
+    """Run reconciliation output generation using already stored snapshot data.
+
+    This entrypoint is used by the GUI flow. It does not query BUSY SQL; instead,
+    it uses the statement snapshot already persisted by the application, which
+    includes Party Name and Busy Date columns (legacy snapshots may still carry Infi Date).
+    """
+    if not snapshot_data:
+        raise ValueError("Snapshot data is empty")
+    print("[RECON DEBUG] run_reconciliation_from_snapshot() invoked")
+
+    company = snapshot_data.get("company", "")
+    bank = snapshot_data.get("bank", "")
+    year = snapshot_data.get("year", "")
+    month = snapshot_data.get("month", "")
+    statement_path = snapshot_data.get("source_statement_path", "")
+    context = _build_context(company, bank, year, month, statement_path)
+    print(
+        "[RECON DEBUG] Context:",
+        f"company={context.company}, bank={context.bank}, year={context.year}, "
+        f"month={context.month}, financial_year={context.financial_year}"
+    )
+
+    master_table = snapshot_data.get("master_table", [])
+    print(f"[RECON DEBUG] Snapshot master_table rows: {len(master_table)}")
+    table_df = _normalize_snapshot_table(master_table)
+    if table_df.empty:
+        raise ValueError("Snapshot has no statement rows")
+
+    print("[RECON DEBUG] Preparing bank statement dataframe from snapshot...")
+    bank_df = _build_bank_df_from_snapshot(table_df, context.bank)
+    print(f"[RECON DEBUG] Prepared bank rows for matching: {len(bank_df)}")
+    if bank_df.empty:
+        raise ValueError("No valid bank statement rows found in snapshot")
+
+    ledger_df = _fetch_busy_ledger_for_context_with_mapping(context, bank_mapping=bank_mapping)
+    if ledger_df.empty:
+        raise ValueError("ERP Busy ledger returned 0 rows for selected company/FY/bank")
+
+    print("[RECON DEBUG] Running reconcile(bank_df, ledger_df)...")
+    matched_df, unmatched_bank, unmatched_ledger, ignored_bank = reconcile(bank_df, ledger_df)
+    print(
+        "[RECON DEBUG] Reconcile output:",
+        f"matched={len(matched_df)}, unmatched_bank={len(unmatched_bank)}, "
+        f"unmatched_ledger={len(unmatched_ledger)}, ignored={len(ignored_bank)}"
+    )
+
+    matched_df = matched_df.sort_values(by="BankDate", na_position="last")
+    unmatched_bank = unmatched_bank.sort_values(by="Date", na_position="last")
+    unmatched_ledger = unmatched_ledger.sort_values(by="DATE1", na_position="last")
+
+    # Build final statement view with Busy Date + Ledger Name populated only for matched rows.
+    # IMPORTANT: This is authoritative on every reconcile run:
+    # - clear both fields for all rows first
+    # - populate only matched rows
+    reconciled_statement_df = table_df.copy()
+    if "Busy Date" not in reconciled_statement_df.columns:
+        reconciled_statement_df["Busy Date"] = ""
+    if "Ledger Name" not in reconciled_statement_df.columns:
+        reconciled_statement_df["Ledger Name"] = ""
+    reconciled_statement_df["Busy Date"] = ""
+    reconciled_statement_df["Ledger Name"] = ""
+
+    if not matched_df.empty:
+        for _, match_row in matched_df.iterrows():
+            src_idx = int(match_row.get("_SourceRowIndex", -1))
+            if src_idx < 0 or src_idx not in reconciled_statement_df.index:
+                continue
+            ledger_name = str(match_row.get("Party", "")).strip()
+            ledger_date = match_row.get("LedgerDate")
+            busy_date_text = ""
+            if pd.notna(ledger_date):
+                try:
+                    busy_date_text = pd.Timestamp(ledger_date).strftime("%d/%m/%Y")
+                except Exception:
+                    busy_date_text = str(ledger_date)
+            reconciled_statement_df.at[src_idx, "Ledger Name"] = ledger_name
+            # Keep legacy visible columns in sync for existing UI.
+            reconciled_statement_df.at[src_idx, "Party Name"] = ledger_name
+            if busy_date_text:
+                reconciled_statement_df.at[src_idx, "Busy Date"] = busy_date_text
+                # Keep legacy date column in sync for existing UI.
+                reconciled_statement_df.at[src_idx, "Infi Date"] = busy_date_text
+
+    # Persist updated values back into snapshot payload (saved by caller).
+    snapshot_data["master_table"] = reconciled_statement_df.drop(
+        columns=["Bank Date Parsed"], errors="ignore"
+    ).to_dict(orient="records")
+
+    # Matched export with requested naming.
+    matched_export_df = matched_df.rename(
+        columns={
+            "LedgerDate": "Busy Date",
+            "Party": "Ledger Name",
+        }
+    ).drop(columns=["_LedgerRowIndex", "_BankRowIndex", "_SourceRowIndex"], errors="ignore")
+
+    summary_df = pd.DataFrame({
+        "Metric": [
+            "Company",
+            "Bank",
+            "Year",
+            "Month",
+            "Financial Year",
+            "Statement Source Path",
+            "Total Bank Rows (from snapshot)",
+            "Total Busy Ledger Rows (from ERP SQL)",
+            "Matched Rows",
+            "Unmatched Bank Rows",
+            "Unmatched Ledger Rows",
+            "Ignored Bank Rows",
+        ],
+        "Value": [
+            context.company,
+            context.bank,
+            context.year,
+            context.month,
+            context.financial_year,
+            context.statement_path,
+            len(bank_df),
+            len(ledger_df),
+            len(matched_df),
+            len(unmatched_bank),
+            len(unmatched_ledger),
+            len(ignored_bank),
+        ]
+    })
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = output_path / (
+        f"Reconciliation_{context.company}_{context.bank}_{context.month}_{context.year}_{timestamp}.xlsx"
+    )
+    print(f"[RECON DEBUG] Writing reconciliation workbook: {output_file}")
+
+    with pd.ExcelWriter(output_file) as writer:
+        matched_export_df.to_excel(
+            writer, sheet_name="Matched", index=False
+        )
+        reconciled_statement_df.drop(columns=["Bank Date Parsed"], errors="ignore").to_excel(
+            writer, sheet_name="Reconciled_Statement", index=False
+        )
+        unmatched_bank.drop(columns=["matched"], errors="ignore").to_excel(
+            writer, sheet_name="Unmatched_Bank", index=False
+        )
+        unmatched_ledger.drop(columns=["matched"], errors="ignore").to_excel(
+            writer, sheet_name="Unmatched_Ledger", index=False
+        )
+        bank_df.drop(columns=["matched"], errors="ignore").to_excel(
+            writer, sheet_name="Bank_Statement_Debug", index=False
+        )
+        ledger_df.drop(columns=["matched"], errors="ignore").to_excel(
+            writer, sheet_name="Busy_Ledger", index=False
+        )
+        ignored_bank.drop(columns=["matched"], errors="ignore").to_excel(
+            writer, sheet_name="Ignored_Bank", index=False
+        )
+        summary_df.to_excel(writer, sheet_name="Summary", index=False)
+
+    return {
+        "output_file": str(output_file),
+        "total_rows": len(bank_df),
+        "matched_rows": len(matched_df),
+        "unmatched_rows": len(unmatched_bank),
+        "context": context,
+        "updated_snapshot_data": snapshot_data,
+    }
 
 # ==============================
 # DATABASE CONNECTION
 # ==============================
 
 def connect_to_sql(server, database):
+    if pyodbc is None:
+        raise ImportError("pyodbc is required for SQL-based reconciliation flows.")
     return pyodbc.connect(
         f"DRIVER={{SQL Server}};"
         f"SERVER={server};"
         f"DATABASE={database};"
         "Trusted_Connection=yes;"
     )
+
+def get_financial_year_dates(fy_start_year):
+    start_year = int(fy_start_year)
+    from_date = f"{start_year}-04-01"
+    to_date = f"{start_year + 1}-03-31"
+    return from_date, to_date
+
+def load_company_year_options(server):
+    conn = connect_to_sql(server, "master")
+    query = """
+    SELECT name
+    FROM sys.databases
+    WHERE name LIKE 'BusyComp____[_]db1____'
+    ORDER BY name
+    """
+    dbs = pd.read_sql(query, conn)
+    conn.close()
+
+    rows = []
+    for db_name in dbs["name"].astype(str):
+        match = re.match(r"^(BusyComp\d{4})_db1(\d{4})$", db_name)
+        if not match:
+            continue
+        company_db = match.group(1)
+        fy_start = int(match.group(2))
+        rows.append({
+            "YearDb": db_name,
+            "CompanyDb": company_db,
+            "FYStart": fy_start,
+        })
+
+    if not rows:
+        return pd.DataFrame(columns=["YearDb", "CompanyDb", "CompanyName", "FYStart", "FYLabel"])
+
+    options_df = pd.DataFrame(rows)
+
+    company_name_map = {}
+    company_year_db_map = (
+        options_df.sort_values(by="FYStart")
+        .groupby("CompanyDb")["YearDb"]
+        .last()
+        .to_dict()
+    )
+    for company_db in sorted(options_df["CompanyDb"].unique()):
+        company_name = ""
+        company_name_db = f"{company_db}_db"
+
+        # Primary lookup: BusyCompXXXX_db
+        try:
+            c_conn = connect_to_sql(server, company_name_db)
+            c_df = pd.read_sql(
+                """
+                SELECT TOP 1 LTRIM(RTRIM([Name])) AS CompanyName
+                FROM dbo.Company
+                WHERE NULLIF(LTRIM(RTRIM([Name])), '') IS NOT NULL
+                ORDER BY [Name]
+                """,
+                c_conn
+            )
+            c_conn.close()
+            company_name = str(c_df.iloc[0]["CompanyName"]).strip() if not c_df.empty else ""
+        except Exception:
+            company_name = ""
+
+        # Fallback 1: BusyCompXXXX
+        if not company_name:
+            try:
+                c_conn = connect_to_sql(server, company_db)
+                c_df = pd.read_sql(
+                    """
+                    SELECT TOP 1 LTRIM(RTRIM([Name])) AS CompanyName
+                    FROM dbo.Company
+                    WHERE NULLIF(LTRIM(RTRIM([Name])), '') IS NOT NULL
+                    ORDER BY [Name]
+                    """,
+                    c_conn
+                )
+                c_conn.close()
+                company_name = str(c_df.iloc[0]["CompanyName"]).strip() if not c_df.empty else ""
+            except Exception:
+                company_name = ""
+
+        # Fallback 2: latest known FY DB for this company.
+        if not company_name:
+            try:
+                year_db = company_year_db_map.get(company_db, "")
+                if year_db:
+                    y_conn = connect_to_sql(server, year_db)
+                    y_df = pd.read_sql(
+                        """
+                        SELECT TOP 1 LTRIM(RTRIM([Name])) AS CompanyName
+                        FROM dbo.Company
+                        WHERE NULLIF(LTRIM(RTRIM([Name])), '') IS NOT NULL
+                        ORDER BY [Name]
+                        """,
+                        y_conn
+                    )
+                    y_conn.close()
+                    company_name = str(y_df.iloc[0]["CompanyName"]).strip() if not y_df.empty else ""
+            except Exception:
+                company_name = ""
+
+        if not company_name:
+            company_name = company_db
+        company_name_map[company_db] = company_name
+
+    options_df["CompanyName"] = options_df["CompanyDb"].map(company_name_map)
+    options_df["FYLabel"] = options_df["FYStart"].apply(
+        lambda y: f"{y}-{y + 1}"
+    )
+
+    return options_df.sort_values(by=["CompanyName", "FYStart"]).reset_index(drop=True)
 
 # ==============================
 # LOAD BANK LIST
@@ -473,7 +1030,10 @@ def reconcile(bank_df, ledger_df):
             "MatchType": match_type,
             "Reason": "; ".join(reason_parts),
             "DateDiff": best_match['date_diff'],
-            "TextScore": best_match['text_score']
+            "TextScore": best_match['text_score'],
+            "_LedgerRowIndex": int(l_idx),
+            "_BankRowIndex": int(best_match.name),
+            "_SourceRowIndex": int(best_match.get("SourceRowIndex", -1)),
         })
 
     matched_df = pd.DataFrame(matches, columns=MATCHED_COLUMNS)
@@ -488,8 +1048,46 @@ def reconcile(bank_df, ledger_df):
 
 def main():
 
+    print("\nLoading company and financial year options...\n")
+    company_year_options = load_company_year_options(DB_SERVER)
+    if company_year_options.empty:
+        raise Exception("No company financial-year databases found (pattern BusyCompXXXX_db1YYYY).")
+
+    company_choices = (
+        company_year_options[["CompanyDb", "CompanyName"]]
+        .drop_duplicates()
+        .sort_values(by=["CompanyName", "CompanyDb"])
+        .reset_index(drop=True)
+    )
+
+    for idx, row in company_choices.iterrows():
+        print(f"{idx}: {row['CompanyName']} ({row['CompanyDb']})")
+
+    company_choice = int(input("\nSelect company index: "))
+    selected_company = company_choices.iloc[company_choice]
+    selected_company_db = selected_company["CompanyDb"]
+    selected_company_name = selected_company["CompanyName"]
+
+    fy_choices = (
+        company_year_options[company_year_options["CompanyDb"] == selected_company_db]
+        .sort_values(by="FYStart")
+        .reset_index(drop=True)
+    )
+
+    print(f"\nAvailable financial years for {selected_company_name}:")
+    for idx, row in fy_choices.iterrows():
+        print(f"{idx}: {row['FYLabel']}  [{row['YearDb']}]")
+
+    fy_choice = int(input("\nSelect financial year index: "))
+    selected_fy = fy_choices.iloc[fy_choice]
+    selected_db_name = selected_fy["YearDb"]
+    from_date, to_date = get_financial_year_dates(selected_fy["FYStart"])
+
+    print(f"\nUsing database: {selected_db_name}")
+    print(f"Financial year date range: {from_date} to {to_date}")
+
     print("\nLoading bank accounts...\n")
-    banks = load_bank_accounts(DB_SERVER, DB_NAME)
+    banks = load_bank_accounts(DB_SERVER, selected_db_name)
 
     for idx, row in banks.iterrows():
         print(f"{idx}: {row['DisplayName']}")
@@ -506,10 +1104,10 @@ def main():
     print("\nLoading ledger...")
     ledger_df = load_bank_ledger(
         DB_SERVER,
-        DB_NAME,
+        selected_db_name,
         bank_code,
-        FROM_DATE,
-        TO_DATE
+        from_date,
+        to_date
     )
 
     print("Ledger loaded:", len(ledger_df), "rows")

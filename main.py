@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sys
 import json
+import math
 import threading
 import dateutil.parser
 import atexit
@@ -19,6 +20,7 @@ from PySide6.QtCore import QBitArray, QObject, SIGNAL, Slot, Signal, Property, Q
 import core as C
 from core import TableOperations, TableSnapshot, InfiChequeStatement
 from core import TableSnapshotCollection
+import reconcilation_module as RM
 
 # Import new architecture components
 from services import (
@@ -169,6 +171,8 @@ class MainWindow(QObject, UIOptimizationMixin):
         # UI display state - NOW MANAGED BY STATE_SERVICE
         # Access via: state_service.get_table_data(), state_service.get_selected_rows(), etc.
         self.populate_left_menu(True)
+        self._erpBankMapping = self._load_erp_bank_mapping()
+        self._erpBankOptions = {}
         # NOTE: Do NOT set default selections - user must explicitly select options
         # Table will only populate when user selects company, bank, year, and month
         self._header = self.tableOperations.get_header()
@@ -222,6 +226,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         self._active_futures = weakref.WeakSet()
         self._shutdown_lock = threading.Lock()
         self._is_shutting_down = False
+        self._skip_snapshot_presave_once = False
         
         # Thread synchronization locks for shared state
         self._state_lock = threading.Lock()  # Protects current_month, current_year, current_bank, current_company
@@ -302,6 +307,9 @@ class MainWindow(QObject, UIOptimizationMixin):
         self._bankDict = data['Banks'] 
         self._companyDict = data['Companies']
         self._adminPassword = data['AdminPassword']  
+        if hasattr(self, "_erpBankMapping"):
+            self._erpBankMapping = self._load_erp_bank_mapping()
+            self.erpBankMapping_changed.emit()
         if not first_time:
             self.monthDict_changed.emit()
             self.yearDict_changed.emit()
@@ -324,6 +332,8 @@ class MainWindow(QObject, UIOptimizationMixin):
     showChequeReportPage = Signal(int,str, arguments=['status','time'])
     showTallyExportPage = Signal()
     bankStatementUploadSuccess = Signal()
+    reconciliationSuccess = Signal(str, arguments=['outputPath'])
+    reconciliationFailed = Signal(str, arguments=['error'])
     statementExportSuccess = Signal()
     snapshotDeleteSuccess = Signal()
     snapshotDeleteFail = Signal()
@@ -340,6 +350,8 @@ class MainWindow(QObject, UIOptimizationMixin):
     syncProgressUpdated = Signal(int, int, str, str, arguments=['current', 'total', 'itemName', 'status'])
     syncCompleted = Signal(bool, str, arguments=['success', 'message'])
     showSettingsPage = Signal()
+    erpBankMappingSaved = Signal(str, arguments=['message'])
+    erpBankMappingSaveFailed = Signal(str, arguments=['error'])
     lastSyncUpload_changed = Signal()
     lastSyncDownload_changed = Signal()
     isSyncing_changed = Signal()
@@ -528,6 +540,144 @@ class MainWindow(QObject, UIOptimizationMixin):
             logger.error(traceback.format_exc())
             self.validationError.emit(5)
         return
+
+    @Slot()
+    def runReconciliation(self) -> None:
+        """Run reconciliation using the currently selected snapshot context."""
+        print("[RECON DEBUG] runReconciliation() called from UI")
+        self.showMainScreenLoadingIndicator.emit()
+        self._sync_state_to_service()
+        with self._state_lock:
+            print(
+                "[RECON DEBUG] Current selection:",
+                f"company={self.current_company}, year={self.current_year}, "
+                f"month={self.current_month}, bank={self.current_bank}"
+            )
+        validation_result = self.state_service.validate_for_populate_table()
+        if not validation_result.is_valid:
+            error_code = validation_result.error_code or 3
+            logger.warning(f"Reconciliation validation failed: {validation_result.error_message}")
+            print(
+                "[RECON DEBUG] Validation failed:",
+                f"error_code={error_code}, message={validation_result.error_message}"
+            )
+            self.validationError.emit(error_code)
+            self.hideMainScreenLoadingIndicator.emit()
+            return
+
+        if not self._is_shutting_down:
+            print("[RECON DEBUG] Submitting reconciliation job to thread pool")
+            wrapped_func = self._thread_exception_wrapper(self.threadedRunReconciliation, "Run Reconciliation")
+            future = self._thread_pool.submit(wrapped_func)
+            self._active_futures.add(future)
+        else:
+            logger.warning("Reconciliation rejected: application is shutting down")
+            print("[RECON DEBUG] Reconciliation blocked: application shutting down")
+            self.hideMainScreenLoadingIndicator.emit()
+
+    def threadedRunReconciliation(self) -> None:
+        """Thread worker for snapshot-based reconciliation."""
+        with self._state_lock:
+            month = self.current_month
+            year = self.current_year
+            bank = self.current_bank
+            company = self.current_company
+        print(
+            "[RECON DEBUG] threadedRunReconciliation() started with:",
+            f"company={company}, year={year}, month={month}, bank={bank}"
+        )
+
+        try:
+            print("[RECON DEBUG] Loading snapshot from repository...")
+            snapshot_dict = self.snapshot_repository.load(month, year, bank, company)
+            if not snapshot_dict:
+                msg = (
+                    "No saved bank statement found for "
+                    f"{company}/{year}/{month}/{bank}. Upload statement first."
+                )
+                logger.warning(msg)
+                print("[RECON DEBUG] Snapshot not found")
+                self.reconciliationFailed.emit(msg)
+                return
+
+            master_table = snapshot_dict.get("master_table", []) if isinstance(snapshot_dict, dict) else []
+            print(
+                "[RECON DEBUG] Snapshot loaded:",
+                f"keys={list(snapshot_dict.keys()) if isinstance(snapshot_dict, dict) else 'NA'}, "
+                f"rows={len(master_table)}"
+            )
+            output_dir = os.path.join(CURRENT_DIR, "output")
+            print(f"[RECON DEBUG] Running reconciliation module (output_dir={output_dir})")
+            result = RM.run_reconciliation_from_snapshot(
+                snapshot_dict,
+                output_dir=output_dir,
+                bank_mapping=self._get_erp_bank_mapping_by_company()
+            )
+            updated_snapshot_data = result.get("updated_snapshot_data", snapshot_dict)
+            try:
+                db_path = getattr(self.snapshot_repository, "db_path", "unknown")
+                print(f"[RECON DEBUG] Persisting updated snapshot to repository db_path={db_path}")
+                updated_snapshot_obj = TableSnapshot(updated_snapshot_data)
+                save_ok, save_code = self.snapshot_repository.save(updated_snapshot_obj)
+                if save_ok:
+                    print("[RECON DEBUG] Updated snapshot persisted to SQLite (Ledger Name/Busy Date overwritten)")
+                    # Verify write by reloading same key and checking updated fields.
+                    verify_snapshot = self.snapshot_repository.load(month, year, bank, company)
+                    if not verify_snapshot:
+                        msg = "Snapshot save reported success, but verification load failed."
+                        print(f"[RECON DEBUG] {msg}")
+                        self.reconciliationFailed.emit(msg)
+                        return
+                    verify_rows = verify_snapshot.get("master_table", []) if isinstance(verify_snapshot, dict) else []
+                    populated_count = 0
+                    for row in verify_rows:
+                        if str(row.get("Ledger Name", "")).strip() or str(row.get("Busy Date", "")).strip():
+                            populated_count += 1
+                    print(
+                        "[RECON DEBUG] Verification after save:",
+                        f"rows={len(verify_rows)}, rows_with_ledger_or_busy={populated_count}"
+                    )
+                    with self._state_lock:
+                        cheque_activated = self.chequeReportActivated
+                    with self._snapshot_lock:
+                        # Keep in-memory snapshot aligned with what was persisted.
+                        self.tableSnapshot = updated_snapshot_obj
+                        # Prevent immediate populate_table() from saving stale state over reconciled data.
+                        self._skip_snapshot_presave_once = True
+                    if not cheque_activated:
+                        print("[RECON DEBUG] Triggering table reload to show reconciled data")
+                        self.populate_table()
+                else:
+                    msg = f"Failed to persist updated snapshot: code={save_code}"
+                    print(f"[RECON DEBUG] {msg}")
+                    self.reconciliationFailed.emit(msg)
+                    return
+            except Exception as save_ex:
+                msg = f"Exception while persisting updated snapshot: {save_ex}"
+                print(f"[RECON DEBUG] {msg}")
+                self.reconciliationFailed.emit(msg)
+                return
+            logger.info(
+                "Reconciliation completed: %s (total=%s, matched=%s, unmatched=%s)",
+                result.get("output_file"),
+                result.get("total_rows"),
+                result.get("matched_rows"),
+                result.get("unmatched_rows"),
+            )
+            print(
+                "[RECON DEBUG] Reconciliation completed:",
+                f"output={result.get('output_file')}, total={result.get('total_rows')}, "
+                f"matched={result.get('matched_rows')}, unmatched={result.get('unmatched_rows')}"
+            )
+            self.reconciliationSuccess.emit(result.get("output_file", ""))
+        except Exception as e:
+            logger.error(f"Reconciliation failed: {e}")
+            logger.error(traceback.format_exc())
+            print(f"[RECON DEBUG] Reconciliation exception: {e}")
+            self.reconciliationFailed.emit(str(e))
+        finally:
+            self.hideMainScreenLoadingIndicator.emit()
+
     @Slot(str)
     def exportFile(self, fileURL: str) -> None:
         """Export current table snapshot to Excel file.
@@ -664,10 +814,18 @@ class MainWindow(QObject, UIOptimizationMixin):
         OPTIMIZED: Uses pre-calculated values from SQLite storage when available,
         avoiding expensive recalculations on every load.
         """
-        try:
-            self.save_snapshot()
-        except Exception as e:
-            logger.warning(f"Failed to save previous snapshot: {e}")
+        should_presave = True
+        with self._snapshot_lock:
+            if self._skip_snapshot_presave_once:
+                should_presave = False
+                self._skip_snapshot_presave_once = False
+        if should_presave:
+            try:
+                self.save_snapshot()
+            except Exception as e:
+                logger.warning(f"Failed to save previous snapshot: {e}")
+        else:
+            logger.debug("Skipping one-time presave (post-reconciliation refresh)")
         
         logger.info("Starting table population...")
         
@@ -1017,6 +1175,177 @@ class MainWindow(QObject, UIOptimizationMixin):
         except Exception as e:
             logger.debug(f"Could not load sync timestamp {key}: {e}")
         return ''
+
+    def _default_erp_bank_mapping(self) -> List[Dict[str, str]]:
+        mapping_rows = []
+        for company in self._companyDict:
+            mapping_rows.append({
+                "company": str(company.get("value", "")).strip().lower(),
+                "company_name": str(company.get("name", "")).strip(),
+                "hdfc_code": "",
+                "icici_code": "",
+            })
+        return mapping_rows
+
+    def _load_erp_bank_mapping(self) -> List[Dict[str, str]]:
+        default_rows = self._default_erp_bank_mapping()
+        default_by_company = {row["company"]: row for row in default_rows}
+        try:
+            config_path = os.path.join(CURRENT_DIR, "config.local.toml")
+            if os.path.exists(config_path):
+                import toml
+                with open(config_path, "r") as f:
+                    config = toml.load(f)
+                raw = config.get("erp_bank_mapping", {})
+                if isinstance(raw, dict):
+                    for company_key, company_data in raw.items():
+                        key = str(company_key).strip().lower()
+                        if key not in default_by_company:
+                            continue
+                        if isinstance(company_data, dict):
+                            default_by_company[key]["hdfc_code"] = str(company_data.get("hdfc_code", "")).strip()
+                            default_by_company[key]["icici_code"] = str(company_data.get("icici_code", "")).strip()
+        except Exception as e:
+            logger.error(f"Could not load ERP bank mapping: {e}")
+        return list(default_by_company.values())
+
+    def _get_erp_bank_mapping_by_company(self) -> Dict[str, Dict[str, str]]:
+        mapping = {}
+        for row in self._erpBankMapping:
+            company = str(row.get("company", "")).strip().lower()
+            if not company:
+                continue
+            mapping[company] = {
+                "hdfc_code": str(row.get("hdfc_code", "")).strip(),
+                "icici_code": str(row.get("icici_code", "")).strip(),
+            }
+        return mapping
+
+    def _load_erp_bank_options(self) -> Dict[str, Dict[str, Any]]:
+        """Load ERP bank master options (latest FY per company) for Settings dropdowns."""
+        options_by_company: Dict[str, Dict[str, Any]] = {}
+        try:
+            company_values = [str(c.get("value", "")).strip().lower() for c in self._companyDict]
+            company_values = [c for c in company_values if c]
+            if not company_values:
+                return {}
+
+            company_year_df = RM.load_company_year_options(RM.DB_SERVER)
+            if company_year_df is None or company_year_df.empty:
+                logger.warning("ERP bank options: no company-year data available")
+                return {}
+
+            # Reuse company resolver logic from reconciliation module to keep mapping consistent.
+            for app_company in company_values:
+                try:
+                    # Pick latest available FY for this app company.
+                    candidates = []
+                    for fy_start in sorted(company_year_df["FYStart"].unique(), reverse=True):
+                        try:
+                            resolved = RM._resolve_company_year_db(app_company, int(fy_start), company_year_df)
+                            candidates.append(resolved)
+                        except Exception:
+                            continue
+                    if not candidates:
+                        continue
+
+                    selected = candidates[0]
+                    year_db = str(selected.get("YearDb", "")).strip()
+                    fy_start = int(selected.get("FYStart"))
+                    fy_label = f"{fy_start}-{fy_start + 1}"
+
+                    banks_df = RM.load_bank_accounts(RM.DB_SERVER, year_db)
+                    hdfc_options = []
+                    icici_options = []
+                    for _, row in banks_df.iterrows():
+                        display_name = str(row.get("DisplayName", "")).strip()
+                        code = str(row.get("Code", "")).strip()
+                        try:
+                            btype = RM.detect_bank_type(display_name).lower()
+                        except Exception:
+                            continue
+                        item = {"name": f"{display_name} (Code: {code})", "code": code}
+                        if btype == "hdfc":
+                            hdfc_options.append(item)
+                        elif btype == "icici":
+                            icici_options.append(item)
+
+                    options_by_company[app_company] = {
+                        "year_db": year_db,
+                        "financial_year": fy_label,
+                        "hdfc": hdfc_options,
+                        "icici": icici_options,
+                    }
+                except Exception as e:
+                    logger.warning(f"Failed loading ERP bank options for {app_company}: {e}")
+                    continue
+        except Exception as e:
+            logger.error(f"Could not load ERP bank options: {e}")
+        return options_by_company
+
+    @Slot()
+    def refreshErpBankOptions(self) -> None:
+        """Refresh ERP bank dropdown options for Settings."""
+        self._erpBankOptions = self._load_erp_bank_options()
+        self.erpBankOptions_changed.emit()
+        logger.info(f"ERP bank options refreshed for {len(self._erpBankOptions)} companies")
+
+    @Slot(str, str, str)
+    def updateErpBankMapping(self, company: str, bank: str, bankCode: str) -> None:
+        """Update in-memory ERP bank code mapping for one company+bank."""
+        company_key = str(company).strip().lower()
+        bank_key = str(bank).strip().lower()
+        code = str(bankCode).strip()
+        if bank_key not in {"hdfc", "icici"}:
+            self.erpBankMappingSaveFailed.emit(f"Unsupported bank in mapping update: {bank}")
+            return
+
+        updated = False
+        for row in self._erpBankMapping:
+            if str(row.get("company", "")).strip().lower() == company_key:
+                row[f"{bank_key}_code"] = code
+                updated = True
+                break
+
+        if not updated:
+            self._erpBankMapping.append({
+                "company": company_key,
+                "company_name": company_key,
+                "hdfc_code": code if bank_key == "hdfc" else "",
+                "icici_code": code if bank_key == "icici" else "",
+            })
+        self.erpBankMapping_changed.emit()
+
+    @Slot()
+    def saveErpBankMapping(self) -> None:
+        """Persist ERP bank mappings to config.local.toml."""
+        try:
+            config_path = os.path.join(CURRENT_DIR, "config.local.toml")
+            config = {}
+            if os.path.exists(config_path):
+                import toml
+                with open(config_path, "r") as f:
+                    config = toml.load(f)
+
+            mapping_section = {}
+            for row in self._erpBankMapping:
+                company = str(row.get("company", "")).strip().lower()
+                if not company:
+                    continue
+                mapping_section[company] = {
+                    "hdfc_code": str(row.get("hdfc_code", "")).strip(),
+                    "icici_code": str(row.get("icici_code", "")).strip(),
+                }
+            config["erp_bank_mapping"] = mapping_section
+
+            import toml
+            with open(config_path, "w") as f:
+                toml.dump(config, f)
+            logger.info("ERP bank mapping saved")
+            self.erpBankMappingSaved.emit("ERP bank mapping saved")
+        except Exception as e:
+            logger.error(f"Could not save ERP bank mapping: {e}")
+            self.erpBankMappingSaveFailed.emit(str(e))
     
     def _save_sync_timestamp(self, key: str, value: str) -> None:
         """Save sync timestamp to config file."""
@@ -1184,6 +1513,7 @@ class MainWindow(QObject, UIOptimizationMixin):
     @Slot()
     def openSettingsPage(self):
         """Signal to open settings page."""
+        self.refreshErpBankOptions()
         self.showSettingsPage.emit()
     
     # Sync property getters
@@ -1622,6 +1952,16 @@ class MainWindow(QObject, UIOptimizationMixin):
         return
     def get_adminPassword(self):
         return self._adminPassword      
+    @Signal
+    def erpBankMapping_changed(self):
+        return
+    def get_erpBankMapping(self):
+        return self._erpBankMapping
+    @Signal
+    def erpBankOptions_changed(self):
+        return
+    def get_erpBankOptions(self):
+        return self._erpBankOptions
 
 
     startDateCalendar = Property(QDate, get_startDateCalendar, notify=startDateCalendar_changed)
@@ -1642,6 +1982,8 @@ class MainWindow(QObject, UIOptimizationMixin):
     fullScreenLoadingInfo1 = Property(str, get_fullScreenLoadingInfo1, notify=fullScreenLoadingInfo1_changed)
     fullScreenLoadingInfo2 = Property(str, get_fullScreenLoadingInfo2, notify=fullScreenLoadingInfo2_changed)
     adminPassword = Property(str, get_adminPassword, notify=adminPassword_changed)
+    erpBankMapping = Property('QVariantList', get_erpBankMapping, notify=erpBankMapping_changed)
+    erpBankOptions = Property('QVariantMap', get_erpBankOptions, notify=erpBankOptions_changed)
     
     # Firebase sync properties
     lastSyncUpload = Property(str, get_lastSyncUpload, notify=lastSyncUpload_changed)
@@ -1707,16 +2049,26 @@ class TableModel(QAbstractTableModel):
 
     @Slot('QVariantList', 'QVariantList')
     def set_table_data(self, headers, data):
+        def _display_value(value):
+            if value is None:
+                return ''
+            if isinstance(value, float) and math.isnan(value):
+                return ''
+            text = str(value)
+            if text.strip().lower() in {'nan', 'nat', 'none'}:
+                return ''
+            return text
+
         self.beginResetModel()
         self._headers = [str(h) for h in headers] if headers else []
         normalized = []
         for row in data:
             if isinstance(row, (list, tuple)):
-                normalized.append([str(c) for c in row])
+                normalized.append([_display_value(c) for c in row])
             elif isinstance(row, dict):
-                normalized.append([str(v) for v in row.values()])
+                normalized.append([_display_value(v) for v in row.values()])
             else:
-                normalized.append([str(row)])
+                normalized.append([_display_value(row)])
         self._data = normalized
         self.endResetModel()
 

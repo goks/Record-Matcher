@@ -207,6 +207,10 @@ class AppConfig(BaseModel):
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     paths: PathConfig = Field(default_factory=PathConfig)
     firebase: FirebaseConfig = Field(default_factory=FirebaseConfig)
+    erp_bank_mapping: Dict[str, Dict[str, str]] = Field(
+        default_factory=dict,
+        description="Explicit company+bank to ERP bank-code mappings used by reconciliation"
+    )
     
     class Config:
         frozen = False
