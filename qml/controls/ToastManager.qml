@@ -20,8 +20,8 @@ ListView {
       * @param {string} text Text to show
       * @param {real} duration Duration to show in milliseconds, defaults to 3000
       */
-    function show(text, duration) {
-        model.insert(0, {text: text, duration: duration});
+    function show(text, status, duration) {
+        model.insert(0, {text: text, status: status, duration: duration});
     }
 
     /**
@@ -32,12 +32,12 @@ ListView {
 
     z: Infinity
     spacing: vscale(5)
-    width: hscale(650)
+    width: Math.min(hscale(920), parent ? parent.width - hscale(24) : hscale(920))
     anchors.left: parent.left
     anchors.top: parent.top
     anchors.bottom: parent.bottom
     anchors.topMargin: 0
-    anchors.leftMargin: 0
+    anchors.leftMargin: hscale(12)
     anchors.bottomMargin: vscale(10)
     verticalLayoutDirection: ListView.BottomToTop
     interactive: false
@@ -66,11 +66,14 @@ ListView {
         scaleFactorWidth: root.scaleFactorWidth
 
         Component.onCompleted: {
-            if (typeof duration === "undefined") {
+            if (typeof status === "undefined") {
                 show(text);
             }
+            else if (typeof duration === "undefined") {
+                show(text, status);
+            }
             else {
-                show(text, duration);
+                show(text, status, duration);
             }
         }
     }

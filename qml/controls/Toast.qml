@@ -39,7 +39,7 @@ Rectangle {
         return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
 
-    function show(text, status, duration ) {
+    function show(text, status, duration, stickyOverride ) {
         switch(status){
         case "info":
             status_color = "#68A5D8";
@@ -63,6 +63,13 @@ Rectangle {
             break;
         }
         submessage.text = text;
+        sticky = (typeof stickyOverride !== "undefined") ? !!stickyOverride : ((text || "").length >= longTextThreshold)
+
+        if (sticky) {
+            animation.stop()
+            opacity = 0.95
+            return
+        }
 
         if (typeof duration !== "undefined") { // checks if parameter was passed
             time = Math.max(duration, 2 * fadeTime);
@@ -74,6 +81,8 @@ Rectangle {
     }
 
     property bool selfDestroying: false  // whether this Toast will self-destroy when it is finished
+    property bool sticky: false
+    property int longTextThreshold: 140
 
     /**
       * Private
@@ -95,10 +104,13 @@ Rectangle {
         margins: margin
     }
 
-    //    height: message.height + margin
-    width: hscale(650)
-    height: vscale(103)
-    //    radius: margin
+    implicitWidth: parent ? parent.width : hscale(720)
+    width: implicitWidth
+    implicitHeight: Math.max(
+        vscale(100),
+        main_message.anchors.topMargin + main_message.height + submessage.anchors.topMargin + submessage.paintedHeight + submessage.anchors.bottomMargin
+    )
+    height: implicitHeight
 
     opacity: 0
     color: "#ffffff"
@@ -153,7 +165,7 @@ Rectangle {
         anchors.topMargin: vscale(14)
         anchors.rightMargin: vscale(36)
         font.family: "PT Sans Caption"
-        font.pixelSize: tscale(20)
+        font.pixelSize: tscale(18)
         font.weight: Font.Bold
     }
     Text {
@@ -166,14 +178,14 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.leftMargin: hscale(20)
         horizontalAlignment: Text.AlignLeft
-        verticalAlignment: Text.AlignVCenter
+        verticalAlignment: Text.AlignTop
         wrapMode: Text.WordWrap
-        anchors.bottomMargin: vscale(16)
+        anchors.bottomMargin: vscale(14)
         font.styleName: "Regular"
         anchors.topMargin: vscale(6)
         anchors.rightMargin: hscale(36)
         font.family: "PT Sans Caption"
-        font.pixelSize: tscale(16)
+        font.pixelSize: tscale(14)
         font.weight: Font.Normal
     }
     QtObject {
@@ -204,7 +216,26 @@ Rectangle {
             fillMode: Image.PreserveAspectFit
 
         }
-        onClicked: root.visible = false
+        onClicked: {
+            animation.stop()
+            root.opacity = 0
+            root.visible = false
+        }
+    }
+    Button {
+        id: dismissBtn
+        visible: sticky
+        height: vscale(26)
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: hscale(16)
+        anchors.bottomMargin: vscale(10)
+        text: "Dismiss"
+        onClicked: {
+            animation.stop()
+            root.opacity = 0
+            root.visible = false
+        }
     }
     // TODO Qt6: DropShadow disabled
 
