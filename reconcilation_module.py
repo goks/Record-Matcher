@@ -16,6 +16,7 @@ except ImportError:
     fuzz = _FuzzFallback()
 import numpy as np
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -428,25 +429,37 @@ def run_reconciliation_from_snapshot(
     reconciled_statement_df["Ledger Name"] = ""
 
     if not matched_df.empty:
-        for _, match_row in matched_df.iterrows():
-            src_idx = int(match_row.get("_SourceRowIndex", -1))
-            if src_idx < 0 or src_idx not in reconciled_statement_df.index:
-                continue
-            ledger_name = str(match_row.get("Party", "")).strip()
-            ledger_date = match_row.get("LedgerDate")
-            busy_date_text = ""
-            if pd.notna(ledger_date):
-                try:
-                    busy_date_text = pd.Timestamp(ledger_date).strftime("%d/%m/%Y")
-                except Exception:
-                    busy_date_text = str(ledger_date)
-            reconciled_statement_df.at[src_idx, "Ledger Name"] = ledger_name
+        updates = matched_df[["_SourceRowIndex", "Party", "LedgerDate"]].copy()
+        updates["_SourceRowIndex"] = pd.to_numeric(
+            updates["_SourceRowIndex"], errors="coerce"
+        ).fillna(-1).astype(int)
+        updates = updates[updates["_SourceRowIndex"] >= 0]
+        updates = updates[updates["_SourceRowIndex"].isin(reconciled_statement_df.index)]
+
+        if not updates.empty:
+            updates["Ledger Name"] = updates["Party"].astype(str).str.strip()
+
+            parsed_busy_dates = pd.to_datetime(updates["LedgerDate"], errors="coerce")
+            busy_date_text = parsed_busy_dates.dt.strftime("%d/%m/%Y").fillna("")
+            fallback_mask = busy_date_text.eq("") & updates["LedgerDate"].notna()
+            if fallback_mask.any():
+                busy_date_text.loc[fallback_mask] = updates.loc[fallback_mask, "LedgerDate"].astype(str)
+            updates["Busy Date Text"] = busy_date_text
+
+            # Keep the latest mapping for a source row (defensive; should typically be unique).
+            updates = updates.drop_duplicates(subset=["_SourceRowIndex"], keep="last").set_index("_SourceRowIndex")
+            target_idx = updates.index
+
+            reconciled_statement_df.loc[target_idx, "Ledger Name"] = updates["Ledger Name"]
             # Keep legacy visible columns in sync for existing UI.
-            reconciled_statement_df.at[src_idx, "Party Name"] = ledger_name
-            if busy_date_text:
-                reconciled_statement_df.at[src_idx, "Busy Date"] = busy_date_text
+            reconciled_statement_df.loc[target_idx, "Party Name"] = updates["Ledger Name"]
+
+            has_busy_date = updates["Busy Date Text"].str.len() > 0
+            if has_busy_date.any():
+                busy_idx = updates.index[has_busy_date]
+                reconciled_statement_df.loc[busy_idx, "Busy Date"] = updates.loc[busy_idx, "Busy Date Text"]
                 # Keep legacy date column in sync for existing UI.
-                reconciled_statement_df.at[src_idx, "Infi Date"] = busy_date_text
+                reconciled_statement_df.loc[busy_idx, "Infi Date"] = updates.loc[busy_idx, "Busy Date Text"]
 
     # Persist updated values back into snapshot payload (saved by caller).
     snapshot_data["master_table"] = reconciled_statement_df.drop(
@@ -940,19 +953,53 @@ def reconcile(bank_df, ledger_df):
 
     ignored_bank = bank_df[bank_df['SKIP_MATCH'] == True].copy()
 
+    # Precompute helper fields once for faster candidate filtering.
+    bank_df['_amount_cents'] = np.rint(
+        pd.to_numeric(bank_df['Amount'], errors='coerce').fillna(0.0) * 100.0
+    ).astype(np.int64)
+    bank_df['_date_norm'] = pd.to_datetime(bank_df['Date'], errors='coerce').dt.normalize()
+    bank_df['_desc_lower'] = bank_df['Description'].astype(str).fillna("").str.lower()
+    bank_df['_desc_words'] = bank_df['_desc_lower'].str.findall(r"[A-Za-z0-9]+").apply(set)
+    bank_df['_cheque_no_str'] = bank_df['CHEQUE_NO'].astype(str)
+    bank_df['_has_cheque_ref'] = bank_df['_cheque_no_str'].str.len() > 0
+
+    # Build amount index for non-skipped bank rows to avoid scanning the full table each loop.
+    tolerance_cents = int(round(float(AMOUNT_TOLERANCE) * 100))
+    eligible_bank_mask = bank_df['SKIP_MATCH'] == False
+    amount_index = defaultdict(list)
+    for idx, amount_cents in bank_df.loc[eligible_bank_mask, '_amount_cents'].items():
+        amount_index[int(amount_cents)].append(idx)
+
+    # Track unmatched candidates without repeatedly filtering entire DataFrame.
+    unmatched_bank_indices = set(bank_df.index[eligible_bank_mask].tolist())
+    clr_date_norm = pd.to_datetime(ledger_df.get('CLRDATE'), errors='coerce').dt.normalize()
+    date1_norm = pd.to_datetime(ledger_df.get('DATE1'), errors='coerce').dt.normalize()
+
     matches = []
 
-    for l_idx, l_row in ledger_df.iterrows():
+    for l_row in ledger_df.itertuples(index=True):
+        l_idx = l_row.Index
 
         if ledger_df.at[l_idx, 'matched']:
             continue
 
         # 1) Amount must match first.
-        candidates = bank_df[
-            (bank_df['SKIP_MATCH'] == False) &
-            (bank_df['matched'] == False) &
-            (np.abs(bank_df['Amount'] - l_row['Amount']) <= AMOUNT_TOLERANCE)
-        ].copy()
+        ledger_amount = getattr(l_row, 'Amount', np.nan)
+        if pd.isna(ledger_amount):
+            continue
+        ledger_amount_cents = int(round(float(ledger_amount) * 100))
+        candidate_indices = []
+        for cents in range(ledger_amount_cents - tolerance_cents, ledger_amount_cents + tolerance_cents + 1):
+            candidate_indices.extend(amount_index.get(cents, []))
+
+        if not candidate_indices:
+            continue
+
+        candidate_indices = [idx for idx in candidate_indices if idx in unmatched_bank_indices]
+        if not candidate_indices:
+            continue
+
+        candidates = bank_df.loc[candidate_indices].copy()
 
         if candidates.empty:
             continue
@@ -961,38 +1008,41 @@ def reconcile(bank_df, ledger_df):
         match_type = "Amount"
 
         # 2) If instrument/cheque exists in BUSY, it must match bank ref.
-        ledger_refs = [l_row.get('INSTRUMENT_NO', ''), l_row.get('CHEQUE_NO', '')]
+        ledger_refs = [getattr(l_row, 'INSTRUMENT_NO', ''), getattr(l_row, 'CHEQUE_NO', '')]
+        ledger_refs = [normalize_reference(ref) for ref in ledger_refs]
         ledger_refs = [ref for ref in dict.fromkeys(ledger_refs) if ref]
         if ledger_refs:
             candidates_with_ref = candidates[
-                (candidates['CHEQUE_NO'].astype(str).str.len() > 0) |
+                (candidates['_has_cheque_ref']) |
                 (candidates['IS_CHEQUE_DEPOSIT'] == True)
             ]
             if not candidates_with_ref.empty:
-                candidates = candidates_with_ref[candidates_with_ref['CHEQUE_NO'].isin(ledger_refs)]
+                candidates = candidates_with_ref[candidates_with_ref['_cheque_no_str'].isin(ledger_refs)]
                 if candidates.empty:
                     continue
                 reason_parts.append(f"Instrument/Cheque matched ({', '.join(ledger_refs)})")
                 match_type = "Instrument"
 
         # 3) If clearing date exists in BUSY, it must match bank statement date.
-        clr_date = l_row.get('CLRDATE')
+        clr_date = clr_date_norm.at[l_idx]
         has_clearing_date = pd.notna(clr_date)
         if has_clearing_date:
-            clr_date = pd.Timestamp(clr_date).normalize()
-            candidates = candidates[candidates['Date'].dt.normalize() == clr_date]
+            candidates = candidates[candidates['_date_norm'] == clr_date]
             if candidates.empty:
                 continue
             reason_parts.append("Clearing date matched bank date")
             match_type = "ClearingDate"
 
         # 4) Narration match must be based on ledger name (PARTY) vs bank narration.
-        ledger_name = str(l_row.get('PARTY', '')).strip()
+        ledger_name = str(getattr(l_row, 'PARTY', '')).strip()
         if not ledger_name:
             continue
+        ledger_words = set(re.findall(r"[A-Za-z0-9]+", ledger_name.lower()))
+        if not ledger_words:
+            continue
         candidates = candidates[
-            candidates['Description'].apply(
-                lambda x: has_common_narration_word(ledger_name, x)
+            candidates['_desc_words'].apply(
+                lambda words: len(words.intersection(ledger_words)) > 0
             )
         ]
         if candidates.empty:
@@ -1000,16 +1050,20 @@ def reconcile(bank_df, ledger_df):
         reason_parts.append("At least one ledger-name word matched in bank narration")
 
         # 5) Narration score is only a tie-breaker.
-        candidates['text_score'] = candidates['Description'].apply(
+        ledger_name_lower = ledger_name.lower()
+        candidates['text_score'] = candidates['_desc_lower'].apply(
             lambda x: fuzz.partial_ratio(
-                str(x).lower(),
-                ledger_name.lower()
+                x,
+                ledger_name_lower
             )
         )
-        tie_base_date = clr_date if has_clearing_date else l_row['DATE1']
-        candidates['date_diff'] = (
-            candidates['Date'].dt.normalize() - pd.Timestamp(tie_base_date).normalize()
-        ).abs().dt.days
+        tie_base_date = clr_date if has_clearing_date else date1_norm.at[l_idx]
+        if pd.notna(tie_base_date):
+            candidates['date_diff'] = (
+                candidates['_date_norm'] - tie_base_date
+            ).abs().dt.days
+        else:
+            candidates['date_diff'] = np.iinfo(np.int32).max
 
         candidates = candidates.sort_values(
             by=['text_score', 'date_diff'],
@@ -1020,15 +1074,16 @@ def reconcile(bank_df, ledger_df):
 
         ledger_df.at[l_idx, 'matched'] = True
         bank_df.at[best_match.name, 'matched'] = True
+        unmatched_bank_indices.discard(best_match.name)
 
         reason_parts.append(f"Narration tie-breaker score {best_match['text_score']:.0f}")
 
         matches.append({
-            "LedgerDate": l_row['DATE1'],
+            "LedgerDate": getattr(l_row, 'DATE1', ''),
             "BankDate": best_match['Date'],
-            "Amount": l_row['Amount'],
-            "Party": l_row['PARTY'],
-            "LedgerNarration": l_row['SHORTNAR'],
+            "Amount": ledger_amount,
+            "Party": getattr(l_row, 'PARTY', ''),
+            "LedgerNarration": getattr(l_row, 'SHORTNAR', ''),
             "BankNarration": best_match['Description'],
             "MatchType": match_type,
             "Reason": "; ".join(reason_parts),
@@ -1038,6 +1093,16 @@ def reconcile(bank_df, ledger_df):
             "_BankRowIndex": int(best_match.name),
             "_SourceRowIndex": int(best_match.get("SourceRowIndex", -1)),
         })
+
+    helper_columns = [
+        '_amount_cents',
+        '_date_norm',
+        '_desc_lower',
+        '_desc_words',
+        '_cheque_no_str',
+        '_has_cheque_ref',
+    ]
+    bank_df = bank_df.drop(columns=helper_columns, errors='ignore')
 
     matched_df = pd.DataFrame(matches, columns=MATCHED_COLUMNS)
     unmatched_bank = bank_df[(bank_df['matched'] == False) & (bank_df['SKIP_MATCH'] == False)]
