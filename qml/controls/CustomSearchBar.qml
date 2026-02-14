@@ -10,7 +10,7 @@ Rectangle {
     color: "#f5f8fa"
     implicitHeight: vscale(38)
     radius: 8
-    border.color: "#dee6ec"
+    border.color: searchInput.activeFocus ? "#93c5fd" : "#dee6ec"
     width: searchmode!="default"?hscale(920):hscale(277)
     property string placeholderText: searchmode!="default"?"File Path" :"Search"
     property string searchmode: "default"
@@ -51,8 +51,14 @@ Rectangle {
         anchors.leftMargin: hscale(15)
         anchors.rightMargin: hscale(15)
         text: containerBox.textVal
+        selectByMouse: true
         property string changed_date:  ""
         property string previous_date: ""
+        Keys.onEscapePressed: {
+            if (searchInput.text && searchInput.text.length > 0) {
+                searchInput.text = ""
+            }
+        }
         onTextChanged: if (searchmode==="default") {
                            searchBarText = searchInput.text
                            if (searchbyMode == "bydate" && previous_date!=searchBarText){

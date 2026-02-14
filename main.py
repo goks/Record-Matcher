@@ -14,6 +14,10 @@ import traceback
 from typing import Optional, List, Tuple, Dict, Any
 from datetime import datetime
 
+# Use a non-native Qt Quick Controls style so custom background/contentItem
+# overrides in QML controls are supported (avoids Windows style warnings).
+os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Fusion")
+
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtCore import QBitArray, QObject, SIGNAL, Slot, Signal, Property, QDate, QAbstractTableModel, Qt, QModelIndex, QByteArray, QTimer
@@ -230,6 +234,12 @@ class MainWindow(QObject, UIOptimizationMixin):
         self._shutdown_lock = threading.Lock()
         self._is_shutting_down = False
         self._skip_snapshot_presave_once = False
+        self._populate_request_id = 0
+        self._populate_request_lock = threading.Lock()
+        self._populate_debounce_timer = QTimer(self)
+        self._populate_debounce_timer.setSingleShot(True)
+        self._populate_debounce_timer.setInterval(120)
+        self._populate_debounce_timer.timeout.connect(self._run_coalesced_populate)
         
         # Thread synchronization locks for shared state
         self._state_lock = threading.Lock()  # Protects current_month, current_year, current_bank, current_company
@@ -242,6 +252,8 @@ class MainWindow(QObject, UIOptimizationMixin):
         logger.info("MainWindow initialized with service layer architecture")
         # Table model for native Qt6 TableView (exposed to QML)
         self.tableModel = TableModel(self)
+        self.tableModelUpdateRequested.connect(self._apply_table_model_update, Qt.QueuedConnection)
+        self.progressUpdateRequested.connect(self._apply_progress_update, Qt.QueuedConnection)
 
         # NOTE: Table data should only be populated when user selects options
         # The StackView will show selectOptionsComponent as initial item
@@ -277,6 +289,28 @@ class MainWindow(QObject, UIOptimizationMixin):
             self.current_company = state.current_company
             self.chequeReportActivated = state.cheque_report_activated
             self.tallyExportBoxActivated = state.tally_export_activated
+
+    def _next_populate_request_id(self) -> int:
+        with self._populate_request_lock:
+            self._populate_request_id += 1
+            return self._populate_request_id
+
+    def _is_latest_populate_request(self, request_id: int) -> bool:
+        with self._populate_request_lock:
+            return request_id == self._populate_request_id
+
+    def request_table_populate(self, immediate: bool = False) -> None:
+        """Coalesce rapid populate requests triggered by selection changes."""
+        if immediate:
+            if self._populate_debounce_timer.isActive():
+                self._populate_debounce_timer.stop()
+            self._run_coalesced_populate()
+            return
+        self._populate_debounce_timer.start()
+
+    @Slot()
+    def _run_coalesced_populate(self) -> None:
+        self.populate_table()
     
     def _thread_exception_wrapper(self, func, operation_name):
         """Wrapper to handle exceptions in threaded operations."""
@@ -370,6 +404,8 @@ class MainWindow(QObject, UIOptimizationMixin):
     databasePath_changed = Signal()
     totalSnapshotCount_changed = Signal()
     totalChequeReportCount_changed = Signal()
+    tableModelUpdateRequested = Signal(object, object)
+    progressUpdateRequested = Signal(float, str, str)
     
     def save_snapshot(self) -> None:
         """Save current table snapshot to persistent storage.
@@ -752,22 +788,38 @@ class MainWindow(QObject, UIOptimizationMixin):
     def _set_reconciliation_progress(self, progress: float, text1: str, text2: str) -> None:
         """Update shared progress fields used by QML progress UI."""
         progress = max(0.0, min(1.0, float(progress)))
-        self._progressBarValue = progress
-        self._fullScreenLoadingInfo1 = text1
-        self._fullScreenLoadingInfo2 = text2
-        QTimer.singleShot(0, self.progressBarValue_changed.emit)
-        QTimer.singleShot(0, self.fullScreenLoadingInfo1_changed.emit)
-        QTimer.singleShot(0, self.fullScreenLoadingInfo2_changed.emit)
+        self.progressUpdateRequested.emit(progress, str(text1), str(text2))
 
     def _set_table_available(self, available: bool, clear_ui_data: bool = False) -> None:
         """Track whether current selection has a table to display."""
         self._tableAvailable = bool(available)
         if clear_ui_data:
             self.state_service.update_table_data([], '', '')
-            QTimer.singleShot(0, self.table_data_changed.emit)
-            QTimer.singleShot(0, self.creditBal_changed.emit)
-            QTimer.singleShot(0, self.debitBal_changed.emit)
-        QTimer.singleShot(0, self.tableAvailable_changed.emit)
+            # Keep native Qt table model in sync with cleared UI data.
+            self._update_table_model(self._header, [])
+            self.table_data_changed.emit()
+            self.creditBal_changed.emit()
+            self.debitBal_changed.emit()
+        self.tableAvailable_changed.emit()
+
+    def _update_table_model(self, headers, data) -> None:
+        """Queue table model updates on the Qt main thread."""
+        self.tableModelUpdateRequested.emit(headers, data)
+
+    @Slot(object, object)
+    def _apply_table_model_update(self, headers, data) -> None:
+        """Apply queued table model updates (runs in UI thread)."""
+        self.tableModel.set_table_data(headers, data)
+
+    @Slot(float, str, str)
+    def _apply_progress_update(self, progress: float, text1: str, text2: str) -> None:
+        """Apply progress UI state updates on the Qt UI thread."""
+        self._progressBarValue = progress
+        self._fullScreenLoadingInfo1 = text1
+        self._fullScreenLoadingInfo2 = text2
+        self.progressBarValue_changed.emit()
+        self.fullScreenLoadingInfo1_changed.emit()
+        self.fullScreenLoadingInfo2_changed.emit()
 
     @Slot(str)
     def exportFile(self, fileURL: str) -> None:
@@ -874,6 +926,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             logger.error(traceback.format_exc())        
 
     def populate_table(self):
+        request_id = self._next_populate_request_id()
         self.showMainScreenLoadingIndicator.emit()
         
         # Sync state and validate using service layer
@@ -893,19 +946,22 @@ class MainWindow(QObject, UIOptimizationMixin):
         # Submit to thread pool with exception handling
         if not self._is_shutting_down:
             wrapped_func = self._thread_exception_wrapper(self.threadedPopulate_table, "Table Population")
-            future = self._thread_pool.submit(wrapped_func)
+            future = self._thread_pool.submit(wrapped_func, request_id)
             self._active_futures.add(future)
-            logger.info("Table population task submitted")
+            logger.info(f"Table population task submitted (request_id={request_id})")
         else:
             logger.warning("Table population rejected: application is shutting down")
         return 1
     
-    def threadedPopulate_table(self):
+    def threadedPopulate_table(self, request_id: int):
         """Thread worker for table population with lock protection.
         
         OPTIMIZED: Uses pre-calculated values from SQLite storage when available,
         avoiding expensive recalculations on every load.
         """
+        if not self._is_latest_populate_request(request_id):
+            logger.debug(f"Skipping stale table population request before start: {request_id}")
+            return 0
         should_presave = True
         with self._snapshot_lock:
             if self._skip_snapshot_presave_once:
@@ -976,12 +1032,18 @@ class MainWindow(QObject, UIOptimizationMixin):
         except Exception as e:
             logger.error(f"Failed to load table from SQLite: {e}")
             logger.error(traceback.format_exc())
+            if not self._is_latest_populate_request(request_id):
+                logger.debug(f"Ignoring load failure from stale request: {request_id}")
+                return 0
             self._set_table_available(False, clear_ui_data=True)
             self.showUploadBankStatementPage.emit()
             self.hideMainScreenLoadingIndicator.emit()
             return 0
         
         if not tableSnapshot:
+            if not self._is_latest_populate_request(request_id):
+                logger.debug(f"Ignoring missing snapshot from stale request: {request_id}")
+                return 0
             self._set_table_available(False, clear_ui_data=True)
             self.showUploadBankStatementPage.emit()
             logger.info("No table snapshot found in collection")
@@ -992,6 +1054,9 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         # Update shared state with lock
         try:
+            if not self._is_latest_populate_request(request_id):
+                logger.debug(f"Skipping stale table population request before UI apply: {request_id}")
+                return 0
             with self._snapshot_lock:
                 self.tableSnapshot = tableSnapshot
                 self.masterDisplayTableData = masterDisplayTableData
@@ -1008,7 +1073,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             # Update native Qt TableModel used by QML TableView
             try:
                 # self._header already set earlier; masterDisplayTableData is list of lists
-                self.tableModel.set_table_data(self._header, masterDisplayTableData)
+                self._update_table_model(self._header, masterDisplayTableData)
             except Exception as e:
                 logger.debug(f"TableModel update skipped: {e}")
             
@@ -1037,17 +1102,20 @@ class MainWindow(QObject, UIOptimizationMixin):
         except Exception as e:
             logger.error(f"Failed to update UI state: {e}")
             logger.error(traceback.format_exc())
+            if not self._is_latest_populate_request(request_id):
+                logger.debug(f"Ignoring UI apply failure from stale request: {request_id}")
+                return 0
             self._set_table_available(False, clear_ui_data=True)
             self.hideMainScreenLoadingIndicator.emit()
             raise
 
     def callBackFunction_for_Updating_fullScreenLoading(self, text1, text2, prograssbarVal):
-        self._fullScreenLoadingInfo1 = text1
-        self._fullScreenLoadingInfo2 = text2
-        self._progressBarValue = prograssbarVal
-        self.fullScreenLoadingInfo1_changed.emit()
-        self.fullScreenLoadingInfo2_changed.emit()
-        self.progressBarValue_changed.emit()
+        try:
+            progress = float(prograssbarVal)
+        except Exception:
+            progress = 0.0
+        progress = max(0.0, min(1.0, progress))
+        self.progressUpdateRequested.emit(progress, str(text1), str(text2))
         return
 
     def populateChequeReports(self) -> Tuple[int, str]:
@@ -1145,6 +1213,11 @@ class MainWindow(QObject, UIOptimizationMixin):
                 batch.queue_signal(self.table_data_changed)
                 batch.queue_signal(self.creditBal_changed)
                 batch.queue_signal(self.debitBal_changed)
+            try:
+                # Keep native table model in sync with filtered search results.
+                self._update_table_model(self._header, search_result.filtered_data)
+            except Exception as e:
+                logger.debug(f"TableModel search update skipped: {e}")
             logger.debug(f"Search completed - Results: {len(search_result.filtered_data)} rows")
         except Exception as e:
             logger.error(f"Search failed: {e}")
@@ -1879,7 +1952,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             self.showTallyExportBox.emit()
             return
         self._set_table_available(False, clear_ui_data=True)
-        self.populate_table()
+        self.request_table_populate()
     @Slot(str, str)
     def bankChanged(self, bankname, screenName):
         """Handle bank selection change.
@@ -1900,7 +1973,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         self.bankData_changed.emit()
         logger.debug("bankData_changed emitted")
         self._set_table_available(False, clear_ui_data=True)
-        self.populate_table()
+        self.request_table_populate()
     @Slot(str)
     def yearChanged(self, year):
         """Handle year selection change.
@@ -1927,7 +2000,7 @@ class MainWindow(QObject, UIOptimizationMixin):
             self.showTallyExportBox.emit()
             return
         self._set_table_available(False, clear_ui_data=True)
-        self.populate_table()
+        self.request_table_populate()
     @Slot(str, str)
     def monthChanged(self, month, screenNane):
         """Handle month selection change.
@@ -1943,7 +2016,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         self.update_monthYearData()
         self._set_table_available(False, clear_ui_data=True)
-        self.populate_table()
+        self.request_table_populate()
     def update_monthYearData(self):
         with self._state_lock:
             cheque_activated = self.chequeReportActivated
@@ -1983,7 +2056,7 @@ class MainWindow(QObject, UIOptimizationMixin):
         logger.debug(f"Tally export mode status: {status}")
     @Slot()
     def call_populate_table(self):
-        self.populate_table()    
+        self.request_table_populate(immediate=True)
     
 
     @Signal

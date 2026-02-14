@@ -52,6 +52,8 @@ Window {
     property string previousScreenKey: "selectOptions"
     property string pendingSearchText: ""
     property string pendingSearchMode: "off"
+    property string lastSearchText: "__INIT__"
+    property string lastSearchMode: "__INIT__"
 
     function componentForScreen(screenKey) {
         switch (screenKey) {
@@ -89,7 +91,16 @@ Window {
         interval: 250
         repeat: false
         onTriggered: {
-            if (backend) backend.search(window.pendingSearchText, window.pendingSearchMode)
+            if (!backend || window.currentScreenKey !== "table") {
+                return
+            }
+            if (window.pendingSearchText === window.lastSearchText &&
+                    window.pendingSearchMode === window.lastSearchMode) {
+                return
+            }
+            window.lastSearchText = window.pendingSearchText
+            window.lastSearchMode = window.pendingSearchMode
+            backend.search(window.pendingSearchText, window.pendingSearchMode)
         }
     }
 
@@ -1284,7 +1295,7 @@ Window {
 
                     Rectangle {
                         id: bodySubtitleContainer
-                        readonly property bool reconciliationInProgress: backend && backend.progressBarValue > 0 && backend.fullScreenLoadingInfo2 !== ""
+                        readonly property bool reconciliationInProgress: backend && backend.fullScreenLoadingInfo2 !== ""
                         height: reconciliationInProgress ? vscale(84) : vscale(52)
                         color: "#ffffff"
                         anchors.left: parent.left

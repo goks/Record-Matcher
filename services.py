@@ -286,7 +286,7 @@ class StateManagementService:
         """
         with self._ui_lock:
             return (
-                self.ui_data.table_data[:],  # Return copy
+                self.ui_data.table_data,  # Avoid expensive full copy on every property read
                 self.ui_data.credit_balance,
                 self.ui_data.debit_balance
             )

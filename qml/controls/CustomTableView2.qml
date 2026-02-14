@@ -124,6 +124,24 @@ Rectangle {
         return Math.max(total, tableBox.width)
     }
 
+    function visibleRowCapacity() {
+        var rowHeight = Math.max(vscale(36), minRowHeight)
+        if (rowHeight <= 0) return 1
+        return Math.max(1, Math.floor(tableFlick.height / rowHeight))
+    }
+
+    function ensureFocusedRowVisible() {
+        if (!tableData || focusedRowIndex < 0) return
+        var rowHeight = Math.max(vscale(36), minRowHeight)
+        var topY = focusedRowIndex * rowHeight
+        var bottomY = topY + rowHeight
+        if (tableFlick.contentY > topY) {
+            tableFlick.contentY = topY
+        } else if ((tableFlick.contentY + tableFlick.height) < bottomY) {
+            tableFlick.contentY = bottomY - tableFlick.height
+        }
+    }
+
     // Native-style table using `tableModel` and `columns` when TableView module is unavailable
     Item {
         id: nativeTableContainer
@@ -209,11 +227,45 @@ Rectangle {
                         }
                     }
                 }
+                Keys.onUpPressed: {
+                    if (focusedRowIndex > 0) {
+                        focusedRowIndex = focusedRowIndex - 1
+                        nativeList.positionViewAtIndex(focusedRowIndex, ListView.Contain)
+                    }
+                }
+                Keys.onDownPressed: {
+                    var maxIndex = (tableData ? tableData.length : 0) - 1
+                    if (focusedRowIndex < maxIndex) {
+                        focusedRowIndex = focusedRowIndex + 1
+                        nativeList.positionViewAtIndex(focusedRowIndex, ListView.Contain)
+                    }
+                }
+                Keys.onPressed: function(event) {
+                    if (!tableData || tableData.length === 0) return
+                    if (event.key === Qt.Key_PageUp) {
+                        focusedRowIndex = Math.max(0, focusedRowIndex - visibleRowCapacity())
+                        nativeList.positionViewAtIndex(focusedRowIndex, ListView.Contain)
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_PageDown) {
+                        focusedRowIndex = Math.min(tableData.length - 1, focusedRowIndex + visibleRowCapacity())
+                        nativeList.positionViewAtIndex(focusedRowIndex, ListView.Contain)
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Home) {
+                        focusedRowIndex = 0
+                        nativeList.positionViewAtIndex(focusedRowIndex, ListView.Beginning)
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_End) {
+                        focusedRowIndex = tableData.length - 1
+                        nativeList.positionViewAtIndex(focusedRowIndex, ListView.End)
+                        event.accepted = true
+                    }
+                }
                 delegate: Rectangle {
                     id: rowDelegate
                     // Guard against parent being undefined during initialization
                     width: (nativeList && nativeList.width) ? nativeList.width : tableBox.width
                     height: Math.max(vscale(48), minRowHeight)
+                    property var rowModel: model
                     
                     property bool isFocused: focusedRowIndex === index
                     property bool isSelected: selectedRows && selectedRows.indexOf(index) !== -1
@@ -232,6 +284,7 @@ Rectangle {
                             // Only focus the row on click, don't select it
                             focusedRowIndex = index
                             nativeList.forceActiveFocus()
+                            nativeList.positionViewAtIndex(focusedRowIndex, ListView.Contain)
                         }
                     }
 
@@ -244,10 +297,20 @@ Rectangle {
                         Repeater {
                             model: columns
                             delegate: Text {
+                                property string roleName: "col" + index
                                 width: Math.max(120, Math.round((tableBox.width - 40) / Math.max(1, columns.length)))
                                 height: vscale(48)
                                 // Access named role dynamically (col0, col1, ...)
-                                text: (rowDelegate["col" + index] !== undefined) ? String(rowDelegate["col" + index]) : ""
+                                text: {
+                                    if (rowDelegate.rowModel && rowDelegate.rowModel[roleName] !== undefined) {
+                                        return String(rowDelegate.rowModel[roleName])
+                                    }
+                                    // Fallback for QVariantList-based rows
+                                    if (rowDelegate.modelData && Array.isArray(rowDelegate.modelData) && index < rowDelegate.modelData.length) {
+                                        return String(rowDelegate.modelData[index])
+                                    }
+                                    return ""
+                                }
                                 color: textColor
                                 font.family: "PT Sans Caption"
                                 font.pointSize: tscale(10)
@@ -416,8 +479,8 @@ Rectangle {
         // Flickable table rendering
         Flickable {
             id: tableFlick
-            contentHeight: tableRepeater.childrenRect.height
-            contentWidth: getTotalContentWidth()
+            contentHeight: Math.max(tableRepeater.implicitHeight, height)
+            contentWidth: Math.max(getTotalContentWidth(), width)
             flickableDirection: Flickable.AutoFlickIfNeeded
             boundsBehavior: Flickable.StopAtBounds
             focus: true
@@ -441,12 +504,34 @@ Rectangle {
             Keys.onUpPressed: {
                 if (focusedRowIndex > 0) {
                     focusedRowIndex = focusedRowIndex - 1
+                    ensureFocusedRowVisible()
                 }
             }
             
             Keys.onDownPressed: {
                 if (tableData && focusedRowIndex < tableData.length - 1) {
                     focusedRowIndex = focusedRowIndex + 1
+                    ensureFocusedRowVisible()
+                }
+            }
+            Keys.onPressed: function(event) {
+                if (!tableData || tableData.length === 0) return
+                if (event.key === Qt.Key_PageUp) {
+                    focusedRowIndex = Math.max(0, focusedRowIndex - visibleRowCapacity())
+                    ensureFocusedRowVisible()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_PageDown) {
+                    focusedRowIndex = Math.min(tableData.length - 1, focusedRowIndex + visibleRowCapacity())
+                    ensureFocusedRowVisible()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Home) {
+                    focusedRowIndex = 0
+                    ensureFocusedRowVisible()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_End) {
+                    focusedRowIndex = tableData.length - 1
+                    ensureFocusedRowVisible()
+                    event.accepted = true
                 }
             }
 
@@ -514,6 +599,7 @@ Rectangle {
                             // Only focus the row on click, don't permanently select it
                             focusedRowIndex = rowRect.rowIndex
                             tableFlick.forceActiveFocus()
+                            ensureFocusedRowVisible()
                         }
                     }
 
@@ -611,6 +697,10 @@ Rectangle {
         if (tableFlick) {
             tableFlick.contentY = 0
         }
+        if (nativeList) {
+            nativeList.contentY = 0
+        }
+        focusedRowIndex = tableData && tableData.length > 0 ? 0 : -1
     }
 
     Component.onCompleted: {
