@@ -511,6 +511,8 @@ Window {
                             break;
                         case -5: toast.show("Permission error. Failed to write" ,"error");
                             break;
+                        case -99: toast.show("Failed to parse bank statement rows. Check date cells in the selected file.", "error");
+                            break;
                         default:toast.show("Unknown error. Submit fail." ,"error");
                             break;
                         }
@@ -1300,7 +1302,9 @@ Window {
                         // Search bar with rounded background
                         Rectangle {
                             id: searchContainer
-                            width: hscale(240)
+                            width: textInput.searchmode === "default"
+                                   ? hscale(240)
+                                   : Math.max(hscale(460), parent.width - hscale(620))
                             height: vscale(40)
                             radius: hscale(8)
                             color: "#f8fafc"
@@ -1314,8 +1318,8 @@ Window {
                                 anchors.fill: parent
                                 anchors.margins: 2
                                 searchbyMode: "off"
-                                startDateCalendar: backend ? backend.startDateCalendar : null
-                                endDateCalendar: backend ? backend.endDateCalendar : null
+                                startDateCalendar: backend ? backend.startDateCalendar : undefined
+                                endDateCalendar: backend ? backend.endDateCalendar : undefined
                                 scaleFactorWidth: window.scaleFactorWidth
                                 scaleFactorHeight: window.scaleFactorHeight
                                 onSearchBarTextChanged: {
@@ -1381,6 +1385,10 @@ Window {
                         // Upload button (hidden by default)
                         CustomSubTitleButton {
                             id: uploadBtn
+                            readonly property bool hasRequiredSelections: !!(backend &&
+                                                                              backend.companyData && backend.companyData !== "" &&
+                                                                              backend.bankData && backend.bankData !== "" &&
+                                                                              backend.monthYearData && backend.monthYearData !== "")
                             width: hscale(100)
                             anchors.left: searchContainer.right
                             anchors.verticalCenter: parent.verticalCenter
@@ -1388,7 +1396,9 @@ Window {
                             text: qsTr("Import")
                             selected: true
                             visible: false
-                            enabled: !(mainScreenBusyIndicator.running || busyIndicator.visible || syncProgressOverlay.visible)
+                            enabled: hasRequiredSelections &&
+                                     textInput.fileDialogText !== "" &&
+                                     !(mainScreenBusyIndicator.running || busyIndicator.visible || syncProgressOverlay.visible)
                             opacity: enabled ? 1.0 : 0.6
                             onClicked : {
                                 if (!uploadBtn.enabled) return
@@ -1402,6 +1412,19 @@ Window {
                                 }
                                 backend.uploadFile(textInput.fileDialogText)
                             }
+                        }
+                        Text {
+                            id: uploadHintText
+                            visible: uploadBtn.visible && (!uploadBtn.hasRequiredSelections || textInput.fileDialogText === "")
+                            anchors.left: uploadBtn.left
+                            anchors.top: uploadBtn.bottom
+                            anchors.topMargin: vscale(4)
+                            font.family: "PT Sans Caption"
+                            font.pixelSize: tscale(10)
+                            color: "#64748b"
+                            text: !uploadBtn.hasRequiredSelections
+                                  ? "Select Company, Bank, Year, and Month."
+                                  : "Choose a file using Browse."
                         }
                         Rectangle {
                             id: busyIndicatorBg

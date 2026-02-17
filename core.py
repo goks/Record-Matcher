@@ -838,23 +838,32 @@ class ICICIBankChequeStatement:
         """Process date field using centralized DateHandler."""
         date = entry[2]
         try:
+            if date is None or str(date).strip() == "":
+                logger.debug("Skipping ICICI row due to empty Value_Date")
+                return None
             handler = get_date_handler()
             parsed_date = handler.parse(str(date), dayfirst=True)
             entry[2] = handler.format(parsed_date, handler.TALLY_OUTPUT_FORMAT)
         except Exception:
-            logger.exception("Failed to process ICICI statement date: %s", date)
-            raise
+            logger.warning("Skipping ICICI row due to invalid date: %s", date)
+            return None
         return entry        
 
     def grab_data(self):
-        i = self.start_row
+        i = self.start_row if self.start_row is not None else 0
         # No.	Transaction_ID	Value_Date	Txn_Posted_Date	ChequeNo.	Description_Cr/Dr	Transaction_Amount(INR)	Available_Balance(INR)	
         self.entry_list = []
+        max_rows = getattr(self.worksheet, "nrows", 0) or 0
+        empty_row_streak = 0
+        max_empty_row_streak = 200
         while True:
+            if max_rows and i >= max_rows:
+                logger.debug("Reached worksheet row bound for ICICI statement: %s", max_rows)
+                break
             entry = []
             try:
                 val = self.worksheet.cell(i,0).value
-            except IndexError:
+            except (IndexError, ValueError):
                 logger.debug("Reached end of ICICI statement")
                 break
             for j in range(0,9):
@@ -862,6 +871,18 @@ class ICICIBankChequeStatement:
                 val = self.worksheet.cell(i,j).value
                 entry.append(val)
                 j+=1
+            # Skip blank rows safely.
+            if not any(cell is not None and str(cell).strip() != "" for cell in entry):
+                empty_row_streak += 1
+                if empty_row_streak >= max_empty_row_streak:
+                    logger.debug(
+                        "Stopping ICICI parse after %s consecutive empty rows at row index %s",
+                        max_empty_row_streak, i
+                    )
+                    break
+                i += 1
+                continue
+            empty_row_streak = 0
             entry = self.process_narration(entry)    
             entry = self.process_date(entry)
             if entry:

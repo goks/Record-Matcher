@@ -487,9 +487,13 @@ class MainWindow(QObject, UIOptimizationMixin):
             return
         
         try:
-            fileUrl = fileUrl.split('///')[1]
+            if isinstance(fileUrl, str) and fileUrl.startswith("file:///"):
+                fileUrl = unquote(fileUrl.replace("file:///", "", 1))
+            fileUrl = str(fileUrl or "").strip()
+            if not fileUrl:
+                raise ValueError("Empty file URL/path")
             logger.info(f"File upload initiated: {fileUrl}")
-        except (IndexError, AttributeError) as e:
+        except Exception:
             logger.error(f"Invalid file URL format: {fileUrl}")
             logger.error(traceback.format_exc())
             self.validationError.emit(6)
@@ -550,6 +554,32 @@ class MainWindow(QObject, UIOptimizationMixin):
         
         # Add snapshot to table (processes the bank statement file)
         try:
+            with self._state_lock:
+                month = str(self.current_month or "").strip()
+                year = str(self.current_year or "").strip()
+                bank = str(self.current_bank or "").strip()
+                company = str(self.current_company or "").strip()
+
+            # Guard against invalid/null selection state to prevent deep-core crashes.
+            if not all([month, year, bank, company]):
+                logger.warning(
+                    "Upload blocked: missing selection context (company=%s, bank=%s, year=%s, month=%s)",
+                    company, bank, year, month
+                )
+                self.validationError.emit(3)
+                return
+
+            if not year.isdigit():
+                logger.warning("Upload blocked: invalid year value '%s'", year)
+                self.validationError.emit(3)
+                return
+
+            # Set operation context explicitly for backward-compatible core API.
+            self.tableOperations.month = month
+            self.tableOperations.year = year
+            self.tableOperations.bank = bank
+            self.tableOperations.company = company
+
             success, status_code = self.tableOperations.add_snapshot_to_table(fileUrl)
             if not success:
                 error_msg = VALIDATION_ERRORS.get(status_code, f"Upload failed with code {status_code}")
@@ -557,12 +587,6 @@ class MainWindow(QObject, UIOptimizationMixin):
                 self.validationError.emit(status_code)
             else:
                 # Get the created snapshot from tableOperations and save to SQLite
-                with self._state_lock:
-                    month = self.current_month
-                    year = self.current_year
-                    bank = self.current_bank
-                    company = self.current_company
-                
                 # Retrieve the snapshot that was just created (stored in tableOperations.storageManager)
                 snapshot = self.tableOperations.storageManager.get_table_snapshot(month, year, bank, company)
                 if snapshot:

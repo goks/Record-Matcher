@@ -34,6 +34,7 @@ Rectangle {
     function tscale(size) {
         return Math.round((hscale(size) + vscale(size)) / 2)+2
     }
+    readonly property int inputFontSize: searchmode === "default" ? tscale(16) : tscale(12)
     TextInput {
         id: searchInput
         color: "#324254"
@@ -43,7 +44,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         font.family: "PT Sans Caption"
-        font.pixelSize: tscale(16)
+        font.pixelSize: containerBox.inputFontSize
         verticalAlignment: Text.AlignVCenter
         clip: true
         anchors.topMargin: 0
@@ -82,7 +83,7 @@ Rectangle {
             verticalAlignment: Text.AlignVCenter
             clip: true
             font.family: "PT Sans Caption"
-            font.pixelSize: tscale(16)
+            font.pixelSize: containerBox.inputFontSize
         }
         CustomSubTitleButton {
             id:browseBut
@@ -138,12 +139,13 @@ Rectangle {
         }
         FileDialog {
             id: fileDialog
+            fileMode: FileDialog.OpenFile
             nameFilters: ["Excel Files (*.xls *.xlsx)"]
             title: "Choose the file to import "
             // Qt6: folder property removed, using currentFolder instead
             // shortcuts.desktop removed in Qt 6
             onAccepted: {
-                fileDialogText = fileDialog.fileUrl
+                fileDialogText = selectedFile.toString()
                 browseBut.selected = false
             }
             onRejected: {
