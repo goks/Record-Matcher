@@ -1347,6 +1347,11 @@ class MainWindow(QObject, UIOptimizationMixin):
     @Slot(bool)
     def showTallyExportBox(self, selected):
         self.tallyExportButtonClicked.emit(selected)
+
+    @Slot(str, result=bool)
+    def verifyAdminPassword(self, candidate: str) -> bool:
+        """Validate admin password used by password-gated actions."""
+        return str(candidate or "") == str(self._adminPassword or "")
     
     def _cleanup_threads(self):
         """Properly shutdown all managed threads."""
@@ -1356,27 +1361,25 @@ class MainWindow(QObject, UIOptimizationMixin):
             self._is_shutting_down = True
         
         logger.info("Initiating thread pool shutdown...")
-        
-        # Wait for active futures to complete (with timeout)
-        active_count = len(self._active_futures)
-        if active_count > 0:
-            logger.info(f"Waiting for {active_count} active tasks to complete...")
-            # Give threads reasonable time to finish
-            import time
-            max_wait = 10.0  # seconds
-            start_time = time.time()
-            
-            while len(self._active_futures) > 0 and (time.time() - start_time) < max_wait:
-                time.sleep(0.1)
-            
-            remaining = len(self._active_futures)
-            if remaining > 0:
-                logger.warning(f"{remaining} tasks did not complete within {max_wait}s timeout")
-        
-        # Shutdown thread pool gracefully
+
+        # Force-cancel sync and background workers on UI close.
+        self._syncCancelled = True
+        self._isSyncing = False
+        self.isSyncing_changed.emit()
+
+        # Best-effort shutdown of Firebase worker pool first.
         try:
-            self._thread_pool.shutdown(wait=True, cancel_futures=False)
-            logger.info("Thread pool shutdown completed successfully")
+            firebase_controls = self.tableOperations.firebaseService.firebaseControls
+            if getattr(firebase_controls, "executor", None) is not None:
+                firebase_controls.executor.shutdown(wait=False, cancel_futures=True)
+                logger.info("Firebase executor shutdown requested (force).")
+        except Exception as e:
+            logger.warning(f"Firebase executor force-shutdown failed: {e}")
+
+        # Shutdown main thread pool without waiting for in-flight operations.
+        try:
+            self._thread_pool.shutdown(wait=False, cancel_futures=True)
+            logger.info("Thread pool shutdown requested (force).")
         except Exception as e:
             logger.error(f"Error during thread pool shutdown: {e}")
             logger.error(traceback.format_exc())
@@ -1436,8 +1439,21 @@ class MainWindow(QObject, UIOptimizationMixin):
         """Thread worker for Firebase upload with exception handling."""
         logger.info("Starting Firebase upload operation...")
         try:
-            self.tableOperations.upload_data_to_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
-            logger.info("Firebase upload completed successfully")
+            firebase_service = self.tableOperations.firebaseService
+            results = firebase_service.upload_with_repositories(
+                self.snapshot_repository,
+                self.cheque_repository,
+                self._sync_progress_callback
+            )
+            if results.get('success', False):
+                logger.info(
+                    "Firebase upload completed successfully (snapshots=%s, cheques=%s, config=%s)",
+                    results.get('snapshots_uploaded', 0),
+                    results.get('cheque_reports_uploaded', 0),
+                    results.get('config_uploaded', False)
+                )
+            else:
+                raise DatabaseError("; ".join(results.get('errors', ['Unknown upload error'])))
         except Exception as e:
             logger.error(f"Firebase upload failed: {e}")
             logger.error(traceback.format_exc())
@@ -2432,6 +2448,7 @@ if __name__ == "__main__":
        
     #Get Context
     main = MainWindow()
+    app.aboutToQuit.connect(main.beginWindowExitRoutine)
     engine.rootContext().setContextProperty("backend", main)
 
     tableBackend = TableBackend()

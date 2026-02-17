@@ -2605,6 +2605,28 @@ class FirebaseService:
         except Exception:
             base_path = os.path.abspath(".")
         self.leftMenuJsonPath = os.path.join(base_path, 'data.json')
+
+    @staticmethod
+    def _to_json_payload(entity: Any) -> Optional[Dict[str, Any]]:
+        """Normalize repository entities to serializable dict payloads."""
+        if entity is None:
+            return None
+        if isinstance(entity, dict):
+            return entity
+        if hasattr(entity, "get_json"):
+            try:
+                return entity.get_json()
+            except Exception:
+                pass
+        if hasattr(entity, "to_dict"):
+            try:
+                return entity.to_dict()
+            except Exception:
+                pass
+        try:
+            return vars(entity)
+        except Exception:
+            return None
     
     def upload_with_repositories(
         self,
@@ -2638,56 +2660,65 @@ class FirebaseService:
         }
         
         try:
+            cheque_list = cheque_repository.list_all()  # Returns List[Tuple[year, company]]
+            snapshot_list = snapshot_repository.list_all()  # Returns List[Tuple[month, year, bank, company]]
+            total_work_items = 1 + len(cheque_list) + len(snapshot_list)
+            done_items = 0
+
             # Step 1: Upload left menu/config
-            progress_callback(0, 1, "Configuration data", "uploading")
+            progress_callback(done_items, total_work_items, "Configuration data", "uploading")
             try:
                 with open(self.leftMenuJsonPath) as f:
                     config_data = json.load(f)
                 leftmenu_future = self.firebaseControls.set_leftMenu_data_async(config_data)
                 leftmenu_future.result(timeout=30)
                 results['config_uploaded'] = True
-                progress_callback(1, 1, "Configuration data", "completed")
+                done_items += 1
+                progress_callback(done_items, total_work_items, "Configuration data", "completed")
             except Exception as e:
                 results['errors'].append(f"Config upload error: {e}")
-                progress_callback(1, 1, "Configuration data", "error")
+                done_items += 1
+                progress_callback(done_items, total_work_items, "Configuration data", "error")
             
             # Step 2: Upload cheque reports
-            cheque_list = cheque_repository.list_all()  # Returns List[Tuple[year, company]]
             total_cheques = len(cheque_list)
             
             if total_cheques > 0:
                 cheque_upload_dict = {}
                 for i, (year, company) in enumerate(cheque_list, 1):
                     item_name = f"Cheque Report: {year} - {company}"
-                    progress_callback(i, total_cheques, item_name, "loading")
+                    progress_callback(done_items, total_work_items, item_name, "loading")
                     
                     cheque_report = cheque_repository.load(year, company)
-                    if cheque_report:
+                    payload = self._to_json_payload(cheque_report)
+                    if payload:
                         key = f"{year}_{company}"
-                        cheque_upload_dict[key] = cheque_report.get_json()
+                        cheque_upload_dict[key] = payload
                 
                 # Batch upload
                 if cheque_upload_dict:
                     def cheque_progress(current, total, key):
-                        progress_callback(current, total, f"Cheque Report: {key}", "uploading")
+                        cumulative = done_items + current
+                        progress_callback(cumulative, total_work_items, f"Cheque Report: {key}", "uploading")
                     
                     self.firebaseControls.batch_set_chequeReports(cheque_upload_dict, cheque_progress)
                     results['cheque_reports_uploaded'] = len(cheque_upload_dict)
+                done_items += total_cheques
             
             # Step 3: Upload table snapshots
-            snapshot_list = snapshot_repository.list_all()  # Returns List[Tuple[month, year, bank, company]]
             total_snapshots = len(snapshot_list)
             
             if total_snapshots > 0:
                 snapshot_upload_dict = {}
                 for i, (month, year, bank, company) in enumerate(snapshot_list, 1):
                     item_name = f"Snapshot: {month.title()} {year} - {bank.upper()} - {company.title()}"
-                    progress_callback(i, total_snapshots, item_name, "loading")
+                    progress_callback(done_items, total_work_items, item_name, "loading")
                     
                     snapshot = snapshot_repository.load(month, year, bank, company)
-                    if snapshot:
+                    payload = self._to_json_payload(snapshot)
+                    if payload:
                         key = f"{month}_{year}_{bank}_{company}"
-                        snapshot_upload_dict[key] = snapshot.get_json()
+                        snapshot_upload_dict[key] = payload
                 
                 # Batch upload
                 if snapshot_upload_dict:
@@ -2697,12 +2728,14 @@ class FirebaseService:
                             item_name = f"Snapshot: {parts[0].title()} {parts[1]} - {parts[2].upper()} - {parts[3].title()}"
                         else:
                             item_name = f"Snapshot: {key}"
-                        progress_callback(current, total, item_name, "uploading")
+                        cumulative = done_items + current
+                        progress_callback(cumulative, total_work_items, item_name, "uploading")
                     
                     self.firebaseControls.batch_set_tableSnapshots(snapshot_upload_dict, snapshot_progress)
                     results['snapshots_uploaded'] = len(snapshot_upload_dict)
+                done_items += total_snapshots
             
-            progress_callback(total_snapshots, total_snapshots, "Upload complete", "completed")
+            progress_callback(done_items, total_work_items, "Upload complete", "completed")
             
         except Exception as e:
             results['success'] = False
@@ -2781,7 +2814,12 @@ class FirebaseService:
                             # For now, always overwrite - timestamp comparison can be added later
                             pass
                         
-                        cheque_repository.save(cheque_report)
+                        # SQLite repo signature: save(year, company, report_data)
+                        try:
+                            cheque_repository.save(year, company, cheque_report)
+                        except TypeError:
+                            # Backward compatibility for old repository wrappers.
+                            cheque_repository.save(cheque_report)
                         results['cheque_reports_downloaded'] += 1
             except Exception as e:
                 results['errors'].append(f"Cheque download error: {e}")
@@ -2808,9 +2846,13 @@ class FirebaseService:
                         # Check if local exists
                         existing = snapshot_repository.load(month, year, bank, company)
                         if existing and not overwrite_newer:
-                            # Update only the master_table data from cloud
-                            existing.set_master_table(snapshot_data.get('master_table', []))
-                            snapshot_repository.save(existing)
+                            # Update only master_table for existing snapshot (dict or object).
+                            if isinstance(existing, dict):
+                                existing['master_table'] = snapshot_data.get('master_table', [])
+                                snapshot_repository.save(existing)
+                            else:
+                                existing.set_master_table(snapshot_data.get('master_table', []))
+                                snapshot_repository.save(existing)
                         else:
                             snapshot_repository.save(snapshot)
                         

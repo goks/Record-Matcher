@@ -182,14 +182,16 @@ Window {
             scaleFactorWidth: window.scaleFactorWidth
             scaleFactorHeight: window.scaleFactorHeight
             passwordFieldText: ""
-            password: backend ? backend.adminPassword : ""
             matchStatus: false
-            onClosed: {
-                            if(passwordPopup.matchStatus === true){
-                                        passwordPopup.matchStatus = false
-                                        backend.uploadtoDb()
-                                    }
-                        }
+            onAuthenticated: {
+                if (!backend) return
+                if (backend.isSyncing) {
+                    toast.show("Sync already in progress.", "warning")
+                    return
+                }
+                syncProgressOverlay.show("upload")
+                backend.syncUploadToFirebase()
+            }
 
         }
         Rectangle {
@@ -295,7 +297,7 @@ Window {
                     anchors.leftMargin: 1
                     anchors.bottomMargin: 0
                     anchors.topMargin: 0
-                    enabled: !(mainScreenBusyIndicator.running || busyIndicator.visible || fullScreenLoading.visible || fullScreenLoading2.visible || syncProgressOverlay.visible)
+                    enabled: !(mainScreenBusyIndicator.running || busyIndicator.visible || fullScreenLoading.visible || fullScreenLoading2.visible)
                     onPressed: {
                         if (!help_button.enabled) return
                         if (backend) backend.runReconciliation()
@@ -1403,7 +1405,7 @@ Window {
                             visible: false
                             enabled: hasRequiredSelections &&
                                      textInput.fileDialogText !== "" &&
-                                     !(mainScreenBusyIndicator.running || busyIndicator.visible || syncProgressOverlay.visible)
+                                     !(mainScreenBusyIndicator.running || busyIndicator.visible)
                             opacity: enabled ? 1.0 : 0.6
                             onClicked : {
                                 if (!uploadBtn.enabled) return
@@ -1497,7 +1499,7 @@ Window {
                             scaleFactorWidth: window.scaleFactorWidth
                             scaleFactorHeight: window.scaleFactorHeight
                             visible: window.currentScreenKey === "table" && backend && backend.tableData && backend.tableData.length > 0
-                            enabled: !(mainScreenBusyIndicator.running || busyIndicator.visible || fullScreenLoading.visible || fullScreenLoading2.visible || syncProgressOverlay.visible)
+                            enabled: !(mainScreenBusyIndicator.running || busyIndicator.visible || fullScreenLoading.visible || fullScreenLoading2.visible)
                             onClicked: {
                                 selected = false
                                 popup.open()
@@ -1787,8 +1789,7 @@ Window {
                                 reconciliationOutputEnabled: backend ? backend.reconciliationOutputEnabled : true
                                 
                                 onUploadRequested: {
-                                    syncProgressOverlay.show("upload")
-                                    backend.syncUploadToFirebase()
+                                    passwordPopup.open()
                                 }
                                 onDownloadRequested: {
                                     syncProgressOverlay.show("download")
