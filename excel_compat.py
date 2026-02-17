@@ -15,12 +15,17 @@ Date: December 9, 2025
 import logging
 from typing import Any, Optional, Union, List
 from pathlib import Path
+import datetime
 
 import openpyxl
 from openpyxl.workbook import Workbook as OpenpyxlWorkbook
 from openpyxl.worksheet.worksheet import Worksheet as OpenpyxlWorksheet
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
+try:
+    import xlrd  # Optional: used only for legacy .xls reads
+except Exception:
+    xlrd = None
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +95,107 @@ class ExcelWorkbookReader:
         """Context manager cleanup."""
         self.release_resources()
         return False
+
+
+class ExcelWorkbookReaderXls:
+    """
+    Compatibility wrapper for reading legacy .xls files using xlrd.
+    """
+
+    def __init__(self, filename: Union[str, Path]):
+        if xlrd is None:
+            raise ImportError("xlrd is required for .xls support but is not installed.")
+        self.filename = str(filename)
+        self.workbook = xlrd.open_workbook(self.filename, formatting_info=False)
+        self.worksheets = [self.workbook.sheet_by_index(i) for i in range(self.workbook.nsheets)]
+        self._datemode = self.workbook.datemode
+        logger.debug(f"Opened legacy workbook: {self.filename} with {len(self.worksheets)} sheets")
+
+    def sheet_by_index(self, index: int) -> 'ExcelWorksheetReaderXls':
+        if index < 0 or index >= len(self.worksheets):
+            raise IndexError(f"Sheet index {index} out of range (0-{len(self.worksheets)-1})")
+        return ExcelWorksheetReaderXls(self.worksheets[index], self._datemode)
+
+    def sheet_by_name(self, name: str) -> 'ExcelWorksheetReaderXls':
+        try:
+            sheet = self.workbook.sheet_by_name(name)
+        except Exception:
+            raise ValueError(f"Sheet '{name}' not found.")
+        return ExcelWorksheetReaderXls(sheet, self._datemode)
+
+    @property
+    def sheet_names(self) -> List[str]:
+        return self.workbook.sheet_names()
+
+    @property
+    def nsheets(self) -> int:
+        return self.workbook.nsheets
+
+    def release_resources(self):
+        # xlrd workbook doesn't need explicit close.
+        self.workbook = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release_resources()
+        return False
+
+
+class ExcelWorksheetReaderXls:
+    """xlrd-based worksheet reader with xlrd-like API."""
+
+    def __init__(self, worksheet, datemode: int):
+        self.worksheet = worksheet
+        self._nrows = worksheet.nrows
+        self._ncols = worksheet.ncols
+        self._datemode = datemode
+
+    def cell(self, rowx: int, colx: int) -> 'ExcelCellXls':
+        raw_cell = self.worksheet.cell(rowx, colx)
+        return ExcelCellXls(raw_cell, self._datemode)
+
+    @property
+    def nrows(self) -> int:
+        return self._nrows
+
+    @property
+    def ncols(self) -> int:
+        return self._ncols
+
+    @property
+    def name(self) -> str:
+        return self.worksheet.name
+
+
+class ExcelCellXls:
+    """Cell wrapper for xlrd cells."""
+
+    def __init__(self, cell, datemode: int):
+        self._cell = cell
+        self._datemode = datemode
+
+    @property
+    def value(self) -> Any:
+        val = self._cell.value
+        ctype = self._cell.ctype
+
+        if ctype == 0 or val is None:
+            return ''
+        if ctype == 3 and xlrd is not None:
+            # Convert Excel serial date to datetime for downstream date parsing.
+            try:
+                dt = xlrd.xldate_as_datetime(val, self._datemode)
+                if isinstance(dt, datetime.datetime):
+                    return dt.strftime("%d/%m/%Y")
+            except Exception:
+                return val
+        return val
+
+    @property
+    def ctype(self) -> int:
+        return self._cell.ctype
 
 
 class ExcelWorksheetReader:
@@ -375,7 +481,10 @@ def open_workbook(filename: Union[str, Path], **kwargs) -> ExcelWorkbookReader:
     Returns:
         ExcelWorkbookReader instance
     """
-    return ExcelWorkbookReader(filename)
+    file_path = str(filename)
+    if file_path.lower().endswith(".xls") and not file_path.lower().endswith(".xlsx"):
+        return ExcelWorkbookReaderXls(file_path)
+    return ExcelWorkbookReader(file_path)
 
 
 def create_workbook() -> ExcelWorkbookWriter:

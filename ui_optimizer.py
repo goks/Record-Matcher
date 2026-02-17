@@ -14,7 +14,10 @@ Date: December 2025
 """
 
 from typing import Set, Callable, Any, Dict, Optional
-from PySide2.QtCore import QObject, Signal, QTimer, Property
+try:
+    from PySide6.QtCore import QObject, Signal, QTimer, Property
+except ImportError:
+    from PySide2.QtCore import QObject, Signal, QTimer, Property
 from contextlib import contextmanager
 import threading
 import time
