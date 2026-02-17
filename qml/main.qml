@@ -317,7 +317,15 @@ Window {
                 btnIconSource: Qt.resolvedUrl("../images/svg_images/settings_gear.svg")
                 // onConvertSchemaClicked: backend.convertSchema()
                 onDeleteButtonClicked: backend.delete_table()
-                onDownloadFromDbClicked: backend.downloadfromDb()
+                onDownloadFromDbClicked: {
+                    if (!backend) return
+                    if (backend.isSyncing) {
+                        toast.show("Sync already in progress.", "warning")
+                        return
+                    }
+                    syncProgressOverlay.show("download")
+                    backend.syncDownloadFromFirebase()
+                }
                 onUploadtoDbClicked:{
                                     passwordPopup.open()
                                     }

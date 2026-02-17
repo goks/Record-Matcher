@@ -1398,32 +1398,6 @@ class MainWindow(QObject, UIOptimizationMixin):
         logger.info("Exit routine completed")
     
     @Slot()
-    def downloadfromDb(self):
-        self.fullScreenLoadingStart.emit()
-        # Submit to thread pool with exception handling
-        if not self._is_shutting_down:
-            wrapped_func = self._thread_exception_wrapper(self.downloadfromDbThreaded, "Firebase Download")
-            future = self._thread_pool.submit(wrapped_func)
-            self._active_futures.add(future)
-            logger.info("Firebase download task submitted")
-        else:
-            logger.warning("Firebase download rejected: application is shutting down")
-    
-    def downloadfromDbThreaded(self):
-        """Thread worker for Firebase download with exception handling."""
-        logger.info("Starting Firebase download operation...")
-        try:
-            self.tableOperations.get_data_from_firebase_db(self.callBackFunction_for_Updating_fullScreenLoading)
-            logger.info("Firebase download completed successfully")
-        except Exception as e:
-            logger.error(f"Firebase download failed: {e}")
-            logger.error(traceback.format_exc())
-            raise DatabaseError(f"Firebase download failed: {e}") from e
-        finally:
-            self.fullScreenLoadingEnd.emit()
-        return    
-    
-    @Slot()
     def uploadtoDb(self):
         self.fullScreenLoadingStart.emit()
         # Submit to thread pool with exception handling

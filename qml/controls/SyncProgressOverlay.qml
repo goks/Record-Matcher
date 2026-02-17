@@ -18,7 +18,7 @@ Rectangle {
     signal cancelRequested()
     signal completed()
 
-    property real startTime: 0
+    property int elapsedSeconds: 0
     property string elapsedTimeText: "0:00"
 
     function hscale(size) {
@@ -31,15 +31,22 @@ Rectangle {
         return Math.round((hscale(size) + vscale(size)) / 2) + 2
     }
 
+    function formatElapsed(seconds) {
+        var mins = Math.floor(seconds / 60)
+        var secs = seconds % 60
+        return mins + ":" + (secs < 10 ? "0" : "") + secs
+    }
+
     function show(operation) {
         operationType = operation || "sync"
         currentItem = 0
         totalItems = 0
         currentItemName = ""
         statusMessage = "preparing"
-        startTime = Date.now()
+        elapsedSeconds = 0
+        elapsedTimeText = "0:00"
         isVisible = true
-        elapsedTimer.start()
+        elapsedTimer.restart()
     }
 
     function hide() {
@@ -54,7 +61,18 @@ Rectangle {
         statusMessage = status
 
         if (status === "completed" || status === "error") {
-            elapsedTimer.stop()
+            // Some backend stages emit intermediate "completed" status
+            // (for a sub-step). Stop timer only for final sync completion.
+            var label = (itemName || "").toString().toLowerCase()
+            var isFinal = label.indexOf("upload complete") !== -1
+                       || label.indexOf("download complete") !== -1
+                       || label.indexOf("sync completed") !== -1
+                       || label.indexOf("failed") !== -1
+                       || label.indexOf("error") !== -1
+                       || label.indexOf("cancelled") !== -1
+            if (isFinal) {
+                elapsedTimer.stop()
+            }
         }
     }
 
@@ -70,10 +88,8 @@ Rectangle {
         repeat: true
         running: false
         onTriggered: {
-            var elapsed = Math.floor((Date.now() - startTime) / 1000)
-            var minutes = Math.floor(elapsed / 60)
-            var seconds = elapsed % 60
-            elapsedTimeText = minutes + ":" + (seconds < 10 ? "0" : "") + seconds
+            elapsedSeconds = elapsedSeconds + 1
+            elapsedTimeText = formatElapsed(elapsedSeconds)
         }
     }
 
