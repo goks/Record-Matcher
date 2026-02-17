@@ -227,9 +227,9 @@ Window {
             }
             Rectangle {
                 id: headerMenuContainer
-                implicitWidth: hscale(460)
+                implicitWidth: hscale(360)
                 //                width: Math.min(implicitWidth, parent.width*.30)
-                width: hscale(460)
+                width: hscale(360)
                 color: "#ffffff"
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
@@ -239,42 +239,13 @@ Window {
                 anchors.topMargin: 0
                 implicitHeight: parent.implicitHeight
 
-
-                TopBarButton {
-                    id: export_button
-                    // width: 133
-                    text: qsTr("Export")
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    // font.pointSize: 16
-                    leftPadding: 0
-                    anchors.leftMargin: 0
-                    anchors.bottomMargin: 0
-                    anchors.topMargin: 0
-                    scaleFactorWidth: window.scaleFactorWidth
-                    scaleFactorHeight: window.scaleFactorHeight
-                    onPressed: {
-                        export_button.selected = export_button.selected?false:true
-                        // console.log("scaleFactor: "+ window.scaleFactorHeight + " "+ headerBox.height+ " "+headerBox.implicitHeight)
-                    }
-                    onSelectedChanged: {
-                        if (chequereport_button.selected){
-                            chequereport_button.selected = false
-                            backend.showChequeReportsSelection(chequereport_button.selected)
-                        }
-                        if (export_button.selected == true){
-                            popup.open();
-                        }
-                    }
-                }
                 TopBarButton {
                     id: chequereport_button
                     scaleFactorWidth: window.scaleFactorWidth
                     scaleFactorHeight: window.scaleFactorHeight
                     // width: 230
                     text: qsTr("Cheque Reports")
-                    anchors.left: export_button.right
+                    anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     leftPadding: 0
@@ -392,8 +363,6 @@ Window {
                             bankBox.height = 0
                             bankLabel.visible = false
                             bodySubtitleStatementModeContainer.visible = false
-                            export_button.selected = false
-                            tallyexport_button.selected = false
                             help_button.selected = false
                             uploadBtn.visible = true
                             textInput.searchmode = "chqrpt"
@@ -414,8 +383,6 @@ Window {
                             bankLabel.visible = true
                             bankBox.height = vscale(97)
                             bodySubtitleStatementModeContainer.visible = true
-                            export_button.selected = false
-                            tallyexport_button.selected = false
                             help_button.selected = false
                             uploadBtn.visible = false
                             textInput.searchmode = "default"
@@ -439,7 +406,6 @@ Window {
                             bankLabel.visible = false
                             bankBox.height = 0
                             bodySubtitleStatementModeContainer.visible = false
-                            export_button.selected = false
                             tallyexport_button.selected = true
                             help_button.selected = false
                             uploadBtn.visible = false
@@ -461,8 +427,6 @@ Window {
                             bankLabel.visible = true
                             bankBox.height = vscale(97)
                             bodySubtitleStatementModeContainer.visible = true
-                            export_button.selected = false
-                            tallyexport_button.selected = false
                             help_button.selected = false
                             uploadBtn.visible = false
                             textInput.searchmode = "default"
@@ -484,8 +448,6 @@ Window {
                         bankBox.height = vscale(97)
                         bodySubtitleStatementModeContainer.visible = true
                         chequereport_button.selected = false
-                        export_button.selected = false
-                        tallyexport_button.selected = false
                         help_button.selected = false
                         textInput.searchmode = "default"
                         uploadBtn.visible = false
@@ -505,8 +467,6 @@ Window {
                         bankBox.height = vscale(97)
                         bodySubtitleStatementModeContainer.visible = false
                         chequereport_button.selected = false
-                        export_button.selected = false
-                        tallyexport_button.selected = false
                         help_button.selected = false
                         uploadBtn.visible = true
                         textInput.searchmode = "stmt"
@@ -519,8 +479,6 @@ Window {
                         bankBox.height = vscale(97)
                         bodySubtitleStatementModeContainer.visible = true
                         chequereport_button.selected = false
-                        export_button.selected = false
-                        tallyexport_button.selected = false
                         help_button.selected = false
                         textInput.searchmode = "default"
                         uploadBtn.visible = false
@@ -531,6 +489,7 @@ Window {
 
                     }
                     function onValidationError(type){
+                        popup.finishExport(false)
                         switch(type){
                         case 1: toast.show("Year or Company not selected." ,"warning");
                             break;
@@ -599,7 +558,7 @@ Window {
                         busyIndicator.visible = false;
                     }
                     function onStatementExportSuccess(){
-                        popup.close()
+                        popup.finishExport(true)
                         toast.show("Bank statement export success.", "success");
                     }
                     function onErpBankMappingSaved(message) {
@@ -666,8 +625,6 @@ Window {
                         // Hide left panel elements for full-page settings view
                         bodySubtitleStatementModeContainer.visible = false
                         chequereport_button.selected = false
-                        export_button.selected = false
-                        tallyexport_button.selected = false
                         help_button.selected = false
                         uploadBtn.visible = false
                         navigateTo("settings")
@@ -1500,6 +1457,22 @@ Window {
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        CustomSubTitleButton {
+                            id: tableExportBtn
+                            text: qsTr("Export")
+                            anchors.right: balanceIndicatorsRow.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.rightMargin: hscale(12)
+                            scaleFactorWidth: window.scaleFactorWidth
+                            scaleFactorHeight: window.scaleFactorHeight
+                            visible: window.currentScreenKey === "table" && backend && backend.tableData && backend.tableData.length > 0
+                            enabled: !(mainScreenBusyIndicator.running || busyIndicator.visible || fullScreenLoading.visible || fullScreenLoading2.visible || syncProgressOverlay.visible)
+                            onClicked: {
+                                selected = false
+                                popup.open()
                             }
                         }
                         

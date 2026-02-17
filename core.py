@@ -22,6 +22,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import time
 import logging
+from PySide6.QtCore import Qt, QRect
+from PySide6.QtGui import QPdfWriter, QPainter, QPageLayout, QPageSize, QFont, QFontMetrics, QImage, QColor
 
 # Import centralized date handler
 from date_handler import DateHandler, get_date_handler, validate_date_range
@@ -1386,6 +1388,48 @@ class ExcelProcessor:
     def _get_data_key_for_header(self, header_item: str) -> str:
         """Map UI/export header labels to underlying row dictionary keys."""
         return self.HEADER_KEY_MAP.get(header_item, header_item)
+
+    @staticmethod
+    def _sanitize_filename_part(value: Any) -> str:
+        safe = re.sub(r'[^A-Za-z0-9._-]+', '_', str(value or '').strip())
+        return safe.strip('_') or "na"
+
+    def _default_export_file_path(self, folder_url: str, snapshot: 'TableSnapshot', extension: str) -> str:
+        """Build output path using user path or generated default filename."""
+        ext = extension.lower().lstrip('.')
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        company = self._sanitize_filename_part(snapshot.get_company())
+        bank = self._sanitize_filename_part(snapshot.get_bank())
+        month = self._sanitize_filename_part(snapshot.get_month())
+        year = self._sanitize_filename_part(snapshot.get_year())
+        default_name = f"RecordMatcher_{company}_{bank}_{month}_{year}_{timestamp}.{ext}"
+
+        raw_path = (folder_url or "").strip()
+        if not raw_path:
+            output_dir = os.path.join(os.getcwd(), "output")
+            os.makedirs(output_dir, exist_ok=True)
+            return os.path.join(output_dir, default_name)
+
+        lower_path = raw_path.lower()
+        known_exts = (".xls", ".xlsx", ".pdf")
+        if lower_path.endswith(known_exts):
+            base_no_ext = os.path.splitext(raw_path)[0]
+            return f"{base_no_ext}.{ext}"
+
+        if os.path.isdir(raw_path):
+            return os.path.join(raw_path, default_name)
+
+        base_no_ext = os.path.splitext(raw_path)[0]
+        return f"{base_no_ext}.{ext}"
+
+    def _export_meta_lines(self, snapshot: 'TableSnapshot') -> List[str]:
+        return [
+            "Record Matcher Export",
+            f"Company: {snapshot.get_company() or '-'}",
+            f"Bank: {snapshot.get_bank() or '-'}",
+            f"Month: {snapshot.get_month() or '-'}",
+            f"Year: {snapshot.get_year() or '-'}",
+        ]
     
     def get_header(self) -> List[str]:
         """Get the standard table header.
@@ -1395,7 +1439,7 @@ class ExcelProcessor:
         """
         return self.TABLE_HEADER
     
-    def export_to_excel(self, folder_url: str, snapshot: 'TableSnapshot') -> Tuple[bool, int]:
+    def export_to_excel(self, folder_url: str, snapshot: 'TableSnapshot', include_highlights: bool = True) -> Tuple[bool, int]:
         """Export table snapshot to Excel file with multiple sheets.
         
         Creates an Excel file with 5 sheets:
@@ -1417,95 +1461,124 @@ class ExcelProcessor:
                 -5: PermissionError (file is open or no write permission)
                 99: Other exception
         """
-        # Initialize counters for each sheet
-        k = 0   # Main sheet
-        k2 = 0  # Selected sheet
-        k3 = 0  # Unselected sheet
-        k4 = 0  # Matched sheet
-        k5 = 0  # Unmatched sheet
-        
-        # Create workbook and sheets
-        export_workbook = xlwt.Workbook()
+        # Initialize counters for each sheet (reserve top rows for metadata)
+        meta_lines = self._export_meta_lines(snapshot)
+        table_header_row = len(meta_lines) + 1
+        k = table_header_row + 1   # Main sheet
+        k2 = table_header_row + 1  # Selected sheet
+        k3 = table_header_row + 1  # Unselected sheet
+        k4 = table_header_row + 1  # Matched sheet
+        k5 = table_header_row + 1  # Unmatched sheet
+
+        # Create workbook and sheets using openpyxl compatibility wrapper
+        export_workbook = create_workbook()
         export_worksheet = export_workbook.add_sheet('Sheet_1')
         selected_worksheet = export_workbook.add_sheet('Selected')
         unselected_worksheet = export_workbook.add_sheet('Unselected')
         matched_worksheet = export_workbook.add_sheet('Matched CHQReceipts(HDFC)')
         unmatched_worksheet = export_workbook.add_sheet('Unmatched CHQReceipts(HDFC)')
-        
-        # Define styling
-        row_color_select = xlwt.easyxf('pattern: pattern solid, fore_colour light_green')
-        
+
+        # Styles
+        row_color_select = {'fill': {'fill_type': 'solid', 'fgColor': 'FFCCFFCC'}}
+        header_style = {
+            'font': {'bold': True, 'color': 'FFFFFFFF'},
+            'fill': {'fill_type': 'solid', 'fgColor': 'FF1F4E78'},
+            'alignment': {'horizontal': 'center', 'vertical': 'center'}
+        }
+
+        # Write metadata rows in all sheets
+        all_sheets = [
+            export_worksheet, selected_worksheet, unselected_worksheet, matched_worksheet, unmatched_worksheet
+        ]
+        for i, line in enumerate(meta_lines):
+            for sheet in all_sheets:
+                sheet.write(i, 0, line)
+
+        # Track max width per sheet/column
+        width_maps = [{}, {}, {}, {}, {}]
+        def update_width(map_index: int, col_index: int, value: Any) -> None:
+            text = str(value or "")
+            width_maps[map_index][col_index] = max(width_maps[map_index].get(col_index, 0), len(text))
+
         # Write headers to all sheets
-        row = export_worksheet.row(k)
-        row_s2 = selected_worksheet.row(k2)
-        row_s3 = unselected_worksheet.row(k3)
-        row_s4 = matched_worksheet.row(k4)
-        row_s5 = unmatched_worksheet.row(k5)
-        
         for j, header_item in enumerate(self.get_header()):
-            row.write(j, str(header_item))
-            row_s2.write(j, str(header_item))
-            row_s3.write(j, str(header_item))
-            row_s4.write(j, str(header_item))
-            row_s5.write(j, str(header_item))
-        
-        k += 1
-        
+            header_value = str(header_item)
+            export_worksheet.write(table_header_row, j, header_value, header_style)
+            selected_worksheet.write(table_header_row, j, header_value, header_style)
+            unselected_worksheet.write(table_header_row, j, header_value, header_style)
+            matched_worksheet.write(table_header_row, j, header_value, header_style)
+            unmatched_worksheet.write(table_header_row, j, header_value, header_style)
+            for idx in range(5):
+                update_width(idx, j, header_value)
+
+        selected_row_indices = set()
+        for raw_idx in (snapshot.get_master_selected_rows() or []):
+            try:
+                selected_row_indices.add(int(raw_idx))
+            except (TypeError, ValueError):
+                continue
+
         # Write data rows
-        for each in snapshot.get_master_table():
-            row = export_worksheet.row(k)
-            a = k - 1  # Row index (0-based)
-            
+        for row_index, each in enumerate(snapshot.get_master_table() or []):
+            narration = str(each.get("Bank Narration", "") or "")
+            party_name = str(each.get("Party Name", "") or "")
+
             # Determine which additional sheets this row belongs to
-            is_selected = a in snapshot.get_master_selected_rows()
-            is_matched_chq_deposit = (each['Party Name'] != '' and 
-                                     each["Bank Narration"] != '' and 
-                                     each["Bank Narration"][0:7] == "CHQ DEP")
-            is_unmatched_chq_deposit = (each["Bank Narration"][0:7] == "CHQ DEP" and 
-                                       not is_matched_chq_deposit)
-            
-            # Prepare rows for conditional sheets
-            if is_selected:
-                k2 += 1
-                row_s2 = selected_worksheet.row(k2)
-            else:
-                k3 += 1
-                row_s3 = unselected_worksheet.row(k3)
-            
-            if is_matched_chq_deposit:
-                k4 += 1
-                row_s4 = matched_worksheet.row(k4)
-            elif is_unmatched_chq_deposit:
-                k5 += 1
-                row_s5 = unmatched_worksheet.row(k5)
-            
-            # Write cells for this row
+            is_selected = row_index in selected_row_indices
+            is_chq_deposit = narration.startswith("CHQ DEP")
+            is_matched_chq_deposit = bool(party_name) and is_chq_deposit
+            is_unmatched_chq_deposit = is_chq_deposit and not is_matched_chq_deposit
+
             for j, header_item in enumerate(self.get_header()):
                 data_key = self._get_data_key_for_header(header_item)
                 cell = each.get(data_key, '')
-                
-                # Main sheet (with highlighting)
-                if is_selected:
-                    row.write(j, cell, row_color_select)
-                    row_s2.write(j, cell, row_color_select)
+
+                # Main sheet (with highlighting for selected rows)
+                if include_highlights and is_selected:
+                    export_worksheet.write(k, j, cell, row_color_select)
                 else:
-                    row.write(j, cell)
-                    row_s3.write(j, cell)
-                
+                    export_worksheet.write(k, j, cell)
+                update_width(0, j, cell)
+
+                # Selected/unselected sheets
+                if is_selected:
+                    if include_highlights:
+                        selected_worksheet.write(k2, j, cell, row_color_select)
+                    else:
+                        selected_worksheet.write(k2, j, cell)
+                    update_width(1, j, cell)
+                else:
+                    unselected_worksheet.write(k3, j, cell)
+                    update_width(2, j, cell)
+
                 # Matched/unmatched sheets
                 if is_matched_chq_deposit:
-                    row_s4.write(j, cell)
+                    matched_worksheet.write(k4, j, cell)
+                    update_width(3, j, cell)
                 elif is_unmatched_chq_deposit:
-                    row_s5.write(j, cell)
-            
+                    unmatched_worksheet.write(k5, j, cell)
+                    update_width(4, j, cell)
+
+            # Increment target row indices
             k += 1
-        
-        # Determine save path
-        if folder_url != '' and (folder_url.split('.')[-1].lower() != 'xls'):
-            save_file = folder_url + '/123.xls'
-        else:
-            save_file = folder_url
-        
+            if is_selected:
+                k2 += 1
+            else:
+                k3 += 1
+            if is_matched_chq_deposit:
+                k4 += 1
+            elif is_unmatched_chq_deposit:
+                k5 += 1
+
+        # Auto-fit column widths in each sheet
+        for map_idx, sheet in enumerate(all_sheets):
+            for col_idx, max_len in width_maps[map_idx].items():
+                # Convert char length to comfortable Excel width with upper bound
+                sheet.col(col_idx).width = min(80, max(10, max_len + 2))
+
+        # Determine save path (.xlsx)
+        save_file = self._default_export_file_path(folder_url, snapshot, "xlsx")
+
         # Save file
         try:
             export_workbook.save(save_file)
@@ -1517,6 +1590,149 @@ class ExcelProcessor:
             return False, -5
         except Exception as e:
             logger.exception("Error exporting to Excel: %s", e)
+            return False, 99
+
+    def export_to_pdf(self, folder_url: str, snapshot: 'TableSnapshot', include_highlights: bool = True) -> Tuple[bool, int]:
+        """Export current table snapshot to a paginated PDF table.
+
+        Args:
+            folder_url: Output path (folder or .pdf file path)
+            snapshot: TableSnapshot object containing data to export
+
+        Returns:
+            Tuple of (success: bool, error_code: int)
+        """
+        save_file = self._default_export_file_path(folder_url, snapshot, "pdf")
+
+        try:
+            writer = QPdfWriter(save_file)
+            writer.setPageSize(QPageSize(QPageSize.A4))
+            writer.setPageOrientation(QPageLayout.Landscape)
+            writer.setResolution(120)
+
+            painter = QPainter(writer)
+            if not painter.isActive():
+                logger.error("Failed to initialize PDF painter for file: %s", save_file)
+                return False, 99
+
+            page_rect = writer.pageLayout().paintRectPixels(writer.resolution())
+            margin = 40
+            headers = self.get_header()
+            rows = snapshot.get_master_table() or []
+            selected_row_indices = set()
+            for raw_idx in (snapshot.get_master_selected_rows() or []):
+                try:
+                    selected_row_indices.add(int(raw_idx))
+                except (TypeError, ValueError):
+                    continue
+
+            available_width = max(200, page_rect.width() - (2 * margin))
+            row_height = 28
+            header_height = 30
+
+            title_font = QFont("PT Sans Caption", 13, QFont.Bold)
+            header_font = QFont("PT Sans Caption", 9, QFont.Bold)
+            body_font = QFont("PT Sans Caption", 8)
+            metrics = QFontMetrics(body_font)
+            header_metrics = QFontMetrics(header_font)
+
+            # Compute content-based column widths
+            raw_widths = []
+            min_col_width = 70
+            for header_item in headers:
+                data_key = self._get_data_key_for_header(header_item)
+                max_px = header_metrics.horizontalAdvance(str(header_item)) + 18
+                for row_data in rows:
+                    value = str(row_data.get(data_key, '') or '')
+                    max_px = max(max_px, metrics.horizontalAdvance(value) + 14)
+                raw_widths.append(max(min_col_width, max_px))
+
+            total_width = sum(raw_widths) or available_width
+            if total_width <= available_width:
+                col_widths = [int(w) for w in raw_widths]
+            else:
+                scale = available_width / total_width
+                col_widths = [max(45, int(w * scale)) for w in raw_widths]
+                overflow = sum(col_widths) - available_width
+                if overflow > 0:
+                    col_widths[-1] = max(45, col_widths[-1] - overflow)
+
+            def draw_header(start_y: int) -> int:
+                logo_path = os.path.join(os.getcwd(), "logo.png")
+                if os.path.exists(logo_path):
+                    logo = QImage(logo_path)
+                    if not logo.isNull():
+                        target_h = 38
+                        target_w = int((logo.width() / max(1, logo.height())) * target_h)
+                        painter.drawImage(QRect(margin, start_y, target_w, target_h), logo)
+
+                painter.setFont(title_font)
+                painter.drawText(
+                    QRect(margin + 56, start_y, available_width - 56, 24),
+                    Qt.AlignLeft | Qt.AlignVCenter,
+                    "Record Matcher",
+                )
+                painter.setFont(body_font)
+                painter.drawText(
+                    QRect(margin + 56, start_y + 20, available_width - 56, 18),
+                    Qt.AlignLeft | Qt.AlignVCenter,
+                    (
+                        f"Company: {snapshot.get_company() or '-'}  |  "
+                        f"Bank: {snapshot.get_bank() or '-'}  |  "
+                        f"Month: {snapshot.get_month() or '-'}  |  "
+                        f"Year: {snapshot.get_year() or '-'}"
+                    ),
+                )
+
+                y = start_y + 48
+                painter.setFont(header_font)
+                x_pos = margin
+                for col_index, header_item in enumerate(headers):
+                    width = col_widths[col_index]
+                    rect = QRect(x_pos, y, width, header_height)
+                    painter.drawRect(rect)
+                    text_rect = rect.adjusted(4, 0, -4, 0)
+                    painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, str(header_item))
+                    x_pos += width
+                return y + header_height
+
+            y_pos = draw_header(margin)
+            painter.setFont(body_font)
+
+            for row_index, row_data in enumerate(rows):
+                if y_pos + row_height > (page_rect.height() - margin):
+                    writer.newPage()
+                    y_pos = draw_header(margin)
+                    painter.setFont(body_font)
+
+                is_selected = row_index in selected_row_indices
+                x_pos = margin
+                for col_index, header_item in enumerate(headers):
+                    width = col_widths[col_index]
+                    rect = QRect(x_pos, y_pos, width, row_height)
+
+                    if include_highlights and is_selected:
+                        painter.fillRect(rect, QColor("#D9F99D"))
+                    painter.drawRect(rect)
+
+                    data_key = self._get_data_key_for_header(header_item)
+                    raw_value = row_data.get(data_key, '')
+                    text_value = metrics.elidedText(str(raw_value), Qt.ElideRight, width - 8)
+                    text_rect = rect.adjusted(4, 0, -4, 0)
+                    painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, text_value)
+                    x_pos += width
+
+                y_pos += row_height
+
+            painter.end()
+            os.startfile(save_file)
+            return True, 0
+        except FileNotFoundError:
+            return False, -2
+        except PermissionError:
+            return False, -5
+        except Exception as e:
+            logger.exception("Error exporting to PDF: %s", e)
             return False, 99
 
 
@@ -2952,17 +3168,31 @@ class  TableOperations:
 
     # ===== Excel Operations (delegate to ExcelProcessor) =====
     
-    def export_to_excel(self, folder_url, snapshot):
+    def export_to_excel(self, folder_url, snapshot, include_highlights=True):
         """Export table snapshot to Excel file with multiple sheets.
         
         Args:
             folder_url: Output path (folder or .xls file path)
             snapshot: TableSnapshot object to export
+            include_highlights: Whether selected-row highlights should be exported
         
         Returns:
             Tuple of (success: bool, error_code: int)
         """
-        return self.excelProcessor.export_to_excel(folder_url, snapshot)
+        return self.excelProcessor.export_to_excel(folder_url, snapshot, include_highlights)
+
+    def export_to_pdf(self, folder_url, snapshot, include_highlights=True):
+        """Export table snapshot to PDF.
+
+        Args:
+            folder_url: Output path (folder or .pdf file path)
+            snapshot: TableSnapshot object to export
+            include_highlights: Whether selected-row highlights should be exported
+
+        Returns:
+            Tuple of (success: bool, error_code: int)
+        """
+        return self.excelProcessor.export_to_pdf(folder_url, snapshot, include_highlights)
     
     def get_header(self):
         """Get standard table header.

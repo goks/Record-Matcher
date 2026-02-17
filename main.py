@@ -13,6 +13,7 @@ import logging
 import traceback
 from typing import Optional, List, Tuple, Dict, Any
 from datetime import datetime
+from urllib.parse import unquote
 
 # Use a non-native Qt Quick Controls style so custom background/contentItem
 # overrides in QML controls are supported (avoids Windows style warnings).
@@ -824,15 +825,17 @@ class MainWindow(QObject, UIOptimizationMixin):
         self.fullScreenLoadingInfo1_changed.emit()
         self.fullScreenLoadingInfo2_changed.emit()
 
-    @Slot(str)
-    def exportFile(self, fileURL: str) -> None:
-        """Export current table snapshot to Excel file.
+    @Slot(str, str, bool)
+    def exportFile(self, fileURL: str, export_format: str = "excel", include_highlights: bool = True) -> None:
+        """Export current table snapshot to Excel or PDF file.
         
         Args:
             fileURL: Destination file URL from QML
+            export_format: Requested output format ("excel" or "pdf")
+            include_highlights: Whether selected-row highlights should be exported
         """
         # Validate snapshot exists
-        validation_result = self.state_service.validate_for_export()
+        validation_result = self.state_service.validate_for_export(self.tableSnapshot is not None)
         if not validation_result.is_valid:
             error_code = validation_result.error_code or 4
             logger.error(f"Export failed: {validation_result.error_message}")
@@ -840,28 +843,58 @@ class MainWindow(QObject, UIOptimizationMixin):
             return
         
         with self._snapshot_lock:
-            # Create a reference to current snapshot
+            # Sync latest UI selection into snapshot before exporting.
             snapshot = self.tableSnapshot
+            selected_rows = self._selectedRows.copy() if self._selectedRows else []
+            if snapshot:
+                try:
+                    snapshot.set_master_selected_rows(selected_rows)
+                except Exception as e:
+                    logger.warning(f"Failed to apply selected rows to snapshot before export: {e}")
+
+        # Persist latest highlights so export reflects current view even before sheet switches.
+        if snapshot:
+            try:
+                save_ok, save_code = self.snapshot_repository.save(snapshot)
+                if not save_ok:
+                    logger.warning(
+                        f"Pre-export snapshot save failed (code={save_code}); proceeding with in-memory snapshot"
+                    )
+            except Exception as e:
+                logger.warning(f"Pre-export snapshot save failed; proceeding with in-memory snapshot: {e}")
         
-        try:     
-            fileURL = fileURL.split('///')[1]
+        try:
+            if isinstance(fileURL, str) and fileURL.startswith("file:///"):
+                fileURL = unquote(fileURL.replace("file:///", "", 1))
             logger.debug(f"Parsed file URL: {fileURL}")
-        except (IndexError, AttributeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to parse file URL, using as-is: {e}")
-            # fileURL remains unchanged
+
+        normalized_format = (export_format or "").strip().lower()
+        if normalized_format not in ("excel", "pdf"):
+            normalized_format = "pdf" if str(fileURL).lower().endswith(".pdf") else "excel"
         
         # Submit to thread pool with exception handling
         if not self._is_shutting_down:
             wrapped_func = self._thread_exception_wrapper(self.threadedExportFile, "File Export")
-            future = self._thread_pool.submit(wrapped_func, fileURL, snapshot)
+            future = self._thread_pool.submit(wrapped_func, fileURL, snapshot, normalized_format, bool(include_highlights))
             self._active_futures.add(future)
-            logger.info(f"Export task submitted for file: {fileURL}")
+            logger.info(
+                f"Export task submitted for file: {fileURL} "
+                f"(format={normalized_format}, include_highlights={include_highlights})"
+            )
         return    
-    def threadedExportFile(self, fileURL, snapshot):
+    def threadedExportFile(self, fileURL, snapshot, export_format, include_highlights):
         """Thread worker for file export with lock protection."""
-        logger.debug(f"Exporting to file: {fileURL}")
+        logger.debug(
+            f"Exporting to file: {fileURL} "
+            f"(format={export_format}, include_highlights={include_highlights})"
+        )
         try:
-            status, status_code = self.tableOperations.export_to_excel(fileURL, snapshot)
+            if export_format == "pdf":
+                status, status_code = self.tableOperations.export_to_pdf(fileURL, snapshot, include_highlights)
+            else:
+                status, status_code = self.tableOperations.export_to_excel(fileURL, snapshot, include_highlights)
             if not status:
                 error_msg = VALIDATION_ERRORS.get(status_code, f"Export failed with code {status_code}")
                 logger.error(f"File export failed: {error_msg} (code: {status_code})")

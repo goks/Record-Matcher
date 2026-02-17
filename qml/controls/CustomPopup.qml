@@ -2,6 +2,7 @@ import QtQuick 6.5
 import QtQuick.Controls 6.5
 import QtCharts 2.2
 import QtQuick.Dialogs
+import QtCore 6.5
 
 Popup {
     id: popup
@@ -15,6 +16,65 @@ Popup {
 
     property real scaleFactorHeight: 1
     property real scaleFactorWidth: 1
+    property string selectedExportFormat: "excel"
+    property bool includeHighlights: true
+    property string lastSuggestedPath: ""
+    onOpened: {
+        excelFormatBtn.selected = popup.selectedExportFormat === "excel"
+        pdfFormatBtn.selected = popup.selectedExportFormat === "pdf"
+        highlightBtn.selected = popup.includeHighlights
+        refreshSuggestedPath(true)
+    }
+
+    function sanitizePart(value) {
+        var s = (value || "").toString().trim()
+        if (s.length === 0) return "na"
+        return s.replace(/[^A-Za-z0-9._-]+/g, "_")
+    }
+
+    function suggestedFilePath() {
+        var now = new Date()
+        function pad(n) { return (n < 10 ? "0" : "") + n }
+        var stamp = now.getFullYear().toString()
+                + pad(now.getMonth() + 1)
+                + pad(now.getDate())
+                + "_"
+                + pad(now.getHours())
+                + pad(now.getMinutes())
+                + pad(now.getSeconds())
+        var ext = popup.selectedExportFormat === "pdf" ? "pdf" : "xlsx"
+        var fileName = "RecordMatcher_"
+                + sanitizePart(backend ? backend.companyData : "")
+                + "_"
+                + sanitizePart(backend ? backend.bankData : "")
+                + "_"
+                + sanitizePart(backend ? backend.monthYearData : "")
+                + "_"
+                + stamp
+                + "."
+                + ext
+        var docsPath = StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
+        if (!docsPath || docsPath.length === 0) {
+            return fileName
+        }
+        return docsPath + "/" + fileName
+    }
+
+    function refreshSuggestedPath(force) {
+        var suggested = suggestedFilePath()
+        if (force || searchInput.text === "" || searchInput.text === lastSuggestedPath) {
+            searchInput.text = suggested
+        }
+        lastSuggestedPath = suggested
+    }
+
+    function finishExport(success) {
+        busyIndicator.visible = false
+        exportBut.selected = true
+        if (success) {
+            popup.close()
+        }
+    }
     function hscale(size) {
         return Math.round(size * scaleFactorWidth)
     }
@@ -27,7 +87,7 @@ Popup {
     background: Rectangle {
         id: popupBckgroundBox
         width: 560
-        height: 310
+        height: 392
         radius: 5
         color: "white"
 
@@ -67,7 +127,7 @@ Popup {
             height: 21
             color: "#003366"
             //                color: "#000000"
-            text: "Choose the location to export"
+            text: "Choose where and how to export"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: divider1.bottom
@@ -75,16 +135,62 @@ Popup {
             horizontalAlignment: Text.AlignLeft
             verticalAlignment: Text.AlignVCenter
             anchors.leftMargin: 27
-            anchors.topMargin: 27
+            anchors.topMargin: 20
             anchors.rightMargin: 0
             font.family: "PT Sans Caption"
         }
+        Row {
+            id: formatRow
+            spacing: hscale(10)
+            anchors.left: parent.left
+            anchors.top: subHeaderText.bottom
+            anchors.topMargin: 12
+            anchors.leftMargin: 27
+
+            CustomSubTitleButton {
+                id: excelFormatBtn
+                text: "Excel (.xlsx)"
+                selected: popup.selectedExportFormat === "excel"
+                onClicked: {
+                    popup.selectedExportFormat = "excel"
+                    excelFormatBtn.selected = true
+                    pdfFormatBtn.selected = false
+                    refreshSuggestedPath(false)
+                }
+            }
+
+            CustomSubTitleButton {
+                id: pdfFormatBtn
+                text: "PDF (.pdf)"
+                selected: popup.selectedExportFormat === "pdf"
+                onClicked: {
+                    popup.selectedExportFormat = "pdf"
+                    pdfFormatBtn.selected = true
+                    excelFormatBtn.selected = false
+                    refreshSuggestedPath(false)
+                }
+            }
+        }
+
+        CustomSubTitleButton {
+            id: highlightBtn
+            text: "Include Highlights"
+            selected: popup.includeHighlights
+            anchors.left: parent.left
+            anchors.top: formatRow.bottom
+            anchors.topMargin: 8
+            anchors.leftMargin: 27
+            onClicked: {
+                popup.includeHighlights = highlightBtn.selected
+            }
+        }
+
         Rectangle {
             id: searchBox
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: divider1.bottom
-            anchors.topMargin: 66
+            anchors.top: highlightBtn.bottom
+            anchors.topMargin: 16
             anchors.leftMargin: 27
             anchors.rightMargin: 27
             height: 24
@@ -143,19 +249,15 @@ Popup {
         }
         FileDialog {
             id: fileDialog
-            // Qt6: selectFolder renamed to fileMode
             fileMode: FileDialog.SaveFile
-            // nameFilters: ["Excel Files (*.xls *.xlsx)"]
-            title: "Choose the folder to import "
-            // Qt6: folder property removed, using currentFolder instead
-            // shortcuts.documents removed in Qt 6
+            nameFilters: popup.selectedExportFormat === "pdf" ? ["PDF Files (*.pdf)"] : ["Excel Files (*.xls *.xlsx)"]
+            defaultSuffix: popup.selectedExportFormat === "pdf" ? "pdf" : "xlsx"
+            title: "Choose export file"
             onAccepted: {
-                console.log("You chose: " + folder)
-                searchInput.text = folder + '/123.xls'
+                searchInput.text = selectedFile.toString()
                 browseBut.selected = false
             }
             onRejected: {
-                console.log("Canceled")
                 browseBut.selected = false
             }
         }
@@ -202,13 +304,7 @@ Popup {
             onClicked : {
                 exportBut.selected = false
                 busyIndicator.visible = true
-                if (searchInput.text === ""){
-                    toast.show("No file selected to import", "error")
-                    exportBut.selected = true
-                    busyIndicator.visible = false
-                    return
-                }
-                backend.exportFile(searchInput.text )
+                backend.exportFile(searchInput.text, popup.selectedExportFormat, popup.includeHighlights)
             }
         }
         BusyIndicator {
