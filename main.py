@@ -356,6 +356,60 @@ class MainWindow(QObject, UIOptimizationMixin):
             self.adminPassword_changed.emit()
         return
 
+    @Slot(str)
+    def addFinancialYear(self, year_value: str) -> None:
+        """Add a new financial year to data.json and refresh left menu immediately."""
+        year = str(year_value or "").strip()
+        if len(year) != 4 or not year.isdigit():
+            self.financialYearAddFailed.emit("Enter a valid 4-digit year (e.g., 2026).")
+            return
+
+        json_path = os.path.join(CURRENT_DIR, "data.json")
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load data.json for year add: {e}")
+            self.financialYearAddFailed.emit("Could not read year configuration.")
+            return
+
+        years = data.get("Years", [])
+        existing = {
+            str(item.get("value", "")).strip()
+            for item in years if isinstance(item, dict)
+        }
+        if year in existing:
+            self.financialYearAddFailed.emit(f"Financial year {year} already exists.")
+            return
+
+        years.append({"name": year, "value": year})
+        years.sort(key=lambda item: int(str(item.get("value", "0"))))
+        data["Years"] = years
+
+        try:
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            logger.error(f"Failed to save data.json for year add: {e}")
+            self.financialYearAddFailed.emit("Could not save year configuration.")
+            return
+
+        # Refresh menu and runtime caches so new year is usable immediately.
+        try:
+            C.JsonDataLoader.clear_cache()
+            self.populate_left_menu(first_time=False)
+            if hasattr(self.tableOperations, "storageManager"):
+                sm = self.tableOperations.storageManager
+                if hasattr(sm, "tableSnapshotCollection") and year not in sm.tableSnapshotCollection.years:
+                    sm.tableSnapshotCollection.years.append(year)
+                if hasattr(sm, "chequeReportCollection") and year not in sm.chequeReportCollection.years:
+                    sm.chequeReportCollection.years.append(year)
+            logger.info(f"Financial year added: {year}")
+            self.financialYearAdded.emit(year)
+        except Exception as e:
+            logger.warning(f"Year added but runtime refresh had warnings: {e}")
+            self.financialYearAdded.emit(year)
+
     # Signal for thread exceptions
     threadExceptionOccurred = Signal(str, str, arguments=['operation', 'error'])
     
@@ -377,6 +431,8 @@ class MainWindow(QObject, UIOptimizationMixin):
     snapshotDeleteFail = Signal()
     chequeReportDeleteSuccess = Signal()
     chequeReportDeleteFail = Signal()
+    financialYearAdded = Signal(str, arguments=['year'])
+    financialYearAddFailed = Signal(str, arguments=['error'])
     fullScreenLoadingStart = Signal()
     fullScreenLoadingEnd = Signal()
     fullScreenLoading2Start = Signal()

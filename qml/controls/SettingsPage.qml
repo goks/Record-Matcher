@@ -582,6 +582,117 @@ Rectangle {
                     }
                 }
             }
+
+            // Financial Year Management Section
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: yearSectionContent.height + vscale(32)
+                radius: hscale(12)
+                color: "#ffffff"
+                border.color: "#e2e8f0"
+                border.width: 1
+
+                ColumnLayout {
+                    id: yearSectionContent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: hscale(20)
+                    spacing: vscale(16)
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: hscale(12)
+
+                        Rectangle {
+                            width: hscale(40)
+                            height: hscale(40)
+                            radius: hscale(8)
+                            color: "#ede9fe"
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "📅"
+                                font.pixelSize: hscale(20)
+                            }
+                        }
+
+                        Column {
+                            Layout.fillWidth: true
+                            spacing: vscale(2)
+
+                            Text {
+                                text: "Financial Years"
+                                font.family: "PT Sans Caption"
+                                font.pixelSize: tscale(16)
+                                font.weight: Font.DemiBold
+                                color: "#1e293b"
+                            }
+
+                            Text {
+                                text: "Add a new FY start year (used in left-side selection lists)."
+                                font.family: "PT Sans Caption"
+                                font.pixelSize: tscale(11)
+                                color: "#64748b"
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: "#e2e8f0"
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: hscale(10)
+
+                        TextField {
+                            id: addYearInput
+                            Layout.preferredWidth: hscale(180)
+                            placeholderText: "YYYY"
+                            font.family: "PT Sans Caption"
+                            font.pixelSize: tscale(13)
+                            selectByMouse: true
+                            inputMethodHints: Qt.ImhDigitsOnly
+                            validator: IntValidator { bottom: 2000; top: 2999 }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: hscale(150)
+                            Layout.preferredHeight: vscale(38)
+                            radius: hscale(8)
+                            color: addYearMouseArea.containsMouse ? "#4338ca" : "#4f46e5"
+                            enabled: addYearInput.text.length === 4
+                            opacity: enabled ? 1.0 : 0.55
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Add Year"
+                                font.family: "PT Sans Caption"
+                                font.pixelSize: tscale(12)
+                                font.weight: Font.DemiBold
+                                color: "#ffffff"
+                            }
+
+                            MouseArea {
+                                id: addYearMouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: parent.enabled
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ForbiddenCursor
+                                onClicked: {
+                                    if (typeof backend !== "undefined" && backend) {
+                                        backend.addFinancialYear(addYearInput.text)
+                                        addYearInput.text = ""
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             
             // Database Migration Section
             Rectangle {

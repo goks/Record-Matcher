@@ -609,6 +609,12 @@ Window {
                         mainScreenBusyIndicator.running = false
                         fullScreenLoading.visible = false
                     }
+                    function onFinancialYearAdded(year) {
+                        toast.show("Financial year " + year + " added.", "success")
+                    }
+                    function onFinancialYearAddFailed(error) {
+                        toast.show(error, "warning")
+                    }
                     
                     // Firebase sync handlers (new repository-based)
                     function onSyncProgressUpdated(current, total, itemName, status) {
@@ -917,7 +923,6 @@ Window {
                         anchors.leftMargin: hscale(16)
                         z:1
                     }
-                    
                     // Section divider
                     Rectangle {
                         anchors.left: parent.left
